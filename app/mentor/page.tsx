@@ -30,8 +30,7 @@ const ALL_SUBJECTS = [
 ];
 
 const STUDENTS = [
-  { username: "carmen", name: "Carmen Fernández" },
-  { username: "alvaro", name: "Álvaro Ruiz" }
+  { username: "carmen", name: "Carmen" }
 ];
 
 interface Flashcard {
@@ -57,8 +56,7 @@ export default function MentorPage() {
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const [studentSubjects, setStudentSubjects] = useState<Record<string, string[]>>({
-    carmen: ["geo", "his", "fis", "ing", "len"],
-    alvaro: ["his", "len", "ing", "bio"]
+    carmen: ["geo", "his", "fis", "ing", "len"]
   });
 
   const [msgSubject, setMsgSubject] = useState("geo");
@@ -198,7 +196,7 @@ export default function MentorPage() {
             category: bulkCategory,
             term,
             definition,
-            targetStudents: bulkTarget === "todos" ? ["carmen", "alvaro"] : [bulkTarget]
+            targetStudents: bulkTarget === "todos" ? ["carmen"] : [bulkTarget]
           });
         }
       }
@@ -486,7 +484,7 @@ export default function MentorPage() {
             <div>
               <h2 className="text-xl font-serif text-slate-900 font-bold">Generador Masivo de Flashcards</h2>
               <p className="text-xs text-slate-500 mt-1">
-                Pega una lista de conceptos y definiciones para generar hasta 30 tarjetas de golpe.
+                Pega una lista de conceptos y definiciones para generar tarjetas de golpe.
               </p>
             </div>
 
