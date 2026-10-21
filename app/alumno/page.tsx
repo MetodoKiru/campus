@@ -15,6 +15,7 @@ import {
   Send
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
+import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
 
 interface Flashcard {
   id: string;
@@ -138,7 +139,7 @@ export default function AlumnoPage() {
 
   // Inglés A1 Motor de ejercicios corregido y real
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
-  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: 3, checked: false });
+  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: ENGLISH_A1_DATABASE.length, checked: false });
 
   // SkillCoins Semanales
   const [scData, setScData] = useState({
@@ -296,21 +297,16 @@ export default function AlumnoPage() {
     setupNewQuestion();
   };
 
-  // Corrección real y dinámica de inglés (Calcula aciertos exactos y nota sobre 10)
+  // Corrección basada en el banco central de preguntas de Inglés A1.
   const checkEnglishExercises = (e: React.FormEvent) => {
     e.preventDefault();
-    let hits = 0;
-    const totalQ = 3;
-
-    if (englishAnswers[0]?.trim().toLowerCase() === "is") hits++;
-    if (englishAnswers[1]?.trim().toLowerCase() === "they") hits++;
-    if (englishAnswers[2]?.trim().toLowerCase() === "apple") hits++;
-
-    setEnglishFeedback({
-      score: hits,
-      total: totalQ,
-      checked: true
-    });
+    const questions = ENGLISH_A1_DATABASE;
+    const hits = questions.reduce((count, question, index) => {
+      const given = (englishAnswers[index] || "").trim().toLocaleLowerCase();
+      const expected = question.answer.trim().toLocaleLowerCase();
+      return count + (given === expected ? 1 : 0);
+    }, 0);
+    setEnglishFeedback({ score: hits, total: questions.length, checked: true });
   };
 
   const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId) || SUBJECTS[0];
@@ -725,61 +721,49 @@ export default function AlumnoPage() {
             </div>
 
             <form onSubmit={checkEnglishExercises} className="space-y-4">
-              <div className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-2 text-xs">
-                <p className="font-semibold text-[#45433F]">1. Complete with the correct form of to be:</p>
-                <p className="text-[#6D6962] italic">She ___ a very good student. (am / is / are)</p>
-                <input
-                  type="text"
-                  placeholder="Tu respuesta..."
-                  value={englishAnswers[0] || ""}
-                  onChange={(e) => setEnglishAnswers({ ...englishAnswers, 0: e.target.value })}
-                  className="p-2.5 bg-white border border-[#E7E3DC] rounded-xl w-full max-w-xs focus:outline-none focus:border-[#9A8B76]"
-                  required
-                />
-              </div>
-
-              <div className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-2 text-xs">
-                <p className="font-semibold text-[#45433F]">2. Subject Pronouns:</p>
-                <p className="text-[#6D6962] italic">___ are playing football in the school park. (He / They)</p>
-                <input
-                  type="text"
-                  placeholder="Tu respuesta..."
-                  value={englishAnswers[1] || ""}
-                  onChange={(e) => setEnglishAnswers({ ...englishAnswers, 1: e.target.value })}
-                  className="p-2.5 bg-white border border-[#E7E3DC] rounded-xl w-full max-w-xs focus:outline-none focus:border-[#9A8B76]"
-                  required
-                />
-              </div>
-
-              <div className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-2 text-xs">
-                <p className="font-semibold text-[#45433F]">3. Vocabulary:</p>
-                <p className="text-[#6D6962] italic">An ___ a day keeps the doctor away. (apple / bread)</p>
-                <input
-                  type="text"
-                  placeholder="Tu respuesta..."
-                  value={englishAnswers[2] || ""}
-                  onChange={(e) => setEnglishAnswers({ ...englishAnswers, 2: e.target.value })}
-                  className="p-2.5 bg-white border border-[#E7E3DC] rounded-xl w-full max-w-xs focus:outline-none focus:border-[#9A8B76]"
-                  required
-                />
-              </div>
-
-              {/* Cuadro de resultado corregido dinámicamente */}
+              {ENGLISH_A1_DATABASE.map((question, index) => (
+                <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
+                    <span className="text-[10px] text-[#8D887F]">{question.topic}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {question.options.map((option) => (
+                      <label key={option} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${englishAnswers[index] === option ? "border-[#B9A58A] bg-[#F0E9DE]" : "border-[#E7E3DC] bg-white hover:bg-[#FAF8F5]"}`}>
+                        <input
+                          type="radio"
+                          name={`english-question-${question.id}`}
+                          value={option}
+                          checked={englishAnswers[index] === option}
+                          onChange={() => {
+                            setEnglishAnswers(previous => ({ ...previous, [index]: option }));
+                            setEnglishFeedback(previous => ({ ...previous, checked: false }));
+                          }}
+                          required
+                          className="accent-[#8A775B]"
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {englishFeedback.checked && (
+                    <p className={`text-[11px] font-medium ${englishAnswers[index]?.trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase() ? "text-[#6F765D]" : "text-[#8A6D62]"}`}>
+                      {englishAnswers[index]?.trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase()
+                        ? "Correcto"
+                        : `Respuesta correcta: ${question.answer}`}
+                    </p>
+                  )}
+                </div>
+              ))}
+              <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition">
+                Corregir respuestas
+              </button>
               {englishFeedback.checked && (
-                <div className="p-4 bg-[#F3EEE5] border border-[#E4D8C5] text-[#5B5143] rounded-2xl text-xs font-semibold flex flex-col sm:flex-row items-center justify-between gap-2 shadow-2xs">
-                  <span>Resultado de la corrección:</span>
-                  <span className="text-sm font-bold font-serif">
-                    {englishFeedback.score} / {englishFeedback.total} aciertos (Nota: {((englishFeedback.score / englishFeedback.total) * 10).toFixed(1)} / 10)
-                  </span>
+                <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-[#F7F5F1]">
+                  <p className="text-sm font-semibold text-[#343330]">Resultado: {englishFeedback.score} de {englishFeedback.total}</p>
+                  <p className="text-xs text-[#6D6962] mt-1">Nota: {englishFeedback.total ? ((englishFeedback.score / englishFeedback.total) * 10).toFixed(1) : "0.0"} / 10</p>
                 </div>
               )}
-
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition shadow-xs"
-              >
-                Corregir y calcular nota real
-              </button>
             </form>
           </div>
         )}
