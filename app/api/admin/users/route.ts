@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anon || !service) return NextResponse.json({ error: "Servicio no configurado." }, { status: 503 });
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "Inicia sesión como administradora." }, { status: 401 });
   const authClient = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
