@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   const role = body.role as Role;
   // Students can sign in with username only; this internal alias is not used for email delivery.
   const email = role === "alumno" && !suppliedEmail ? `${username}@alumnos.campus-kiru.invalid` : suppliedEmail;
-  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !/^\d{6}$/.test(password) || !ROLES.includes(role)) {
-    return NextResponse.json({ error: "Nombre, usuario, email, rol o contraseña no válidos. La contraseña debe tener al menos 12 caracteres." }, { status: 400 });
+  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !new RegExp("^[0-9]{6}$").test(password) || !ROLES.includes(role)) {
+    return NextResponse.json({ error: "Nombre, usuario, email, rol o PIN de 6 cifras no válidos." }, { status: 400 });
   }
 
   const { data: duplicate } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
@@ -95,7 +95,7 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
     const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
-    const isSixDigitPin = /^\d{6}$/.test(body.password);
+    const isSixDigitPin = new RegExp("^[0-9]{6}$").test(body.password);
     if (!isSixDigitPin) return NextResponse.json({ error: "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
     updates.password = body.password;
   }
