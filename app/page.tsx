@@ -93,13 +93,10 @@ export default function HomePage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F7F5F0] px-4 py-10 text-slate-800">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-100/60 blur-3xl" />
-        <div className="absolute -bottom-28 -right-20 h-80 w-80 rounded-full bg-amber-100/50 blur-3xl" />
-      </div>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F3EFE6] px-4 py-10 text-[#292D27]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(226,218,200,0.35),_transparent_58%)]" />
 
-      <section className="relative w-full max-w-md rounded-[2rem] border border-white/80 bg-white/90 p-7 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-10">
+      <section className="relative w-full max-w-md rounded-[2rem] border border-[#E5DED0] bg-[#FBF9F4] p-7 shadow-[0_18px_55px_rgba(67,58,42,0.08)] sm:p-10">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 font-serif text-xl font-bold text-white shadow-md">
             K
@@ -137,7 +134,7 @@ export default function HomePage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Tu nombre de usuario"
-              className="w-full rounded-xl border border-slate-200 bg-[#FCFBF8] px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10"
+              className="w-full rounded-xl border border-slate-200 bg-[#F7F3EB] px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10"
               required
             />
           </div>
