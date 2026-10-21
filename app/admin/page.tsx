@@ -266,10 +266,13 @@ export default function AdminPage() {
   };
 
   const handleResetPassword = async (user: UserAccount) => {
-    const nextPassword = window.prompt(`Nueva contraseña provisional para @${user.username} (mínimo 12 caracteres):`);
+    const isStudent = user.role === "alumno";
+    const nextPassword = window.prompt(isStudent
+      ? `Nuevo PIN de 6 cifras para @${user.username} (solo números):`
+      : `Nueva contraseña para @${user.username} (mínimo 12 caracteres):`);
     if (nextPassword === null) return;
-    if (nextPassword.length < 12) {
-      setMsg({ text: "La contraseña debe tener al menos 12 caracteres.", type: "error" });
+    if (isStudent ? !/^\\d{6}$/.test(nextPassword) : nextPassword.length < 12) {
+      setMsg({ text: isStudent ? "El PIN del alumno debe tener exactamente 6 cifras." : "La contraseña debe tener al menos 12 caracteres.", type: "error" });
       return;
     }
     try {
