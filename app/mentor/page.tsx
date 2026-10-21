@@ -19,6 +19,7 @@ import {
 import { ENGLISH_A1_DATABASE, EnglishQuestion, EnglishConfig } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
+import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
 
 const ALL_SUBJECTS = [
   { id: "geo", name: "Geografía" },
@@ -28,10 +29,6 @@ const ALL_SUBJECTS = [
   { id: "ing", name: "Inglés" },
   { id: "qui", name: "Química" },
   { id: "bio", name: "Biología" }
-];
-
-const STUDENTS = [
-  { username: "carmen", name: "Carmen" }
 ];
 
 interface Flashcard {
@@ -74,64 +71,62 @@ export default function MentorPage() {
   }, [router]);
 
   const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "skillcoins">("asignaturas");
-  const [selectedStudent, setSelectedStudent] = useState<string>("carmen");
+  const [students, setStudents] = useState<Array<{ id: string; username: string; name: string }>>([]);
+  const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const [studentSubjects, setStudentSubjects] = useState<Record<string, string[]>>({
-    carmen: ["geo", "his", "fis", "ing", "len"]
-  });
+  const [studentSubjects, setStudentSubjects] = useState<Record<string, string[]>>({});
 
   const [msgSubject, setMsgSubject] = useState("geo");
-  const [msgTarget, setMsgTarget] = useState("carmen");
+  const [msgTarget, setMsgTarget] = useState("");
   const [msgText, setMsgText] = useState("");
   const [msgLink, setMsgLink] = useState("");
 
   const [bulkCategory, setBulkCategory] = useState("Geografía");
   const [bulkText, setBulkText] = useState("");
-  const [bulkTarget, setBulkTarget] = useState("todos");
+  const [bulkTarget, setBulkTarget] = useState("");
 
   const [englishConfig, setEnglishConfig] = useState<EnglishConfig>({
-    studentUsername: "carmen",
-    selectedUnits: ["Unit 1: Introductions & To Be", "Unit 2: Daily Routines & Present Simple"],
+    studentUsername: "",
+    selectedUnits: [],
     selectedCategory: "Todas",
-    difficulty: "facil",
-    questionCount: 4
+    difficulty: "todas",
+    questionCount: 20
   });
   const [previewQuestions, setPreviewQuestions] = useState<EnglishQuestion[]>([]);
 
-  const [studentSC, setStudentSC] = useState({
-    estudios: 8,
-    compromiso: 9,
-    organizacion: 7,
-    bienestar: 9
-  });
+  const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
 
   useEffect(() => {
-    const rawSubjs = localStorage.getItem("kiru_mentor_student_subjects");
-    if (rawSubjs) {
-      try { setStudentSubjects(JSON.parse(rawSubjs)); } catch (e) {}
-    }
-
-    const rawEng = localStorage.getItem(`kiru_english_cfg_${selectedStudent}`);
-    if (rawEng) {
+    let active = true;
+    const loadAssignedStudents = async () => {
       try {
-        setEnglishConfig(JSON.parse(rawEng));
-      } catch (e) {}
-    }
-
-    const rawSC = localStorage.getItem(`kiru_sc_${selectedStudent}`);
-    if (rawSC) {
-      try {
-        const parsed = JSON.parse(rawSC);
-        setStudentSC({
-          estudios: parsed.estudios ?? 8,
-          compromiso: parsed.compromiso ?? 9,
-          organizacion: parsed.organizacion ?? 7,
-          bienestar: parsed.bienestar ?? 9
-        });
-      } catch (e) {}
-    }
-  }, [selectedStudent]);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: links, error: linkError } = await supabase.from("student_mentors").select("student_id").eq("mentor_id", user.id);
+        if (linkError) throw linkError;
+        const ids = Array.from(new Set((links || []).map((link: any) => link.student_id)));
+        if (!ids.length) { if (active) setStudents([]); return; }
+        const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,full_name,username").in("id", ids);
+        if (profileError) throw profileError;
+        if (!active) return;
+        const assigned = (profiles || []).filter((p: any) => p.username).map((p: any) => ({ id: p.id, username: p.username, name: p.full_name }));
+        setStudents(assigned);
+        if (assigned.length && !selectedStudent) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); setEnglishConfig((current) => ({ ...current, studentUsername: assigned[0].username })); }
+        const [activities, settings, progress] = await Promise.all([getKiruRecords<any>("activity"), getKiruRecords<any>("settings"), getKiruRecords<any>("progress")]);
+        if (!active) return;
+        const subjects: Record<string, string[]> = {};
+        activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
+        setStudentSubjects(subjects);
+        const cfg = settings.map((r) => r.data).find((d) => d?.kind === "english_config" && assigned.some((s) => s.id === d.studentId));
+        if (cfg) { const student = assigned.find((s) => s.id === cfg.studentId); setEnglishConfig({ ...cfg.config, studentUsername: student?.username || "" }); }
+        const sc = progress.map((r) => r.data).find((d) => d?.module === "skillcoins" && assigned.some((s) => s.id === d.studentId));
+        if (sc?.scores) setStudentSC({ estudios: Number(sc.scores.estudios) || 0, compromiso: Number(sc.scores.compromiso) || 0, organizacion: Number(sc.scores.organizacion) || 0, bienestar: Number(sc.scores.bienestar) || 0 });
+      } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
+    };
+    void loadAssignedStudents();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let pool = ENGLISH_A1_DATABASE;
@@ -148,117 +143,59 @@ export default function MentorPage() {
       pool = pool.filter((q) => q.difficulty === englishConfig.difficulty);
     }
 
-    if (pool.length === 0) pool = ENGLISH_A1_DATABASE;
-
     setPreviewQuestions(pool.slice(0, englishConfig.questionCount));
   }, [englishConfig]);
 
-  const handleToggleSubject = (subjectId: string) => {
+  const handleToggleSubject = async (subjectId: string) => {
+    const student = students.find((item) => item.username === selectedStudent);
+    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
     const current = studentSubjects[selectedStudent] || [];
-    const updated = current.includes(subjectId)
-      ? current.filter((id) => id !== subjectId)
-      : [...current, subjectId];
-
-    const nextState = { ...studentSubjects, [selectedStudent]: updated };
-    setStudentSubjects(nextState);
-    localStorage.setItem("kiru_mentor_student_subjects", JSON.stringify(nextState));
-
-    setSavedMsg("Asignaturas actualizadas para este alumno.");
-    setTimeout(() => setSavedMsg(null), 3000);
+    const updated = current.includes(subjectId) ? current.filter((id) => id !== subjectId) : [...current, subjectId];
+    setStudentSubjects((previous) => ({ ...previous, [selectedStudent]: updated }));
+    try { await saveKiruRecord("activity", `subject_config_${student.id}`, { kind: "subject_config", studentId: student.id, subjects: updated }); setSavedMsg("Asignaturas guardadas en el sistema."); }
+    catch { setSavedMsg("No se pudieron guardar las asignaturas."); }
   };
 
-  const handleSendSubjectMessage = (e: React.FormEvent) => {
+  const handleSendSubjectMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!msgText.trim()) return;
-
-    const raw = localStorage.getItem("kiru_mentor_subject_messages");
-    let list: MentorSubjectMessage[] = [];
-    if (raw) {
-      try { list = JSON.parse(raw); } catch (err) {}
-    }
-
-    const targets = msgTarget === "todos" ? STUDENTS.map((s) => s.username) : [msgTarget];
-    const now = new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
-
-    targets.forEach((st) => {
-      list.unshift({
-        id: `${Date.now()}_${st}`,
-        studentId: st,
-        subjectId: msgSubject,
-        text: msgText.trim(),
-        link: msgLink.trim() || undefined,
-        date: now
-      });
-    });
-
-    localStorage.setItem("kiru_mentor_subject_messages", JSON.stringify(list));
-    setMsgText("");
-    setMsgLink("");
-    setSavedMsg("Recomendación enviada y publicada en la asignatura del alumno.");
-    setTimeout(() => setSavedMsg(null), 3500);
+    const targets = msgTarget === "todos" ? students : students.filter((student) => student.username === msgTarget);
+    if (!targets.length) { setSavedMsg("No hay alumnos asignados a los que enviar el mensaje."); return; }
+    try {
+      for (const student of targets) await saveKiruRecord("message", `mentor_message_${Date.now()}_${student.id}`, { studentId: student.id, studentUsername: student.username, subjectId: msgSubject, text: msgText.trim(), link: msgLink.trim() || undefined, date: new Date().toISOString() }, student.id);
+      setMsgText(""); setMsgLink(""); setSavedMsg("Recomendación guardada y enviada a los alumnos seleccionados.");
+    } catch { setSavedMsg("No se pudo guardar el mensaje. Comprueba la asignación y los permisos."); }
   };
 
-  const handleCreateBulkFlashcards = (e: React.FormEvent) => {
+  const handleCreateBulkFlashcards = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkText.trim()) return;
-
-    const lines = bulkText.split("\n").filter((l) => l.trim().length > 0);
-    const newCards: Flashcard[] = [];
-
-    lines.forEach((line, index) => {
-      let parts = line.split(":");
-      if (parts.length < 2) parts = line.split(" - ");
-
-      if (parts.length >= 2) {
-        const term = parts[0].trim();
-        const definition = parts.slice(1).join(":").trim();
-        if (term && definition) {
-          newCards.push({
-            id: `${Date.now()}_${index}`,
-            category: bulkCategory,
-            term,
-            definition,
-            targetStudents: bulkTarget === "todos" ? ["carmen"] : [bulkTarget]
-          });
-        }
-      }
-    });
-
-    if (newCards.length === 0) {
-      alert("Por favor, usa el formato: Término - Definición (un concepto por línea)");
-      return;
-    }
-
-    const rawExisting = localStorage.getItem("kiru_custom_flashcards");
-    let existing: Flashcard[] = [];
-    if (rawExisting) {
-      try { existing = JSON.parse(rawExisting); } catch (e) {}
-    }
-
-    const updated = [...newCards, ...existing];
-    localStorage.setItem("kiru_custom_flashcards", JSON.stringify(updated));
-
-    setBulkText("");
-    setSavedMsg(`Se han generado y enviado ${newCards.length} flashcards con éxito.`);
-    setTimeout(() => setSavedMsg(null), 4000);
+    const targets = bulkTarget === "todos" ? students : students.filter((student) => student.username === bulkTarget);
+    if (!targets.length) { setSavedMsg("Selecciona un alumno asignado."); return; }
+    const lines = bulkText.split("\\n").filter((line) => line.trim());
+    const cards = lines.map((line) => { let parts = line.split(":"); if (parts.length < 2) parts = line.split(" - "); return parts.length >= 2 ? { term: parts[0].trim(), definition: parts.slice(1).join(":").trim() } : null; }).filter((card): card is { term: string; definition: string } => !!card?.term && !!card.definition);
+    if (!cards.length) { alert("Usa el formato: Término - Definición (un concepto por línea)"); return; }
+    try {
+      for (const student of targets) for (const [index, card] of cards.entries()) await saveKiruRecord("activity", `flashcard_${Date.now()}_${student.id}_${index}`, { kind: "flashcard", id: `${Date.now()}_${index}`, studentId: student.id, category: bulkCategory, ...card }, student.id);
+      setBulkText(""); setSavedMsg(`Se han guardado ${cards.length * targets.length} flashcards en Supabase.`);
+    } catch { setSavedMsg("No se pudieron guardar las flashcards."); }
   };
 
-  const handleSaveEnglishConfig = (e: React.FormEvent) => {
+  const handleSaveEnglishConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem(`kiru_english_cfg_${selectedStudent}`, JSON.stringify(englishConfig));
-    setSavedMsg(`Configuración de Inglés A1 guardada para @${selectedStudent}.`);
-    setTimeout(() => setSavedMsg(null), 3000);
+    const student = students.find((item) => item.username === selectedStudent);
+    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
+    try { await saveKiruRecord("settings", `english_config_${student.id}`, { kind: "english_config", studentId: student.id, config: englishConfig }, student.id); setSavedMsg("Configuración de Inglés A1 guardada en Supabase."); }
+    catch { setSavedMsg("No se pudo guardar la configuración de Inglés A1."); }
   };
 
-  const handleUpdateSC = (field: "estudios" | "compromiso" | "organizacion" | "bienestar", val: number) => {
+  const handleUpdateSC = async (field: "estudios" | "compromiso" | "organizacion" | "bienestar", val: number) => {
+    const student = students.find((item) => item.username === selectedStudent);
+    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
     const updated = { ...studentSC, [field]: Math.max(0, Math.min(10, val)) };
     setStudentSC(updated);
-    localStorage.setItem(`kiru_sc_${selectedStudent}`, JSON.stringify({
-      ...updated,
-      updatedAt: new Date().toLocaleDateString("es-ES", { day: "numeric", month: "numeric", year: "2-digit" })
-    }));
-    setSavedMsg(`SkillCoins de @${selectedStudent} actualizadas.`);
-    setTimeout(() => setSavedMsg(null), 2500);
+    try { await saveKiruRecord("progress", `skillcoins_${student.id}`, { module: "skillcoins", studentId: student.id, scores: updated, updatedAt: new Date().toISOString() }, student.id); setSavedMsg("SkillCoins guardadas en Supabase."); }
+    catch { setSavedMsg("No se pudieron guardar las SkillCoins."); }
   };
 
   const availableUnits = Array.from(new Set(ENGLISH_A1_DATABASE.map((q) => q.unit)));
@@ -311,7 +248,7 @@ export default function MentorPage() {
           </div>
 
           <div className="flex gap-2">
-            {STUDENTS.map((s) => (
+            {students.map((s) => (
               <button
                 key={s.username}
                 onClick={() => setSelectedStudent(s.username)}
