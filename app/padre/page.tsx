@@ -18,7 +18,7 @@ import SkillCoinsChart from "@/components/SkillCoinsChart";
 interface Child {
   name: string;
   username: string;
-  avatarUrl: string;
+  avatarUrl?: string;
   level: string;
 }
 
@@ -50,20 +50,7 @@ interface PaymentRecord {
   payLink: string;
 }
 
-const FALLBACK_CHILDREN: Child[] = [
-  {
-    name: "Carmen",
-    username: "carmen",
-    avatarUrl: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80",
-    level: "Explorador (1)"
-  },
-  {
-    name: "Álvaro",
-    username: "alvaro",
-    avatarUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
-    level: "Explorador (1)"
-  }
-];
+const FALLBACK_CHILDREN: Child[] = [];
 
 export default function PadrePage() {
   const router = useRouter();
@@ -101,7 +88,7 @@ export default function PadrePage() {
           const mapped = students.map((s: any) => ({
             name: s.name.split(" ")[0], // Extrae el primer nombre
             username: s.username,
-            avatarUrl: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80",
+            avatarUrl: "",
             level: "Explorador (1)"
           }));
           setChildrenList(mapped);
@@ -296,11 +283,9 @@ export default function PadrePage() {
                 </div>
 
                 <div className="relative">
-                  <img
-                    src={child.avatarUrl}
-                    alt={child.name}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm ring-1 ring-slate-200"
-                  />
+                  <div aria-label={child.name} className="w-14 h-14 rounded-full border border-[#E7D8C4] bg-[#F5EBDD] text-[#805D3B] flex items-center justify-center font-serif text-lg font-bold">
+                    {child.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
                 </div>
               </div>
             ))}
@@ -375,11 +360,9 @@ export default function PadrePage() {
 
           <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <img
-                src={selectedChild.avatarUrl}
-                alt={selectedChild.name}
-                className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm ring-1 ring-slate-200"
-              />
+              <div aria-label={selectedChild.name} className="w-12 h-12 rounded-full border border-[#E7D8C4] bg-[#F5EBDD] text-[#805D3B] flex items-center justify-center font-serif font-bold">
+                {selectedChild.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+              </div>
               <div>
                 <h2 className="font-serif text-lg font-bold text-slate-900 leading-tight">{selectedChild.name}</h2>
                 <span className="text-[11px] text-slate-500 font-medium">{selectedChild.level}</span>

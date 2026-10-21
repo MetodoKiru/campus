@@ -70,16 +70,9 @@ interface PaymentRecord {
   payLink: string;
 }
 
-const DEFAULT_USERS: UserAccount[] = [
-  { id: "1", name: "Carmen Fernández", username: "carmen", password: "carmen123", role: "alumno", createdAt: "2026-08-20", assignedParent: "familia" },
-  { id: "2", name: "Tutor Principal", username: "mentor", password: "mentor123", role: "mentor", createdAt: "2026-08-20" },
-  { id: "3", name: "Familia Fernández", username: "familia", password: "familia123", role: "padre", createdAt: "2026-08-20" },
-  { id: "4", name: "Administrador General", username: "admin", password: "admin123", role: "admin", createdAt: "2026-08-20" },
-];
-
-const DEFAULT_LINKS: MentorStudentLink[] = [
-  { studentUsername: "carmen", mentorUsername: "mentor" }
-];
+// No demo accounts or passwords are bundled in the administration panel.
+const DEFAULT_USERS: UserAccount[] = [];
+const DEFAULT_LINKS: MentorStudentLink[] = [];
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos">("usuarios");
@@ -160,19 +153,7 @@ export default function AdminPage() {
         console.error(e);
       }
     } else {
-      const initialNotices: Notice[] = [
-        {
-          id: "n1",
-          title: "Festivo Nacional",
-          targetStudent: "todos",
-          date: "12 de Octubre",
-          content: "No habrá sesiones lectivas durante esta jornada festiva.",
-          linkUrl: "https://calendario-laboral.com",
-          linkTitle: "Consultar calendario de festivos"
-        }
-      ];
-      setNotices(initialNotices);
-      localStorage.setItem("kiru_admin_notices", JSON.stringify(initialNotices));
+      setNotices([]);
     }
 
     // Cargar documentos
@@ -184,25 +165,7 @@ export default function AdminPage() {
         console.error(e);
       }
     } else {
-      const initialDocs: DocumentItem[] = [
-        {
-          id: "d1",
-          title: "Propuesta Personalizada Método Kiru",
-          targetStudent: "carmen",
-          type: "Propuesta",
-          requiresAcceptance: false
-        },
-        {
-          id: "d2",
-          title: "Normas de Funcionamiento y Convivencia",
-          targetStudent: "todos",
-          type: "Normas",
-          requiresAcceptance: true,
-          accepted: false
-        }
-      ];
-      setDocuments(initialDocs);
-      localStorage.setItem("kiru_admin_docs", JSON.stringify(initialDocs));
+      setDocuments([]);
     }
 
     // Cargar pagos
@@ -214,12 +177,7 @@ export default function AdminPage() {
         console.error(e);
       }
     } else {
-      const initPays: PaymentRecord[] = [
-        { id: "p1", studentUsername: "carmen", concept: "Mentoría agosto", amount: 75, dueDate: "15/08/2026", status: "Pagado", payLink: "https://bizum.es" },
-        { id: "p2", studentUsername: "carmen", concept: "Mentoría septiembre", amount: 75, dueDate: "15/09/2026", status: "Pendiente", payLink: "https://bizum.es" }
-      ];
-      setPayments(initPays);
-      localStorage.setItem("kiru_admin_payments", JSON.stringify(initPays));
+      setPayments([]);
     }
   }, []);
 
@@ -513,7 +471,16 @@ export default function AdminPage() {
             <p className="text-[11px] sm:text-xs text-slate-500">Gestión general del campus educativo</p>
           </div>
         </div>
-        <Link 
+        <div className="flex items-center gap-2">
+          <Link
+            href="/previsualizacion"
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span className="hidden sm:inline">Previsualizar campus</span>
+            <span className="sm:hidden">Vista previa</span>
+          </Link>
+          <Link 
           href="/" 
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center shadow-sm"
@@ -522,7 +489,8 @@ export default function AdminPage() {
             <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
             <line x1="12" y1="2" x2="12" y2="12" />
           </svg>
-        </Link>
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
