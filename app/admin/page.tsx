@@ -152,82 +152,54 @@ export default function AdminPage() {
   const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
 
   useEffect(() => {
-    // Cargar usuarios reales desde Supabase.
-    const loadUsers = async () => {
+    let active = true;
+    const loadAdminData = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) return;
-        const response = await fetch("/api/admin/users", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: "no-store",
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios.");
-        setUsers((result.users || []).map((u: any) => ({
-          id: u.id, name: u.full_name, username: u.username, role: u.role,
-          createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "",
-        })));
-      } catch (error) {
-        setMsg({ text: error instanceof Error ? error.message : "Error cargando usuarios.", type: "error" });
-      }
+        const [userResponse, mentorLinks, guardianLinks, noticeRows, documentRows, paymentRows] = await Promise.all([
+          (async () => { const { data: { session } } = await supabase.auth.getSession(); if (!session?.access_token) throw new Error("Sesión caducada."); const response = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios."); return result.users || []; })(),
+          supabase.from("student_mentors").select("student_id,mentor_id"),
+          supabase.from("student_guardians").select("student_id,guardian_id"),
+          supabase.from("kiru_notices").select("*").order("published_at", { ascending: false }),
+          supabase.from("kiru_documents").select("*").order("created_at", { ascending: false }),
+          supabase.from("kiru_payments").select("*").order("created_at", { ascending: false }),
+        ]);
+        if (mentorLinks.error) throw mentorLinks.error;
+        if (guardianLinks.error) throw guardianLinks.error;
+        if (noticeRows.error) throw noticeRows.error;
+        if (documentRows.error) throw documentRows.error;
+        if (paymentRows.error) throw paymentRows.error;
+        if (!active) return;
+        const mappedUsers: UserAccount[] = userResponse.map((u: any) => ({ id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "" }));
+        setUsers(mappedUsers);
+        const usernameById = new Map(mappedUsers.map((u) => [u.id, u.username]));
+        setLinks((mentorLinks.data || []).map((link: any) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
+        setNotices((noticeRows.data || []).map((n: any) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? usernameById.get(n.target_student_id) || "" : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url, linkTitle: n.link_title, fileName: n.attachment_path?.split("/").pop() })));
+        setDocuments((documentRows.data || []).map((d: any) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? usernameById.get(d.target_student_id) || "" : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path, accepted: false })));
+        setPayments((paymentRows.data || []).map((p: any) => ({ id: p.id, studentUsername: usernameById.get(p.student_id) || "", concept: p.concept, amount: p.amount_cents / 100, dueDate: p.due_date || "", status: p.status === "paid" ? "Pagado" : "Pendiente", payLink: p.payment_url || "" })));
+      } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron cargar los datos.", type: "error" }); }
     };
-    void loadUsers();
-
-    // Cargar enlaces mentor de forma estricta individual
-    const savedLinks = localStorage.getItem("kiru_mentor_links");
-    if (savedLinks) {
-      try {
-        setLinks(JSON.parse(savedLinks));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    // Cargar avisos
-    const savedNotices = localStorage.getItem("kiru_admin_notices");
-    if (savedNotices) {
-      try {
-        setNotices(JSON.parse(savedNotices));
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      setNotices([]);
-    }
-
-    // Cargar documentos
-    const savedDocs = localStorage.getItem("kiru_admin_docs");
-    if (savedDocs) {
-      try {
-        setDocuments(JSON.parse(savedDocs));
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      setDocuments([]);
-    }
-
-    // Cargar pagos
-    const savedPayments = localStorage.getItem("kiru_admin_payments");
-    if (savedPayments) {
-      try {
-        setPayments(JSON.parse(savedPayments));
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      setPayments([]);
-    }
+    void loadAdminData();
+    return () => { active = false; };
   }, []);
 
-  const saveToStorage = (updatedUsers: UserAccount[]) => {
-    setUsers(updatedUsers);
-    localStorage.setItem("kiru_custom_users", JSON.stringify(updatedUsers));
-  };
+  const saveToStorage = (updatedUsers: UserAccount[]) => { setUsers(updatedUsers); };
 
-  const saveLinksToStorage = (updatedLinks: MentorStudentLink[]) => {
+  const saveLinksToStorage = async (updatedLinks: MentorStudentLink[]) => {
     setLinks(updatedLinks);
-    localStorage.setItem("kiru_mentor_links", JSON.stringify(updatedLinks));
+    try {
+      const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,username");
+      if (profileError) throw profileError;
+      const idByUsername = new Map((profiles || []).map((profile: any) => [profile.username, profile.id]));
+      const { data: existing, error: existingError } = await supabase.from("student_mentors").select("student_id,mentor_id");
+      if (existingError) throw existingError;
+      for (const row of existing || []) {
+        const { error } = await supabase.from("student_mentors").delete().eq("student_id", row.student_id).eq("mentor_id", row.mentor_id);
+        if (error) throw error;
+      }
+      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row) => row.student_id && row.mentor_id);
+      if (rows.length) { const { error } = await supabase.from("student_mentors").insert(rows); if (error) throw error; }
+      setMsg({ text: "Asignaciones guardadas en Supabase.", type: "success" });
+    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
   };
 
   // Subida de PDF en Avisos
