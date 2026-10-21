@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import { 
@@ -78,6 +79,7 @@ const DEFAULT_USERS: UserAccount[] = [];
 const DEFAULT_LINKS: MentorStudentLink[] = [];
 
 export default function AdminPage() {
+  const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   useEffect(() => {
