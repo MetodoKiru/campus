@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ENGLISH_A1_DATABASE, EnglishQuestion, EnglishConfig } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
+import { supabase } from "@/lib/supabase";
 
 const ALL_SUBJECTS = [
   { id: "geo", name: "Geografía" },
@@ -51,6 +52,27 @@ interface MentorSubjectMessage {
 }
 
 export default function MentorPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    const verifyRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { router.replace("/"); return; }
+        const { data: profile, error } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).single();
+        if (error || !profile?.is_active || profile.role !== "mentor" || user.app_metadata?.kiru_role !== "mentor") {
+          router.replace("/");
+          return;
+        }
+        if (alive) setAuthorized(true);
+      } catch { router.replace("/"); }
+      finally { if (alive) setAuthChecking(false); }
+    };
+    void verifyRole();
+    return () => { alive = false; };
+  }, [router]);
+
   const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "skillcoins">("asignaturas");
   const [selectedStudent, setSelectedStudent] = useState<string>("carmen");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -240,6 +262,9 @@ export default function MentorPage() {
   };
 
   const availableUnits = Array.from(new Set(ENGLISH_A1_DATABASE.map((q) => q.unit)));
+
+  if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
+  if (!authorized) return null;
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-[#1E293B] font-sans pb-16">
