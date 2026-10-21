@@ -28,10 +28,12 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
   const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const suppliedEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
   const role = body.role as Role;
-  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || !ROLES.includes(role)) {
+  // Students can sign in with username only; this internal alias is not used for email delivery.
+  const email = role === "alumno" && !suppliedEmail ? `${username}@alumnos.campus-kiru.invalid` : suppliedEmail;
+  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || password.length < 12 || !ROLES.includes(role)) {
     return NextResponse.json({ error: "Nombre, usuario, email, rol o contraseña no válidos. La contraseña debe tener al menos 12 caracteres." }, { status: 400 });
   }
 
