@@ -288,40 +288,41 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdateUser = (e: React.FormEvent) => {
+  const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-
-    if (!editingUser.name.trim() || !editingUser.username.trim() || !editingUser.password?.trim()) {
-      setMsg({ text: "Los campos no pueden quedar vacíos.", type: "error" });
+    if (!editingUser.name.trim() || !editingUser.username.trim()) {
+      setMsg({ text: "Nombre y usuario son obligatorios.", type: "error" });
       return;
     }
-
     const cleanUsername = editingUser.username.trim().toLowerCase();
     const existsOther = users.some((u) => u.id !== editingUser.id && u.username.toLowerCase() === cleanUsername);
     if (existsOther) {
       setMsg({ text: "Ese nombre de usuario ya pertenece a otra cuenta.", type: "error" });
       return;
     }
-
-    const oldUsername = users.find(u => u.id === editingUser.id)?.username;
-    const updated = users.map((u) =>
-      u.id === editingUser.id ? { ...editingUser, username: cleanUsername } : u
-    );
-
-    if (oldUsername && oldUsername !== cleanUsername) {
-      const updatedLinks = links.map(l => {
-        if (l.studentUsername === oldUsername) return { ...l, studentUsername: cleanUsername };
-        if (l.mentorUsername === oldUsername) return { ...l, mentorUsername: cleanUsername };
-        return l;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ userId: editingUser.id, fullName: editingUser.name.trim(), username: cleanUsername, role: editingUser.role }),
       });
-      saveLinksToStorage(updatedLinks);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios.");
+      const oldUsername = users.find((u) => u.id === editingUser.id)?.username;
+      const updated = users.map((u) => u.id === editingUser.id ? { ...editingUser, username: cleanUsername } : u);
+      if (oldUsername && oldUsername !== cleanUsername) {
+        const updatedLinks = links.map((l) => l.studentUsername === oldUsername ? { ...l, studentUsername: cleanUsername } : l.mentorUsername === oldUsername ? { ...l, mentorUsername: cleanUsername } : l);
+        saveLinksToStorage(updatedLinks);
+      }
+      setUsers(updated);
+      setEditingUser(null);
+      setMsg({ text: `Usuario «${cleanUsername}» actualizado en Supabase.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "Error guardando cambios.", type: "error" });
     }
-
-    saveToStorage(updated);
-    setEditingUser(null);
-    setMsg({ text: `Usuario «${cleanUsername}» actualizado con éxito.`, type: "success" });
-    setTimeout(() => setMsg(null), 4000);
   };
 
   const handleDeleteUser = (id: string, userToDelete: string) => {
