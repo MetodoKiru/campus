@@ -447,7 +447,7 @@ export default function AdminPage() {
       if (uploadedPdf && !targets.length) throw new Error("Para subir un PDF, selecciona al menos un alumno.");
       const rows: any[] = [];
       if (uploadedPdf) { for (const student of targets) { const stored = await uploadKiruPdf(uploadedPdf, student.id, "documents"); rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student.id, storage_path: stored.path, file_name: stored.name, file_size: stored.size, requires_acceptance: requiresSign, created_by: user.id }); } }
-      else { const selected = docTarget === "todos" ? [null] : targets; for (const student of selected) rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student?.id || null, storage_path: "no-file", file_name: "", file_size: null, requires_acceptance: requiresSign, created_by: user.id }); }
+      else { const selected = docTarget === "todos" ? targets : targets; if (!selected.length) throw new Error("No hay alumnos a los que asignar el documento."); for (const student of selected) rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student.id, storage_path: "no-file", file_name: "", file_size: null, requires_acceptance: requiresSign, created_by: user.id }); }
       const { error } = await supabase.from("kiru_documents").insert(rows); if (error) throw error;
       setDocTitle(""); setRequiresSign(false); setUploadedPdf(null);
       const { data } = await supabase.from("kiru_documents").select("*").order("created_at", { ascending: false });
