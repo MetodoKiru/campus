@@ -165,11 +165,11 @@ export default function AlumnoPage() {
 
   // SkillCoins Semanales
   const [scData, setScData] = useState({
-    estudios: 8,
-    compromiso: 9,
-    organizacion: 7,
-    bienestar: 9,
-    updatedAt: "12/5/26"
+    estudios: 0,
+    compromiso: 0,
+    organizacion: 0,
+    bienestar: 0,
+    updatedAt: "Sin datos"
   });
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
@@ -188,7 +188,7 @@ export default function AlumnoPage() {
           .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
           .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
         setAllCards(cards);
-        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string") as MentorMessage[]);
+        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value: any) => ({ ...value, studentId: value.studentUsername || value.studentId, date: value.date ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
         const latestSkillCoins = progressRecords.map((record) => record.data).find((value) => value?.module === "skillcoins");
         if (latestSkillCoins?.scores) setScData({
           estudios: Number(latestSkillCoins.scores.estudios) || 0,
