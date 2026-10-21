@@ -554,14 +554,14 @@ export default function MentorPage() {
                   <label className="font-bold uppercase tracking-wider text-[#77736B] text-[11px]">
                     Cantidad de Ejercicios
                   </label>
-                  <span className="font-bold text-[#292825]">{englishConfig.questionCount} ejercicios</span>
+                  <span className="font-bold text-[#292825]">{englishConfig.questionCount} ejercicios · máximo {ENGLISH_A1_DATABASE.length}</span>
                 </div>
                 <input
                   type="range"
                   min={1}
-                  max={20}
-                  value={englishConfig.questionCount}
-                  onChange={(e) => setEnglishConfig({ ...englishConfig, questionCount: Number(e.target.value) })}
+                  max={ENGLISH_A1_DATABASE.length}
+                  value={Math.min(ENGLISH_A1_DATABASE.length, englishConfig.questionCount)}
+                  onChange={(e) => setEnglishConfig({ ...englishConfig, questionCount: Math.max(1, Math.min(ENGLISH_A1_DATABASE.length, Number(e.target.value))) })}
                   className="w-full accent-slate-900 cursor-pointer"
                 />
               </div>
