@@ -412,7 +412,7 @@ export default function AlumnoPage() {
               <span className="text-[11px] font-bold text-[#8D887F] uppercase tracking-wider">Bienvenida</span>
               <h2 className="text-2xl font-serif text-[#292825] font-bold">¡Hola, {currentStudentName}!</h2>
               <p className="text-xs text-[#6D6962] max-w-xl leading-relaxed">
-                Tienes disponibles tus recursos didácticos: vídeos y mapas interactivos en <strong>1.1. Asignaturas</strong>, el sistema de <strong>Flashcards</strong>, el módulo de <strong>Inglés A1</strong> y tus <strong>SkillCoins semanales</strong>.
+                ¿Qué quieres trabajar hoy?
               </p>
             </div>
 
