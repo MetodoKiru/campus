@@ -17,6 +17,7 @@ import {
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
+import { supabase } from "@/lib/supabase";
 
 interface Flashcard {
   id: string;
@@ -111,6 +112,31 @@ const SUBJECTS = [
 ];
 
 export default function AlumnoPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    const verifyRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { router.replace("/"); return; }
+        const { data: profile, error } = await supabase.from("profiles").select("id,full_name,username,role,is_active").eq("id", user.id).single();
+        if (error || !profile?.is_active || profile.role !== "alumno" || user.app_metadata?.kiru_role !== "alumno") {
+          router.replace("/");
+          return;
+        }
+        if (alive) {
+          setCurrentStudentName(profile.full_name);
+          setCurrentUsername(profile.username || "");
+          setAuthorized(true);
+        }
+      } catch { router.replace("/"); }
+      finally { if (alive) setAuthChecking(false); }
+    };
+    void verifyRole();
+    return () => { alive = false; };
+  }, [router]);
+
   const router = useRouter();
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
@@ -340,6 +366,9 @@ export default function AlumnoPage() {
 
   const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId) || SUBJECTS[0];
   const activeSubjectMessages = mentorMessages.filter((m) => m.subjectId === selectedSubjectId);
+
+  if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-[#6D6962]">Comprobando permisos…</main>;
+  if (!authorized) return null;
 
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] font-sans pb-16">
