@@ -70,17 +70,6 @@ export default function HomePage() {
         throw new Error("El perfil no tiene un rol válido. Contacta con administración.");
       }
 
-      // Store only the minimum profile data; never store passwords or tokens in localStorage.
-      localStorage.setItem(
-        "kiru_current_user",
-        JSON.stringify({
-          id: profile.id,
-          name: profile.full_name,
-          username: username.trim().toLowerCase(),
-          role: profile.role,
-        })
-      );
-
       if (profile.role === "alumno") router.push("/alumno");
       else if (profile.role === "mentor") router.push("/mentor");
       else if (profile.role === "padre") router.push("/padre");
