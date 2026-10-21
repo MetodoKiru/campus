@@ -169,7 +169,8 @@ export default function AdminPage() {
         if (documentRows.error) throw documentRows.error;
         if (paymentRows.error) throw paymentRows.error;
         if (!active) return;
-        const mappedUsers: UserAccount[] = userResponse.map((u: any) => ({ id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "" }));
+        const guardianByStudent = new Map((guardianLinks.data || []).map((link: any) => [link.student_id, link.guardian_id]));
+        const mappedUsers: UserAccount[] = userResponse.map((u: any) => ({ id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate: any) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
         setUsers(mappedUsers);
         const usernameById = new Map(mappedUsers.map((u) => [u.id, u.username]));
         setLinks((mentorLinks.data || []).map((link: any) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
@@ -407,18 +408,21 @@ export default function AdminPage() {
     setTimeout(() => setMsg(null), 4000);
   };
 
-  // Padre <-> Alumno
-  const handleAssignParent = (e: React.FormEvent) => {
+  // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
+  const handleAssignParent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedChild || !selectedParent) {
-      setMsg({ text: "Selecciona tanto un alumno como un tutor familiar.", type: "error" });
-      return;
-    }
-
-    const updated = users.map(u => u.username === selectedChild ? { ...u, assignedParent: selectedParent } : u);
-    saveToStorage(updated);
-    setMsg({ text: `Vinculación guardada: Alumno @${selectedChild} asignado a Familia @${selectedParent}.`, type: "success" });
-    setTimeout(() => setMsg(null), 4000);
+    const student = alumnos.find((u) => u.username === selectedChild);
+    const guardian = padres.find((u) => u.username === selectedParent);
+    if (!student || !guardian) { setMsg({ text: "Selecciona un alumno y una familia válidos.", type: "error" }); return; }
+    try {
+      const { data: existing, error: lookupError } = await supabase.from("student_guardians").select("student_id,guardian_id").eq("student_id", student.id);
+      if (lookupError) throw lookupError;
+      for (const row of existing || []) { const { error } = await supabase.from("student_guardians").delete().eq("student_id", row.student_id).eq("guardian_id", row.guardian_id); if (error) throw error; }
+      const { error } = await supabase.from("student_guardians").insert({ student_id: student.id, guardian_id: guardian.id });
+      if (error) throw error;
+      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: guardian.username } : u));
+      setMsg({ text: "Vinculación guardada en Supabase: @" + selectedChild + " ↔ @" + selectedParent + ".", type: "success" });
+    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" }); }
   };
 
   // Avisos (con Enlace y PDF)
