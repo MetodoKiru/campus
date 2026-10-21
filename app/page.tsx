@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { 
   Eye, 
   EyeOff, 
@@ -20,26 +21,13 @@ import {
   Users
 } from "lucide-react";
 
-interface UserAccount {
-  name: string;
-  username: string;
-  password?: string;
-  role: "alumno" | "mentor" | "padre" | "admin";
-}
-
-const DEFAULT_USERS: UserAccount[] = [
-  { name: "Carmen Fernández", username: "carmen", password: "carmen123", role: "alumno" },
-  { name: "Tutor Principal", username: "mentor", password: "mentor123", role: "mentor" },
-  { name: "Familia Fernández", username: "familia", password: "familia123", role: "padre" },
-  { name: "Administrador General", username: "admin", password: "admin123", role: "admin" },
-];
-
 export default function HomePage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isRecoverOpen, setIsRecoverOpen] = useState(false);
   const [recoverFullName, setRecoverFullName] = useState("");
@@ -50,59 +38,83 @@ export default function HomePage() {
   const whatsappMessage = encodeURIComponent("Hola, me gustaría más información sobre Método Kiru");
   const whatsappUrl = `https://wa.me/${officialPhone}?text=${whatsappMessage}`;
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError("");
+    setIsSubmitting(true);
 
-    let allUsers = DEFAULT_USERS;
-    const customUsers = localStorage.getItem("kiru_custom_users");
-    if (customUsers) {
-      try {
-        allUsers = JSON.parse(customUsers);
-      } catch (err) {
-        console.error(err);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          typeof result.error === "string"
+            ? result.error
+            : "No se ha podido iniciar sesión."
+        );
       }
-    }
 
-    const cleanUser = username.trim().toLowerCase();
-    const found = allUsers.find(
-      (u) => u.username.toLowerCase() === cleanUser && u.password === password.trim()
-    );
+      if (!result.session?.access_token || !result.session?.refresh_token || !result.user?.id) {
+        throw new Error("La respuesta de acceso no es válida. Contacta con administración.");
+      }
 
-    if (found) {
-      localStorage.setItem("kiru_current_user", JSON.stringify(found));
-      if (found.role === "alumno") router.push("/alumno");
-      else if (found.role === "mentor") router.push("/mentor");
-      else if (found.role === "padre") router.push("/padre");
-      else if (found.role === "admin") router.push("/admin");
-    } else {
-      setError("Usuario o contraseña incorrectos.");
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      });
+      if (sessionError) {
+        throw new Error("No se ha podido iniciar la sesión. Inténtalo de nuevo.");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name, role, is_active")
+        .eq("id", result.user.id)
+        .single();
+
+      if (profileError || !profile || !profile.is_active) {
+        await supabase.auth.signOut();
+        throw new Error("La cuenta está inactiva o no tiene un perfil válido. Contacta con administración.");
+      }
+
+      const validRoles = ["alumno", "mentor", "padre", "admin"];
+      if (!validRoles.includes(profile.role)) {
+        await supabase.auth.signOut();
+        throw new Error("El perfil no tiene un rol válido. Contacta con administración.");
+      }
+
+      // Keep only the minimum profile data in localStorage. Never store passwords or tokens there.
+      localStorage.setItem("kiru_current_user", JSON.stringify({
+        id: profile.id,
+        name: profile.full_name,
+        username: username.trim().toLowerCase(),
+        role: profile.role,
+      }));
+
+      if (profile.role === "alumno") router.push("/alumno");
+      else if (profile.role === "mentor") router.push("/mentor");
+      else if (profile.role === "padre") router.push("/padre");
+      else if (profile.role === "admin") router.push("/admin");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ha ocurrido un error. Inténtalo de nuevo.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleRecover = (e: React.FormEvent) => {
     e.preventDefault();
-    setRecoverError("");
     setRecoveredPass(null);
-
-    let allUsers = DEFAULT_USERS;
-    const customUsers = localStorage.getItem("kiru_custom_users");
-    if (customUsers) {
-      try {
-        allUsers = JSON.parse(customUsers);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    const cleanName = recoverFullName.trim().toLowerCase();
-    const matched = allUsers.find((u) => u.name.toLowerCase() === cleanName);
-
-    if (matched && matched.password) {
-      setRecoveredPass(`Tu contraseña es: ${matched.password} (Usuario: ${matched.username})`);
-    } else {
-      setRecoverError("No se encontró ningún usuario con ese nombre completo.");
-    }
+    setRecoverError("La recuperación segura de contraseña estará disponible próximamente. Contacta con administración para restablecer tu acceso.");
   };
 
   return (
@@ -305,9 +317,10 @@ export default function HomePage() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow-xs"
+              disabled={isSubmitting}
+              className="w-full py-3 bg-slate-900 disabled:opacity-60 text-white rounded-full text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow-xs"
             >
-              <span>Acceder</span>
+              <span>{isSubmitting ? "Comprobando…" : "Acceder"}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>
