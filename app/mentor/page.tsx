@@ -398,7 +398,7 @@ export default function MentorPage() {
                     className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F] focus:outline-none"
                   >
                     <option value="todos">Todos los alumnos</option>
-                    {STUDENTS.map((s) => (
+                    {students.map((s) => (
                       <option key={s.username} value={s.username}>{s.name} (@{s.username})</option>
                     ))}
                   </select>
@@ -482,7 +482,7 @@ export default function MentorPage() {
                     className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold"
                   >
                     <option value="todos">Todos los alumnos</option>
-                    {STUDENTS.map((s) => (
+                    {students.map((s) => (
                       <option key={s.username} value={s.username}>
                         {s.name} (@{s.username})
                       </option>
