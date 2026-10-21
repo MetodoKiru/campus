@@ -234,7 +234,7 @@ export default function HomePage() {
               Entendido
             </button>
           </section>
-        </section>
+        </div>
       )}
     </main>
   );
