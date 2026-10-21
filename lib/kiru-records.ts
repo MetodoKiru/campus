@@ -33,11 +33,11 @@ async function currentUserId(): Promise<string> {
 export async function getKiruRecords<T = unknown>(
   recordType: KiruRecordType,
 ): Promise<KiruRecord<T>[]> {
-  const ownerId = await currentUserId();
+  await currentUserId();
+  // Row-level security determines which own and assigned-student records are visible.
   const { data, error } = await supabase
     .from("kiru_app_records")
     .select("id,owner_id,record_type,record_key,data,created_by,created_at,updated_at")
-    .eq("owner_id", ownerId)
     .eq("record_type", recordType)
     .order("updated_at", { ascending: false });
 
@@ -50,8 +50,10 @@ export async function saveKiruRecord<T>(
   recordType: KiruRecordType,
   recordKey: string,
   value: T,
+  requestedOwnerId?: string,
 ): Promise<KiruRecord<T>> {
-  const ownerId = await currentUserId();
+  const userId = await currentUserId();
+  const ownerId = requestedOwnerId || userId;
   const { data: existing, error: lookupError } = await supabase
     .from("kiru_app_records")
     .select("id")
@@ -67,7 +69,7 @@ export async function saveKiruRecord<T>(
     record_type: recordType,
     record_key: recordKey,
     data: value,
-    created_by: ownerId,
+    created_by: userId,
     updated_at: new Date().toISOString(),
   };
 
