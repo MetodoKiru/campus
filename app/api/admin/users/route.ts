@@ -95,8 +95,8 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
     const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
-    const isStudentPin = targetProfile?.role === "alumno" && /^\\d{6}$/.test(body.password);
-    if (!isStudentPin && body.password.length < 12) return NextResponse.json({ error: "Usa un PIN de 6 cifras para alumnos o una contraseña de al menos 12 caracteres para otros roles." }, { status: 400 });
+    const isSixDigitPin = /^\d{6}$/.test(body.password);
+    if (!isSixDigitPin) return NextResponse.json({ error: "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
     updates.password = body.password;
   }
   const profileUpdates: Record<string, unknown> = {};
