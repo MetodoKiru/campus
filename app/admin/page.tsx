@@ -76,6 +76,32 @@ const DEFAULT_USERS: UserAccount[] = [];
 const DEFAULT_LINKS: MentorStudentLink[] = [];
 
 export default function AdminPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    const verifyRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { router.replace("/"); return; }
+        const { data: profile, error } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).single();
+        const expectedRole = "admin";
+        if (error || !profile?.is_active || profile.role !== expectedRole || user.app_metadata?.kiru_role !== expectedRole) {
+          await supabase.auth.signOut();
+          router.replace("/");
+          return;
+        }
+        if (alive) setAuthorized(true);
+      } catch {
+        router.replace("/");
+      } finally {
+        if (alive) setAuthChecking(false);
+      }
+    };
+    void verifyRole();
+    return () => { alive = false; };
+  }, [router]);
+
   const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
@@ -545,6 +571,9 @@ export default function AdminPage() {
   const alumnos = users.filter(u => u.role === "alumno");
   const mentores = users.filter(u => u.role === "mentor");
   const padres = users.filter(u => u.role === "padre");
+
+  if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
+  if (!authorized) return null;
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-[#1E293B] pb-16 font-sans">
