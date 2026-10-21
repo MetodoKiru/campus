@@ -266,13 +266,10 @@ export default function AdminPage() {
   };
 
   const handleResetPassword = async (user: UserAccount) => {
-    const isStudent = user.role === "alumno";
-    const nextPassword = window.prompt(isStudent
-      ? `Nuevo PIN de 6 cifras para @${user.username} (solo números):`
-      : `Nueva contraseña para @${user.username} (mínimo 12 caracteres):`);
+    const nextPassword = window.prompt(`Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
     if (nextPassword === null) return;
-    if (isStudent ? !/^\\d{6}$/.test(nextPassword) : nextPassword.length < 12) {
-      setMsg({ text: isStudent ? "El PIN del alumno debe tener exactamente 6 cifras." : "La contraseña debe tener al menos 12 caracteres.", type: "error" });
+    if (!/^\d{6}$/.test(nextPassword)) {
+      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
@@ -614,8 +611,8 @@ export default function AdminPage() {
                     <input type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contraseña (mínimo 12 caracteres)</label>
-                    <input type="password" autoComplete="new-password" placeholder="Mínimo 12 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">PIN de acceso (6 cifras)</label>
+                    <input type="password" autoComplete="new-password" placeholder="Introduce 6 cifras numéricas" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de usuario / Rol</label>
