@@ -566,6 +566,11 @@ export default function MentorPage() {
                 />
               </div>
 
+              <div className="rounded-xl border border-[#E7E3DC] bg-[#F7F5F1] p-3">
+                <p className="text-xs font-semibold text-[#343330]">Vista previa de la tanda</p>
+                <p className="text-[11px] text-[#77736B] mt-1">Con estos filtros hay {previewQuestions.length} ejercicios disponibles de los {englishConfig.questionCount} solicitados. Solo se enviarán los que existan en el banco.</p>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
                   Área de Ejercicios
