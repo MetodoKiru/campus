@@ -559,8 +559,8 @@ export default function MentorPage() {
                 </div>
                 <input
                   type="range"
-                  min={3}
-                  max={8}
+                  min={1}
+                  max={20}
                   value={englishConfig.questionCount}
                   onChange={(e) => setEnglishConfig({ ...englishConfig, questionCount: Number(e.target.value) })}
                   className="w-full accent-slate-900 cursor-pointer"
