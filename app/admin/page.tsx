@@ -265,6 +265,29 @@ export default function AdminPage() {
     }
   };
 
+  const handleResetPassword = async (user: UserAccount) => {
+    const nextPassword = window.prompt(`Nueva contraseña provisional para @${user.username} (mínimo 12 caracteres):`);
+    if (nextPassword === null) return;
+    if (nextPassword.length < 12) {
+      setMsg({ text: "La contraseña debe tener al menos 12 caracteres.", type: "error" });
+      return;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ userId: user.id, password: nextPassword }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo restablecer la contraseña.");
+      setMsg({ text: `Contraseña restablecida para @${user.username}.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "Error restableciendo la contraseña.", type: "error" });
+    }
+  };
+
   const handleUpdateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
@@ -708,6 +731,7 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3.5 text-right pr-2">
                             <div className="flex items-center justify-end gap-1.5">
+                              <button title="Restablecer contraseña" onClick={() => void handleResetPassword(user)} className="px-2 py-1.5 text-[10px] font-semibold rounded-xl border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition">Contraseña</button>
                               <button onClick={() => setEditingUser(user)} className="p-2 rounded-xl border border-slate-200 bg-[#F7F6F3] hover:bg-slate-900 hover:text-white transition">
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
