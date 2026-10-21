@@ -56,6 +56,7 @@ interface PaymentRecord {
 const FALLBACK_CHILDREN: Child[] = [];
 
 export default function PadrePage() {
+  const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   useEffect(() => {
@@ -77,7 +78,6 @@ export default function PadrePage() {
     return () => { alive = false; };
   }, [router]);
 
-  const router = useRouter();
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [activeTab, setActiveTab] = useState<"inicio" | "progreso" | "documentos" | "pagos">("inicio");
 
