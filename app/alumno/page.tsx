@@ -217,16 +217,22 @@ export default function AlumnoPage() {
   }, [categoryFilter]);
 
   // Temporizador del juego de práctica
+  // Temporizador estable: no se reinicia cada segundo ni al cambiar de pestaña.
   useEffect(() => {
-    let timer: any = null;
-    if (isGameActive && timeLeft > 0) {
-      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (isGameActive && timeLeft === 0) {
-      setIsGameActive(false);
-      setGameFinished(true);
-    }
-    return () => clearInterval(timer);
-  }, [isGameActive, timeLeft]);
+    if (!isGameActive) return;
+    const timer = window.setInterval(() => {
+      setTimeLeft((previous) => {
+        if (previous <= 1) {
+          window.clearInterval(timer);
+          setIsGameActive(false);
+          setGameFinished(true);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isGameActive]);
 
   const setupNewQuestion = () => {
     setIsFlipped(false);
