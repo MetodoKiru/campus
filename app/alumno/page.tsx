@@ -231,7 +231,7 @@ export default function AlumnoPage() {
   }, [categoryFilter]);
 
   // Temporizador del juego de práctica
-  // Guarda la sesión en Supabase para poder recuperarla tras recargar la página.
+  // Guarda el progreso cuando cambia la sesión; el reloj se sincroniza aparte cada 5 segundos.
   useEffect(() => {
     if (!flashcardProgressLoaded) return;
     const persistPractice = async () => {
@@ -246,9 +246,25 @@ export default function AlumnoPage() {
         setFlashcardProgressStatus("No se pudo guardar el progreso");
       }
     };
-    const debounce = window.setTimeout(() => { void persistPractice(); }, 700);
+    const debounce = window.setTimeout(() => { void persistPractice(); }, 900);
     return () => window.clearTimeout(debounce);
-  }, [flashcardProgressLoaded, gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex]);
+  }, [flashcardProgressLoaded, gameScore, gameAnswersCount, gameDuration, isGameActive, gameFinished, gameOptions, cardIndex]);
+
+  useEffect(() => {
+    if (!flashcardProgressLoaded || !isGameActive) return;
+    const syncTimer = window.setInterval(async () => {
+      try {
+        await saveKiruRecord("progress", "flashcard_practice_state", {
+          kind: "flashcard_practice_state", gameScore, gameAnswersCount, gameDuration,
+          timeLeft: Math.max(0, timeLeft - 5), isGameActive, gameFinished, gameOptions, cardIndex,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        setFlashcardProgressStatus("No se pudo sincronizar el temporizador");
+      }
+    }, 5000);
+    return () => window.clearInterval(syncTimer);
+  }, [flashcardProgressLoaded, isGameActive]);
 
   // Temporizador estable: no se reinicia cada segundo ni al cambiar de pestaña.
   useEffect(() => {
