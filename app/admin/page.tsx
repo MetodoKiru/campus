@@ -265,6 +265,53 @@ export default function AdminPage() {
     }
   };
 
+  // Alta inicial en lote de las seis cuentas de Método Kiru.
+  const handleCreateInitialAccounts = async () => {
+    const initialAccounts = [
+      { fullName: "Claudia", username: "claudia", email: "claudiavillargaray@gmail.com", role: "mentor" as const },
+      { fullName: "Paula Ybarra", username: "paula", email: "eppybarrra@gmail.com", role: "mentor" as const },
+      { fullName: "Alondra", username: "alondra", email: "", role: "alumno" as const },
+      { fullName: "Álvaro", username: "alvaro", email: "", role: "alumno" as const },
+      { fullName: "Berna", username: "berna", email: "b.fmendoza@hotmail.com", role: "padre" as const },
+      { fullName: "José", username: "jose", email: "josemateovara@gmail.com", role: "padre" as const },
+    ];
+    const confirmed = window.confirm("Se crearán las cuentas que todavía no existan con el PIN provisional 123456. ¿Continuar?");
+    if (!confirmed) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
+      const createdNames: string[] = [];
+      const skipped: string[] = [];
+      const failed: string[] = [];
+      for (const account of initialAccounts) {
+        const response = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ ...account, password: "123456" }),
+        });
+        const result = await response.json();
+        if (response.ok) {
+          createdNames.push(account.fullName);
+          const u = result.user;
+          setUsers(current => current.some(existing => existing.username === u.username) ? current : [{
+            id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: new Date().toISOString().slice(0, 10)
+          }, ...current]);
+        } else if (response.status === 409 || /already registered|already been registered|already exists/i.test(result.error || "")) {
+          skipped.push(account.username);
+        } else {
+          failed.push(account.username + ": " + (result.error || "error desconocido"));
+        }
+      }
+      const parts = [];
+      if (createdNames.length) parts.push("Creadas: " + createdNames.join(", "));
+      if (skipped.length) parts.push("Ya existían: " + skipped.join(", "));
+      if (failed.length) parts.push("No creadas: " + failed.join("; "));
+      setMsg({ text: parts.join(" · ") || "No se realizaron cambios.", type: failed.length ? "error" : "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudieron crear las cuentas.", type: "error" });
+    }
+  };
+
   const handleResetPassword = async (user: UserAccount) => {
     const nextPassword = window.prompt(`Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
     if (nextPassword === null) return;
@@ -597,6 +644,10 @@ export default function AdminPage() {
                   <UserPlus className="w-5 h-5 text-emerald-800" />
                   <h2 className="font-serif text-lg text-slate-900">Crear nuevo usuario</h2>
                 </div>
+                <button type="button" onClick={handleCreateInitialAccounts} className="w-full rounded-2xl border border-[#D8CDBB] bg-[#F3EEE5] px-4 py-3 text-left text-xs font-semibold text-[#51483B] hover:bg-[#ECE4D7] transition-colors">
+                  Crear las 6 cuentas iniciales (PIN provisional 123456)
+                </button>
+                <p className="text-[11px] leading-relaxed text-slate-500">Crea Claudia y Paula como mentoras, Alondra y Álvaro como alumnos, y Berna y José como padres. No establece vínculos entre ellos.</p>
                 <form onSubmit={handleCreateUser} className="space-y-3 pt-2">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nombre completo</label>
