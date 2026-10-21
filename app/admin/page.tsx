@@ -239,8 +239,8 @@ export default function AdminPage() {
       setMsg({ text: "Para padres, mentores y administradores es necesario un correo propio.", type: "error" });
       return;
     }
-    if (password.length < 12) {
-      setMsg({ text: "La contraseña debe tener al menos 12 caracteres.", type: "error" });
+    if (!/^\d{6}$/.test(password)) {
+      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
