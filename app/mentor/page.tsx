@@ -202,19 +202,19 @@ export default function MentorPage() {
 
   const availableUnits = Array.from(new Set(ENGLISH_A1_DATABASE.map((q) => q.unit)));
 
-  if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
+  if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-[#1E293B] font-sans pb-16">
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <div className="min-h-screen bg-[#F7F6F3] text-[#343330] font-sans pb-16">
+      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-serif font-bold">
+          <div className="w-9 h-9 rounded-xl bg-[#242321] text-white flex items-center justify-center font-serif font-bold">
             M
           </div>
           <div>
-            <h1 className="font-serif text-lg sm:text-xl text-slate-900 font-bold">Espacio del Mentor</h1>
-            <p className="text-[11px] text-slate-500">Personalización curricular y configuración de tareas</p>
+            <h1 className="font-serif text-lg sm:text-xl text-[#292825] font-bold">Espacio del mentor</h1>
+            <p className="text-[11px] text-[#77736B]">Planificación, recursos y seguimiento individual</p>
           </div>
         </div>
 
@@ -223,16 +223,16 @@ export default function MentorPage() {
             href="https://calculalo.app/"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 transition shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F3F0EA] text-[#45433F] text-xs font-semibold hover:bg-slate-200 transition shadow-xs"
           >
             <span>Calcúlalo</span>
-            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+            <ExternalLink className="w-3.5 h-3.5 text-[#77736B]" />
           </a>
 
           <Link
             href="/"
             title="Cerrar sesión"
-            className="p-2 sm:p-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs flex items-center justify-center"
+            className="p-2 sm:p-2 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition shadow-xs flex items-center justify-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
@@ -243,21 +243,21 @@ export default function MentorPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E7E3DC] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-slate-500" />
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Alumno seleccionado:</span>
+            <Users className="w-4 h-4 text-[#77736B]" />
+            <span className="text-xs font-bold text-[#555149] uppercase tracking-wider">Alumno seleccionado:</span>
           </div>
 
           <div className="flex gap-2">
-            {students.map((s) => (
+            {students.length === 0 ? <p className="text-xs text-[#77736B] py-2">No tienes alumnos asignados todavía.</p> : students.map((s) => (
               <button
                 key={s.username}
                 onClick={() => setSelectedStudent(s.username)}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs ${
                   selectedStudent === s.username
-                    ? "bg-slate-900 text-white"
-                    : "bg-[#FAF8F5] text-slate-700 border border-slate-200 hover:bg-slate-100"
+                    ? "bg-[#242321] text-white"
+                    : "bg-[#FAF8F5] text-[#555149] border border-[#E7E3DC] hover:bg-[#F3F0EA]"
                 }`}
               >
                 {s.name} (@{s.username})
@@ -267,17 +267,17 @@ export default function MentorPage() {
         </div>
 
         {savedMsg && (
-          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+          <div className="p-3.5 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] text-[#806C50] text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#806C50]" />
             <span>{savedMsg}</span>
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 w-fit shadow-xs text-xs font-semibold">
+        <div className="bg-white rounded-2xl border border-[#E7E3DC] p-1.5 flex flex-wrap gap-2 w-fit shadow-xs text-xs font-semibold">
           <button
             onClick={() => setActiveTab("asignaturas")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "asignaturas" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
+              activeTab === "asignaturas" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -286,7 +286,7 @@ export default function MentorPage() {
           <button
             onClick={() => setActiveTab("envio_recursos")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "envio_recursos" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
+              activeTab === "envio_recursos" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <Send className="w-3.5 h-3.5" />
@@ -295,7 +295,7 @@ export default function MentorPage() {
           <button
             onClick={() => setActiveTab("flashcards")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "flashcards" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
+              activeTab === "flashcards" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -304,7 +304,7 @@ export default function MentorPage() {
           <button
             onClick={() => setActiveTab("ingles")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "ingles" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
+              activeTab === "ingles" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -313,7 +313,7 @@ export default function MentorPage() {
           <button
             onClick={() => setActiveTab("skillcoins")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "skillcoins" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
+              activeTab === "skillcoins" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <Award className="w-3.5 h-3.5" />
@@ -322,10 +322,10 @@ export default function MentorPage() {
         </div>
 
         {activeTab === "asignaturas" && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-6">
             <div>
-              <h2 className="text-xl font-serif text-slate-900 font-bold">Asignaturas Visibles para @{selectedStudent}</h2>
-              <p className="text-xs text-slate-500 mt-1">
+              <h2 className="text-xl font-serif text-[#292825] font-bold">Asignaturas Visibles para @{selectedStudent}</h2>
+              <p className="text-xs text-[#77736B] mt-1">
                 Activa solo las asignaturas que cursa este alumno para evitar materias innecesarias en su panel.
               </p>
             </div>
@@ -339,8 +339,8 @@ export default function MentorPage() {
                     onClick={() => handleToggleSubject(sub.id)}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between select-none ${
                       isSelected
-                        ? "bg-emerald-50/60 border-emerald-300 text-emerald-950 font-bold"
-                        : "bg-[#FAF8F5] border-slate-200 text-slate-600 hover:border-slate-300 font-medium"
+                        ? "bg-[#F3EEE5]/60 border-[#D9C8AE] text-[#4A4032] font-bold"
+                        : "bg-[#FAF8F5] border-[#E7E3DC] text-[#6D6962] hover:border-slate-300 font-medium"
                     }`}
                   >
                     <span className="text-xs">{sub.name}</span>
@@ -348,7 +348,7 @@ export default function MentorPage() {
                       type="checkbox"
                       checked={isSelected}
                       readOnly
-                      className="rounded text-emerald-700 focus:ring-0 cursor-pointer pointer-events-none"
+                      className="rounded text-[#806C50] focus:ring-0 cursor-pointer pointer-events-none"
                     />
                   </div>
                 );
@@ -358,15 +358,15 @@ export default function MentorPage() {
         )}
 
         {activeTab === "envio_recursos" && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-5 animate-in fade-in duration-150">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5 animate-in fade-in duration-150">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#806C50] bg-[#F3EEE5] px-2.5 py-0.5 rounded-full border border-[#E4D8C5]">
                 Sección Asignaturas
               </span>
-              <h2 className="text-xl font-serif text-slate-900 font-bold mt-1.5">
+              <h2 className="text-xl font-serif text-[#292825] font-bold mt-1.5">
                 Enviar Recomendaciones y Enlaces por Asignatura
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#77736B]">
                 Escribe una recomendación y adjunta un enlace para que aparezca en el espacio de la asignatura del alumno.
               </p>
             </div>
@@ -374,13 +374,13 @@ export default function MentorPage() {
             <form onSubmit={handleSendSubjectMessage} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                     Asignatura
                   </label>
                   <select
                     value={msgSubject}
                     onChange={(e) => setMsgSubject(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F] focus:outline-none"
                   >
                     {ALL_SUBJECTS.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
@@ -389,13 +389,13 @@ export default function MentorPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                     Enviar a
                   </label>
                   <select
                     value={msgTarget}
                     onChange={(e) => setMsgTarget(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F] focus:outline-none"
                   >
                     <option value="todos">Todos los alumnos</option>
                     {STUDENTS.map((s) => (
@@ -406,7 +406,7 @@ export default function MentorPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                   Mensaje / Recomendación Pedagógica
                 </label>
                 <textarea
@@ -414,13 +414,13 @@ export default function MentorPage() {
                   value={msgText}
                   onChange={(e) => setMsgText(e.target.value)}
                   placeholder="Ej: Mira este vídeo sobre el relieve peninsular..."
-                  className="w-full p-3 bg-[#FAF8F5] border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none"
+                  className="w-full p-3 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl text-xs text-[#45433F] focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                   Enlace externo o recurso (Opcional)
                 </label>
                 <input
@@ -428,13 +428,13 @@ export default function MentorPage() {
                   value={msgLink}
                   onChange={(e) => setMsgLink(e.target.value)}
                   placeholder="https://youtube.com/..."
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none"
+                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs text-[#45433F] focus:outline-none"
                 />
               </div>
 
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center gap-2 shadow-xs"
+                className="px-6 py-2.5 bg-[#242321] text-white rounded-xl text-xs font-bold hover:bg-[#3A3835] transition flex items-center gap-2 shadow-xs"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Publicar en la asignatura del alumno</span>
@@ -444,10 +444,10 @@ export default function MentorPage() {
         )}
 
         {activeTab === "flashcards" && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-5">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
             <div>
-              <h2 className="text-xl font-serif text-slate-900 font-bold">Generador Masivo de Flashcards</h2>
-              <p className="text-xs text-slate-500 mt-1">
+              <h2 className="text-xl font-serif text-[#292825] font-bold">Generador Masivo de Flashcards</h2>
+              <p className="text-xs text-[#77736B] mt-1">
                 Pega una lista de conceptos y definiciones para generar tarjetas de golpe.
               </p>
             </div>
@@ -455,13 +455,13 @@ export default function MentorPage() {
             <form onSubmit={handleCreateBulkFlashcards} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                     Asignatura de las tarjetas
                   </label>
                   <select
                     value={bulkCategory}
                     onChange={(e) => setBulkCategory(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold"
                   >
                     <option value="Geografía">Geografía</option>
                     <option value="Historia">Historia</option>
@@ -473,13 +473,13 @@ export default function MentorPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                     Enviar a
                   </label>
                   <select
                     value={bulkTarget}
                     onChange={(e) => setBulkTarget(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold"
                   >
                     <option value="todos">Todos los alumnos</option>
                     {STUDENTS.map((s) => (
@@ -492,7 +492,7 @@ export default function MentorPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
                   Lista de conceptos (Formato: Concepto - Definición)
                 </label>
                 <textarea
@@ -500,14 +500,14 @@ export default function MentorPage() {
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
                   placeholder={`Meseta: Planicie extensa...\nDelta: Terreno comprendido...`}
-                  className="w-full p-3 bg-[#FAF8F5] border border-slate-200 rounded-2xl text-xs font-mono text-slate-800 leading-relaxed focus:outline-none"
+                  className="w-full p-3 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl text-xs font-mono text-[#45433F] leading-relaxed focus:outline-none"
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className="px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition flex items-center gap-2 shadow-xs"
+                className="px-6 py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition flex items-center gap-2 shadow-xs"
               >
                 <Plus className="w-4 h-4" /> Generar y Enviar Flashcards a los Alumnos
               </button>
@@ -517,14 +517,14 @@ export default function MentorPage() {
 
         {activeTab === "ingles" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <form onSubmit={handleSaveEnglishConfig} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-5">
+            <form onSubmit={handleSaveEnglishConfig} className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
               <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-slate-700" />
-                <h3 className="font-serif text-base text-slate-900 font-bold">Configuración de Ejercicios A1</h3>
+                <Sliders className="w-4 h-4 text-[#555149]" />
+                <h3 className="font-serif text-base text-[#292825] font-bold">Configuración de Ejercicios A1</h3>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
                   Nivel de Dificultad
                 </label>
                 <div className="grid grid-cols-4 gap-1.5 text-xs">
@@ -540,8 +540,8 @@ export default function MentorPage() {
                       onClick={() => setEnglishConfig({ ...englishConfig, difficulty: d.id as any })}
                       className={`py-2 rounded-xl font-bold transition border ${
                         englishConfig.difficulty === d.id
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-[#FAF8F5] text-slate-700 border-slate-200 hover:bg-slate-100"
+                          ? "bg-[#242321] text-white border-slate-900"
+                          : "bg-[#FAF8F5] text-[#555149] border-[#E7E3DC] hover:bg-[#F3F0EA]"
                       }`}
                     >
                       {d.label}
@@ -552,10 +552,10 @@ export default function MentorPage() {
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
-                  <label className="font-bold uppercase tracking-wider text-slate-500 text-[11px]">
+                  <label className="font-bold uppercase tracking-wider text-[#77736B] text-[11px]">
                     Cantidad de Ejercicios
                   </label>
-                  <span className="font-bold text-slate-900">{englishConfig.questionCount} ejercicios</span>
+                  <span className="font-bold text-[#292825]">{englishConfig.questionCount} ejercicios</span>
                 </div>
                 <input
                   type="range"
@@ -568,13 +568,13 @@ export default function MentorPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
                   Área de Ejercicios
                 </label>
                 <select
                   value={englishConfig.selectedCategory}
                   onChange={(e) => setEnglishConfig({ ...englishConfig, selectedCategory: e.target.value })}
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F]"
                 >
                   <option value="Todas">Todas las áreas</option>
                   <option value="Grammar">Gramática</option>
@@ -584,7 +584,7 @@ export default function MentorPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
                   Unidades Curriculares A1
                 </label>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -593,7 +593,7 @@ export default function MentorPage() {
                     return (
                       <label
                         key={unit}
-                        className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-[#FAF8F5] text-xs font-medium cursor-pointer hover:bg-slate-100 transition"
+                        className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-xs font-medium cursor-pointer hover:bg-[#F3F0EA] transition"
                       >
                         <input
                           type="checkbox"
@@ -604,9 +604,9 @@ export default function MentorPage() {
                               : [...englishConfig.selectedUnits, unit];
                             setEnglishConfig({ ...englishConfig, selectedUnits: updated });
                           }}
-                          className="rounded text-slate-900 focus:ring-0"
+                          className="rounded text-[#292825] focus:ring-0"
                         />
-                        <span className="text-slate-800">{unit}</span>
+                        <span className="text-[#45433F]">{unit}</span>
                       </label>
                     );
                   })}
@@ -615,47 +615,47 @@ export default function MentorPage() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow-xs"
+                className="w-full py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition flex items-center justify-center gap-1.5 shadow-xs"
               >
                 <Save className="w-4 h-4" /> Asignar Tanda de Ejercicios al Alumno
               </button>
             </form>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
               <div className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-emerald-800" />
-                <h3 className="font-serif text-base text-slate-900 font-bold">
+                <Eye className="w-4 h-4 text-[#806C50]" />
+                <h3 className="font-serif text-base text-[#292825] font-bold">
                   Previsualización ({previewQuestions.length} ejercicios)
                 </h3>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#77736B]">
                 Así verá los ejercicios el alumno en su panel:
               </p>
 
               <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
                 {previewQuestions.map((q, idx) => (
-                  <div key={q.id} className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-slate-200 space-y-1.5 text-xs">
-                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase">
+                  <div key={q.id} className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#E7E3DC] space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center text-[10px] text-[#8D887F] font-bold uppercase">
                       <span>{q.category} · {q.difficulty}</span>
-                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-[#806C50] bg-[#F3EEE5] px-2 py-0.5 rounded-full border border-[#E4D8C5]">
                         {q.unit.split(":")[0]}
                       </span>
                     </div>
 
-                    <p className="font-semibold text-slate-800">
+                    <p className="font-semibold text-[#45433F]">
                       {idx + 1}. {q.question}
                     </p>
 
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {q.options?.map((opt: string, i: number) => (
-                        <span key={i} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600">
+                        <span key={i} className="px-2.5 py-1 rounded-lg bg-white border border-[#E7E3DC] text-[11px] text-[#6D6962]">
                           {opt}
                         </span>
                       ))}
                     </div>
 
-                    <span className="text-[10px] text-slate-400 block pt-1">
-                      Respuesta esperada: <strong className="text-slate-600">{q.answer}</strong>
+                    <span className="text-[10px] text-[#8D887F] block pt-1">
+                      Respuesta esperada: <strong className="text-[#6D6962]">{q.answer}</strong>
                     </span>
                   </div>
                 ))}
@@ -666,21 +666,21 @@ export default function MentorPage() {
 
         {activeTab === "skillcoins" && (
           <div className="space-y-6 animate-in fade-in duration-150">
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-[#EEEAE3] pb-3">
                 <div>
-                  <h3 className="font-serif text-lg font-bold text-slate-900">
+                  <h3 className="font-serif text-lg font-bold text-[#292825]">
                     Editar SkillCoins de @{selectedStudent}
                   </h3>
-                  <p className="text-xs text-slate-500">Puntúa semanalmente de 0 a 10 cada categoría tras la sesión.</p>
+                  <p className="text-xs text-[#77736B]">Puntúa semanalmente de 0 a 10 cada categoría tras la sesión.</p>
                 </div>
-                <span className="text-[10px] text-slate-400 font-semibold">Actualizado</span>
+                <span className="text-[10px] text-[#8D887F] font-semibold">Actualizado</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {(["estudios", "compromiso", "organizacion", "bienestar"] as const).map((cat) => (
-                  <div key={cat} className="p-3.5 bg-[#FAF8F5] border border-slate-200 rounded-2xl space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block capitalize">{cat}</span>
+                  <div key={cat} className="p-3.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#77736B] block capitalize">{cat}</span>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -688,16 +688,16 @@ export default function MentorPage() {
                         max="10"
                         value={studentSC[cat]}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateSC(cat, parseInt(e.target.value) || 0)}
-                        className="w-16 p-2 bg-white border border-slate-200 rounded-xl text-center text-sm font-bold text-slate-800"
+                        className="w-16 p-2 bg-white border border-[#E7E3DC] rounded-xl text-center text-sm font-bold text-[#45433F]"
                       />
-                      <span className="text-xs text-slate-400 font-semibold">/ 10 SC</span>
+                      <span className="text-xs text-[#8D887F] font-semibold">/ 10 SC</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
               <SkillCoinsChart />
             </div>
           </div>
