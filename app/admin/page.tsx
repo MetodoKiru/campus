@@ -471,7 +471,16 @@ export default function AdminPage() {
             <p className="text-[11px] sm:text-xs text-slate-500">Gestión general del campus educativo</p>
           </div>
         </div>
-        <Link 
+        <div className="flex items-center gap-2">
+          <Link
+            href="/previsualizacion"
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span className="hidden sm:inline">Previsualizar campus</span>
+            <span className="sm:hidden">Vista previa</span>
+          </Link>
+          <Link 
           href="/" 
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center shadow-sm"
