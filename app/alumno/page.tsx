@@ -161,8 +161,9 @@ export default function AlumnoPage() {
 
   // Inglés A1 Motor de ejercicios corregido y real
   const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
+  const [englishAssignedConfig, setEnglishAssignedConfig] = useState<{ questionCount: number; selectedCategory: string; difficulty: string; selectedUnits: string[] } | null>(null);
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
-  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: ENGLISH_A1_DATABASE.length, checked: false });
+  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: getAssignedEnglishQuestions().length, checked: false });
   const [englishSaveStatus, setEnglishSaveStatus] = useState<string>("");
   const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string }>>([]);
 
@@ -191,6 +192,17 @@ export default function AlumnoPage() {
           .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
           .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
         setAllCards(cards);
+        const englishAssignment = activityRecords.map((record) => record.data).find((value) => value?.kind === "english_config" && value?.config);
+        if (englishAssignment?.config) {
+          const config = englishAssignment.config;
+          setEnglishAssignedConfig({
+            questionCount: Math.max(1, Math.min(ENGLISH_A1_DATABASE.length, Number(config.questionCount) || 20)),
+            selectedCategory: typeof config.selectedCategory === "string" ? config.selectedCategory : "Todas",
+            difficulty: typeof config.difficulty === "string" ? config.difficulty : "todas",
+            selectedUnits: Array.isArray(config.selectedUnits) ? config.selectedUnits.filter((unit: unknown) => typeof unit === "string") : [],
+          });
+          if (["Grammar", "Vocabulary", "Everyday English"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
+        }
         const savedPractice = activityRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
@@ -322,10 +334,21 @@ export default function AlumnoPage() {
     setupNewQuestion();
   };
 
+  const getAssignedEnglishQuestions = () => {
+    let pool = ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory);
+    if (englishAssignedConfig) {
+      if (englishAssignedConfig.selectedCategory !== "Todas") pool = pool.filter((question) => question.category === englishAssignedConfig.selectedCategory);
+      if (englishAssignedConfig.difficulty !== "todas") pool = pool.filter((question) => question.difficulty === englishAssignedConfig.difficulty);
+      if (englishAssignedConfig.selectedUnits.length) pool = pool.filter((question) => englishAssignedConfig.selectedUnits.includes(question.unit));
+      pool = pool.slice(0, englishAssignedConfig.questionCount);
+    }
+    return pool;
+  };
+
   // Corrección basada en el banco central de preguntas de Inglés A1.
   const checkEnglishExercises = async (e: React.FormEvent) => {
     e.preventDefault();
-    const questions = ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory);
+    const questions = getAssignedEnglishQuestions();
     const hits = questions.reduce((count, question, index) => {
       const given = (englishAnswers[index] || "").trim().toLocaleLowerCase();
       const expected = question.answer.trim().toLocaleLowerCase();
@@ -767,14 +790,14 @@ export default function AlumnoPage() {
 
             <form onSubmit={checkEnglishExercises} className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">Categoría (20 ejercicios)</label>
-                <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 20, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
+                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">Categoría · {getAssignedEnglishQuestions().length} ejercicios asignados</label>
+                <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: getAssignedEnglishQuestions().length, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
                   <option value="Grammar">Gramática</option>
                   <option value="Vocabulary">Vocabulario</option>
                   <option value="Everyday English">Inglés cotidiano</option>
                 </select>
               </div>
-              {ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory).map((question, index) => (
+              {getAssignedEnglishQuestions().map((question, index) => (
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
