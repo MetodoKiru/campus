@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import { 
   UserPlus, 
   Trash2, 
@@ -47,6 +48,7 @@ interface Notice {
   linkTitle?: string;
   fileData?: string; // Base64 PDF
   fileName?: string;
+  attachmentPath?: string;
 }
 
 interface DocumentItem {
@@ -131,7 +133,7 @@ export default function AdminPage() {
   const [noticeContent, setNoticeContent] = useState("");
   const [noticeLinkUrl, setNoticeLinkUrl] = useState("");
   const [noticeLinkTitle, setNoticeLinkTitle] = useState("");
-  const [noticePdf, setNoticePdf] = useState<{ name: string; base64: string } | null>(null);
+  const [noticePdf, setNoticePdf] = useState<File | null>(null);
 
   // Documentos PDF
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -139,7 +141,7 @@ export default function AdminPage() {
   const [docTarget, setDocTarget] = useState("todos");
   const [docType, setDocType] = useState("Propuesta");
   const [requiresSign, setRequiresSign] = useState(false);
-  const [uploadedPdf, setUploadedPdf] = useState<{ name: string; base64: string } | null>(null);
+  const [uploadedPdf, setUploadedPdf] = useState<File | null>(null);
 
   // Pagos (con edición completa y actualización de historial/enlaces)
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -203,29 +205,9 @@ export default function AdminPage() {
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
   };
 
-  // Subida de PDF en Avisos
-  const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNoticePdf({ name: file.name, base64: reader.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Subida de PDF en Documentos
-  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedPdf({ name: file.name, base64: reader.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
+  const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setNoticePdf(e.target.files?.[0] || null);
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setUploadedPdf(e.target.files?.[0] || null);
 
   // Crear usuario con vinculación automática a padres
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -425,123 +407,82 @@ export default function AdminPage() {
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" }); }
   };
 
-  // Avisos (con Enlace y PDF)
-  const handleCreateNotice = (e: React.FormEvent) => {
+  // Avisos, documentos y pagos se persisten en tablas protegidas de Supabase.
+  const handleCreateNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noticeTitle.trim() || !noticeContent.trim()) return;
-
-    const newNotice: Notice = {
-      id: Date.now().toString(),
-      title: noticeTitle.trim(),
-      targetStudent: noticeTarget,
-      date: new Date().toLocaleDateString("es-ES", { day: "numeric", month: "short" }),
-      content: noticeContent.trim(),
-      linkUrl: noticeLinkUrl.trim() || undefined,
-      linkTitle: noticeLinkTitle.trim() || (noticeLinkUrl ? "Abrir enlace de interés" : undefined),
-      fileData: noticePdf?.base64,
-      fileName: noticePdf?.name
-    };
-
-    const updated = [newNotice, ...notices];
-    setNotices(updated);
-    localStorage.setItem("kiru_admin_notices", JSON.stringify(updated));
-
-    setNoticeTitle("");
-    setNoticeContent("");
-    setNoticeLinkUrl("");
-    setNoticeLinkTitle("");
-    setNoticePdf(null);
-    setMsg({ text: "Aviso publicado con éxito.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sesión no válida.");
+      const targets = noticeTarget === "todos" ? alumnos : alumnos.filter((student) => student.username === noticeTarget);
+      if (noticePdf && !targets.length) throw new Error("Para adjuntar un PDF, asigna el aviso al menos a un alumno.");
+      const rows: any[] = [];
+      if (noticePdf) {
+        for (const student of targets) { const stored = await uploadKiruPdf(noticePdf, student.id, "notices"); rows.push({ title: noticeTitle.trim(), content: noticeContent.trim(), target_student_id: student.id, link_url: noticeLinkUrl.trim() || null, link_title: noticeLinkTitle.trim() || (noticeLinkUrl ? "Abrir enlace de interés" : null), attachment_path: stored.path, created_by: user.id }); }
+      } else {
+        const selected = noticeTarget === "todos" ? [null] : targets;
+        for (const student of selected) rows.push({ title: noticeTitle.trim(), content: noticeContent.trim(), target_student_id: student?.id || null, link_url: noticeLinkUrl.trim() || null, link_title: noticeLinkTitle.trim() || (noticeLinkUrl ? "Abrir enlace de interés" : null), attachment_path: null, created_by: user.id });
+      }
+      const { error } = await supabase.from("kiru_notices").insert(rows); if (error) throw error;
+      setNoticeTitle(""); setNoticeContent(""); setNoticeLinkUrl(""); setNoticeLinkTitle(""); setNoticePdf(null);
+      const { data } = await supabase.from("kiru_notices").select("*").order("published_at", { ascending: false });
+      if (data) setNotices(data.map((n: any) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? (alumnos.find((s) => s.id === n.target_student_id)?.username || "") : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url, linkTitle: n.link_title, attachmentPath: n.attachment_path, fileName: n.attachment_path?.split("/").pop() })));
+      setMsg({ text: "Aviso guardado en Supabase.", type: "success" });
+    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo publicar el aviso.", type: "error" }); }
   };
 
-  const handleDeleteNotice = (id: string) => {
-    const updated = notices.filter((n) => n.id !== id);
-    setNotices(updated);
-    localStorage.setItem("kiru_admin_notices", JSON.stringify(updated));
-    setMsg({ text: "Aviso eliminado.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleDeleteNotice = async (id: string) => {
+    const notice = notices.find((item) => item.id === id);
+    try { if (notice?.attachmentPath) await supabase.storage.from("kiru-documents").remove([notice.attachmentPath]); const { error } = await supabase.from("kiru_notices").delete().eq("id", id); if (error) throw error; setNotices((items) => items.filter((item) => item.id !== id)); setMsg({ text: "Aviso eliminado.", type: "success" }); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo eliminar el aviso.", type: "error" }); }
   };
 
-  // Documentos
-  const handleCreateDocument = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!docTitle.trim()) return;
-
-    const newDoc: DocumentItem = {
-      id: Date.now().toString(),
-      title: docTitle.trim(),
-      targetStudent: docTarget,
-      type: docType,
-      requiresAcceptance: requiresSign,
-      accepted: false,
-      fileData: uploadedPdf?.base64,
-      fileName: uploadedPdf?.name
-    };
-
-    const updated = [newDoc, ...documents];
-    setDocuments(updated);
-    localStorage.setItem("kiru_admin_docs", JSON.stringify(updated));
-
-    setDocTitle("");
-    setRequiresSign(false);
-    setUploadedPdf(null);
-    setMsg({ text: "Documento publicado y disponible en el panel familiar.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleCreateDocument = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!docTitle.trim()) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Sesión no válida.");
+      const targets = docTarget === "todos" ? alumnos : alumnos.filter((student) => student.username === docTarget);
+      if (uploadedPdf && !targets.length) throw new Error("Para subir un PDF, selecciona al menos un alumno.");
+      const rows: any[] = [];
+      if (uploadedPdf) { for (const student of targets) { const stored = await uploadKiruPdf(uploadedPdf, student.id, "documents"); rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student.id, storage_path: stored.path, file_name: stored.name, file_size: stored.size, requires_acceptance: requiresSign, created_by: user.id }); } }
+      else { const selected = docTarget === "todos" ? [null] : targets; for (const student of selected) rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student?.id || null, storage_path: "no-file", file_name: "", file_size: null, requires_acceptance: requiresSign, created_by: user.id }); }
+      const { error } = await supabase.from("kiru_documents").insert(rows); if (error) throw error;
+      setDocTitle(""); setRequiresSign(false); setUploadedPdf(null);
+      const { data } = await supabase.from("kiru_documents").select("*").order("created_at", { ascending: false });
+      if (data) setDocuments(data.map((d: any) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? (alumnos.find((s) => s.id === d.target_student_id)?.username || "") : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path, accepted: false })));
+      setMsg({ text: "Documento guardado en Supabase.", type: "success" });
+    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo publicar el documento.", type: "error" }); }
   };
 
-  const handleDeleteDoc = (id: string) => {
-    const updated = documents.filter((d) => d.id !== id);
-    setDocuments(updated);
-    localStorage.setItem("kiru_admin_docs", JSON.stringify(updated));
-    setMsg({ text: "Documento eliminado.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleDeleteDoc = async (id: string) => {
+    const doc = documents.find((item) => item.id === id);
+    try { if (doc?.fileData && doc.fileData !== "no-file") await deleteKiruPdf(doc.fileData); const { error } = await supabase.from("kiru_documents").delete().eq("id", id); if (error) throw error; setDocuments((items) => items.filter((item) => item.id !== id)); setMsg({ text: "Documento eliminado.", type: "success" }); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo eliminar el documento.", type: "error" }); }
   };
 
-  // Pagos
-  const handleCreatePayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    const target = payStudent || alumnos[0]?.username || "carmen";
-    const newPay: PaymentRecord = {
-      id: Date.now().toString(),
-      studentUsername: target,
-      concept: payConcept.trim(),
-      amount: payAmount,
-      dueDate: payDueDate.trim(),
-      status: payStatus,
-      payLink: payLink.trim()
-    };
-
-    const updated = [newPay, ...payments];
-    setPayments(updated);
-    localStorage.setItem("kiru_admin_payments", JSON.stringify(updated));
-    setMsg({ text: `Pago registrado correctamente para @${target}.`, type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleCreatePayment = async (e: React.FormEvent) => {
+    e.preventDefault(); const student = alumnos.find((item) => item.username === payStudent) || alumnos[0];
+    if (!student || !payConcept.trim()) { setMsg({ text: "Selecciona un alumno y un concepto de pago.", type: "error" }); return; }
+    try { const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Sesión no válida."); const { data, error } = await supabase.from("kiru_payments").insert({ student_id: student.id, concept: payConcept.trim(), amount_cents: Math.round(payAmount * 100), due_date: payDueDate || null, status: payStatus === "Pagado" ? "paid" : "pending", payment_url: payLink.trim() || null, created_by: user.id }).select("*").single(); if (error) throw error; setPayments((items) => [{ id: data.id, studentUsername: student.username, concept: data.concept, amount: data.amount_cents / 100, dueDate: data.due_date || "", status: data.status === "paid" ? "Pagado" : "Pendiente", payLink: data.payment_url || "" }, ...items]); setMsg({ text: "Pago guardado en Supabase.", type: "success" }); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar el pago.", type: "error" }); }
   };
 
-  const handleUpdatePayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPayment) return;
-    const updated = payments.map(p => p.id === editingPayment.id ? editingPayment : p);
-    setPayments(updated);
-    localStorage.setItem("kiru_admin_payments", JSON.stringify(updated));
-    setEditingPayment(null);
-    setMsg({ text: "Historial de pagos actualizado con éxito.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleUpdatePayment = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editingPayment) return; const student = alumnos.find((item) => item.username === editingPayment.studentUsername);
+    try { const { error } = await supabase.from("kiru_payments").update({ concept: editingPayment.concept, amount_cents: Math.round(editingPayment.amount * 100), due_date: editingPayment.dueDate || null, status: editingPayment.status === "Pagado" ? "paid" : "pending", payment_url: editingPayment.payLink || null }).eq("id", editingPayment.id); if (error) throw error; setPayments((items) => items.map((p) => p.id === editingPayment.id ? { ...editingPayment, studentUsername: student?.username || editingPayment.studentUsername } : p)); setEditingPayment(null); setMsg({ text: "Pago actualizado.", type: "success" }); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo actualizar el pago.", type: "error" }); }
   };
 
-  const handleDeletePayment = (id: string) => {
-    const updated = payments.filter(p => p.id !== id);
-    setPayments(updated);
-    localStorage.setItem("kiru_admin_payments", JSON.stringify(updated));
-    setMsg({ text: "Entrada eliminada del historial de pagos.", type: "success" });
-    setTimeout(() => setMsg(null), 3000);
+  const handleDeletePayment = async (id: string) => {
+    try { const { error } = await supabase.from("kiru_payments").delete().eq("id", id); if (error) throw error; setPayments((items) => items.filter((p) => p.id !== id)); setMsg({ text: "Pago eliminado.", type: "success" }); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo eliminar el pago.", type: "error" }); }
   };
 
-  const togglePaymentStatus = (id: string) => {
-    const updated = payments.map(p => p.id === id ? { ...p, status: (p.status === "Pagado" ? "Pendiente" : "Pagado") as "Pagado" | "Pendiente" } : p);
-    setPayments(updated);
-    localStorage.setItem("kiru_admin_payments", JSON.stringify(updated));
+  const togglePaymentStatus = async (id: string) => {
+    const payment = payments.find((p) => p.id === id); if (!payment) return;
+    const status = payment.status === "Pagado" ? "Pendiente" : "Pagado";
+    try { const { error } = await supabase.from("kiru_payments").update({ status: status === "Pagado" ? "paid" : "pending", paid_at: status === "Pagado" ? new Date().toISOString() : null }).eq("id", id); if (error) throw error; setPayments((items) => items.map((p) => p.id === id ? { ...p, status } : p)); }
+    catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo cambiar el estado del pago.", type: "error" }); }
   };
 
   const alumnos = users.filter(u => u.role === "alumno");
