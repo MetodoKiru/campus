@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   Users, 
   BookOpen, 
@@ -49,6 +50,7 @@ interface MentorSubjectMessage {
 }
 
 export default function MentorPage() {
+  const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   useEffect(() => {
