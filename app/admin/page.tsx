@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { 
   UserPlus, 
   Trash2, 
@@ -82,6 +83,7 @@ export default function AdminPage() {
   
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "admin">("alumno");
   
@@ -124,15 +126,26 @@ export default function AdminPage() {
   const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
 
   useEffect(() => {
-    // Cargar usuarios
-    const saved = localStorage.getItem("kiru_custom_users");
-    if (saved) {
+    // Cargar usuarios reales desde Supabase.
+    const loadUsers = async () => {
       try {
-        setUsers(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const response = await fetch("/api/admin/users", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios.");
+        setUsers((result.users || []).map((u: any) => ({
+          id: u.id, name: u.full_name, username: u.username, role: u.role,
+          createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "",
+        })));
+      } catch (error) {
+        setMsg({ text: error instanceof Error ? error.message : "Error cargando usuarios.", type: "error" });
       }
-    }
+    };
+    void loadUsers();
 
     // Cargar enlaces mentor de forma estricta individual
     const savedLinks = localStorage.getItem("kiru_mentor_links");
@@ -216,38 +229,40 @@ export default function AdminPage() {
   };
 
   // Crear usuario con vinculación automática a padres
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !username.trim() || !password.trim()) {
-      setMsg({ text: "Por favor, completa todos los campos.", type: "error" });
+    if (!name.trim() || !username.trim() || !password) {
+      setMsg({ text: "Completa nombre, usuario y contraseña.", type: "error" });
       return;
     }
-
-    const cleanUsername = username.trim().toLowerCase();
-    if (users.some((u) => u.username.toLowerCase() === cleanUsername)) {
-      setMsg({ text: "Ese nombre de usuario ya existe.", type: "error" });
+    if (role !== "alumno" && !email.trim()) {
+      setMsg({ text: "Para padres, mentores y administradores es necesario un correo propio.", type: "error" });
       return;
     }
-
-    const newUser: UserAccount = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      username: cleanUsername,
-      password: password.trim(),
-      role,
-      createdAt: new Date().toISOString().split("T")[0],
-      assignedParent: role === "alumno" ? "familia" : undefined,
-    };
-
-    const updated = [newUser, ...users];
-    saveToStorage(updated);
-    
-    setName("");
-    setUsername("");
-    setPassword("");
-    setRole("alumno");
-    setMsg({ text: `Usuario «${cleanUsername}» creado correctamente.`, type: "success" });
-    setTimeout(() => setMsg(null), 4000);
+    if (password.length < 12) {
+      setMsg({ text: "La contraseña debe tener al menos 12 caracteres.", type: "error" });
+      return;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ fullName: name.trim(), username: username.trim().toLowerCase(), email: email.trim(), password, role }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo crear el usuario.");
+      const created = result.user;
+      setUsers((current) => [{
+        id: created.id, name: created.full_name, username: created.username, role: created.role,
+        createdAt: new Date().toISOString().slice(0, 10),
+      }, ...current]);
+      setName(""); setUsername(""); setEmail(""); setPassword(""); setRole("alumno");
+      setMsg({ text: `Cuenta real de Supabase creada para «${created.username}».`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "Error creando usuario.", type: "error" });
+    }
   };
 
   const handleUpdateUser = (e: React.FormEvent) => {
@@ -568,8 +583,12 @@ export default function AdminPage() {
                     <input type="text" placeholder="Ej: lucia" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contraseña</label>
-                    <input type="text" placeholder="Ej: lucia123" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Correo electrónico (no necesario para alumnos)</label>
+                    <input type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contraseña (mínimo 12 caracteres)</label>
+                    <input type="password" autoComplete="new-password" placeholder="Mínimo 12 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de usuario / Rol</label>
