@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const role = body.role as Role;
   // Students can sign in with username only; this internal alias is not used for email delivery.
   const email = role === "alumno" && !suppliedEmail ? `${username}@alumnos.campus-kiru.invalid` : suppliedEmail;
-  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || password.length < 12 || !ROLES.includes(role)) {
+  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || (role === "alumno" ? !/^\d{6}$/.test(password) : password.length < 12) || !ROLES.includes(role)) {
     return NextResponse.json({ error: "Nombre, usuario, email, rol o contraseña no válidos. La contraseña debe tener al menos 12 caracteres." }, { status: 400 });
   }
 
