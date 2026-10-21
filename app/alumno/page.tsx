@@ -36,14 +36,7 @@ interface MentorMessage {
   date: string;
 }
 
-const INITIAL_CARDS: Flashcard[] = [
-  { id: "1", category: "Geografía", term: "Meandro", definition: "Curva pronunciada que forma el curso de un río en su recorrido." },
-  { id: "2", category: "Geografía", term: "Meseta", definition: "Planicie extensa situada a considerable altura sobre el nivel del mar." },
-  { id: "3", category: "Historia", term: "1492", definition: "Llegada de Cristóbal Colón a América y fin de la Reconquista en Granada." },
-  { id: "4", category: "Historia", term: "Revolución Francesa", definition: "Conflicto social y político iniciado en 1789 que abolió el Antiguo Régimen." },
-  { id: "5", category: "Física", term: "Inercia", definition: "Propiedad de los cuerpos de mantener su estado de reposo o movimiento relativo." },
-  { id: "6", category: "Inglés", term: "Achievement", definition: "Logro o éxito conseguido con esfuerzo y habilidad." }
-];
+const INITIAL_CARDS: Flashcard[] = [];
 
 // RECURSOS OFICIALES 1.1 ASIGNATURAS SPRINT 2
 const SUBJECTS = [
@@ -141,11 +134,11 @@ export default function AlumnoPage() {
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
   // Usuario dinámico
-  const [currentStudentName, setCurrentStudentName] = useState("Carmen Fernández");
-  const [currentUsername, setCurrentUsername] = useState("carmen");
+  const [currentStudentName, setCurrentStudentName] = useState("");
+  const [currentUsername, setCurrentUsername] = useState("");
 
   // Estado de Flashcards
-  const [allCards, setAllCards] = useState<Flashcard[]>(INITIAL_CARDS);
+  const [allCards, setAllCards] = useState<Flashcard[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("todas");
   const [cardIndex, setCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -179,100 +172,37 @@ export default function AlumnoPage() {
     updatedAt: "12/5/26"
   });
 
-  // Carga inicial y datos del usuario
+  // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
-    const rawUser = localStorage.getItem("kiru_current_user");
-    let activeUser = "carmen";
-    if (rawUser) {
+    let active = true;
+    const loadStudentData = async () => {
       try {
-        const parsed = JSON.parse(rawUser);
-        if (parsed.name) setCurrentStudentName(parsed.name);
-        if (parsed.username) {
-          setCurrentUsername(parsed.username);
-          activeUser = parsed.username;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    // Cargar flashcards
-    const savedCards = localStorage.getItem("kiru_custom_flashcards");
-    if (savedCards) {
-      try {
-        const parsedCards: Flashcard[] = JSON.parse(savedCards);
-        const userCards = parsedCards.filter(
-          (c) => !c.targetStudents || c.targetStudents.includes(activeUser) || c.targetStudents.includes("todos")
-        );
-        if (userCards.length > 0) {
-          setAllCards(userCards);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    // Cargar mensajes enviados por el mentor a este alumno
-    const rawMsgs = localStorage.getItem("kiru_mentor_subject_messages");
-    if (rawMsgs) {
-      try {
-        const parsedMsgs: MentorMessage[] = JSON.parse(rawMsgs);
-        setMentorMessages(parsedMsgs.filter((m) => m.studentId === activeUser || m.studentId === "todos"));
-      } catch (e) {}
-    }
-
-    // Leer SkillCoins del Google Sheet oficial
-    const fetchSheetData = async () => {
-      try {
-        const sheetUrl = "https://docs.google.com/spreadsheets/d/1bgZYmXc4uol1GvfyD7QaAldnK37OG3hLC27jMVg6A1c/gviz/tq?tqx=out:json";
-        const res = await fetch(sheetUrl);
-        const text = await res.text();
-        const jsonText = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-        const data = JSON.parse(jsonText);
-        const rows = data?.table?.rows;
-
-        if (rows && rows.length > 0) {
-          const lastRow = rows[rows.length - 1].c;
-          let dateFormatted = "12/5/26";
-          if (lastRow[0]?.f) {
-            dateFormatted = lastRow[0].f.split(" ")[0];
-          } else if (lastRow[0]?.v) {
-            dateFormatted = String(lastRow[0].v).split("T")[0];
-          }
-
-          const parsedSC = {
-            estudios: Number(lastRow[2]?.v) || 8,
-            compromiso: Number(lastRow[3]?.v) || 9,
-            organizacion: Number(lastRow[4]?.v) || 7,
-            bienestar: Number(lastRow[5]?.v) || 9,
-            updatedAt: dateFormatted
-          };
-
-          setScData(parsedSC);
-          localStorage.setItem(`kiru_sc_${activeUser}`, JSON.stringify(parsedSC));
-          return;
-        }
-      } catch (err) {}
-
-      const localSC = localStorage.getItem(`kiru_sc_${activeUser}`);
-      if (localSC) {
-        try {
-          setScData(JSON.parse(localSC));
-        } catch (e) {}
+        const [activityRecords, messageRecords, progressRecords] = await Promise.all([
+          getKiruRecords<any>("activity"),
+          getKiruRecords<any>("message"),
+          getKiruRecords<any>("progress"),
+        ]);
+        if (!active) return;
+        const cards = activityRecords
+          .map((record) => record.data)
+          .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
+          .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
+        setAllCards(cards);
+        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string") as MentorMessage[]);
+        const latestSkillCoins = progressRecords.map((record) => record.data).find((value) => value?.module === "skillcoins");
+        if (latestSkillCoins?.scores) setScData({
+          estudios: Number(latestSkillCoins.scores.estudios) || 0,
+          compromiso: Number(latestSkillCoins.scores.compromiso) || 0,
+          organizacion: Number(latestSkillCoins.scores.organizacion) || 0,
+          bienestar: Number(latestSkillCoins.scores.bienestar) || 0,
+          updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
+        });
+      } catch (error) {
+        console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
     };
-
-    fetchSheetData();
-
-    // El historial de ejercicios se consulta desde Supabase; los errores de sesión no bloquean el panel.
-    getKiruRecords<{ module?: string; score?: number; total?: number; completedAt?: string }>("progress")
-      .then((records) => setEnglishHistory(records
-        .map((record) => record.data)
-        .filter((record) => record?.module === "english_a1" && typeof record.score === "number" && typeof record.total === "number" && typeof record.completedAt === "string")
-        .map((record) => ({ score: record.score as number, total: record.total as number, completedAt: record.completedAt as string }))
-        .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
-        .slice(0, 5)))
-      .catch(() => {});
+    void loadStudentData();
+    return () => { active = false; };
   }, []);
 
   // Lista filtrada de flashcards
