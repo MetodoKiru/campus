@@ -248,53 +248,6 @@ export default function AdminPage() {
     }
   };
 
-  // Alta inicial en lote de las seis cuentas de Método Kiru.
-  const handleCreateInitialAccounts = async () => {
-    const initialAccounts = [
-      { fullName: "Claudia", username: "claudia", email: "claudiavillargaray@gmail.com", role: "mentor" as const },
-      { fullName: "Paula Ybarra", username: "paula", email: "eppybarrra@gmail.com", role: "mentor" as const },
-      { fullName: "Alondra", username: "alondra", email: "", role: "alumno" as const },
-      { fullName: "Álvaro", username: "alvaro", email: "", role: "alumno" as const },
-      { fullName: "Berna", username: "berna", email: "b.fmendoza@hotmail.com", role: "padre" as const },
-      { fullName: "José", username: "jose", email: "josemateovara@gmail.com", role: "padre" as const },
-    ];
-    const confirmed = window.confirm("Se crearán las cuentas que todavía no existan con el PIN provisional 123456. ¿Continuar?");
-    if (!confirmed) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
-      const createdNames: string[] = [];
-      const skipped: string[] = [];
-      const failed: string[] = [];
-      for (const account of initialAccounts) {
-        const response = await fetch("/api/admin/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ ...account, password: "123456" }),
-        });
-        const result = await response.json();
-        if (response.ok) {
-          createdNames.push(account.fullName);
-          const u = result.user;
-          setUsers(current => current.some(existing => existing.username === u.username) ? current : [{
-            id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: new Date().toISOString().slice(0, 10)
-          }, ...current]);
-        } else if (response.status === 409 || /already registered|already been registered|already exists/i.test(result.error || "")) {
-          skipped.push(account.username);
-        } else {
-          failed.push(account.username + ": " + (result.error || "error desconocido"));
-        }
-      }
-      const parts = [];
-      if (createdNames.length) parts.push("Creadas: " + createdNames.join(", "));
-      if (skipped.length) parts.push("Ya existían: " + skipped.join(", "));
-      if (failed.length) parts.push("No creadas: " + failed.join("; "));
-      setMsg({ text: parts.join(" · ") || "No se realizaron cambios.", type: failed.length ? "error" : "success" });
-    } catch (error) {
-      setMsg({ text: error instanceof Error ? error.message : "No se pudieron crear las cuentas.", type: "error" });
-    }
-  };
-
   const handleResetPassword = async (user: UserAccount) => {
     const nextPassword = window.prompt(`Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
     if (nextPassword === null) return;
@@ -495,13 +448,13 @@ export default function AdminPage() {
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-[#1E293B] pb-16 font-sans">
+    <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
       {/* Cabecera */}
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6 text-emerald-800" />
           <div>
-            <h1 className="font-serif text-xl sm:text-2xl text-slate-900 font-bold">Panel de Administración</h1>
+            <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel de Administración</h1>
             <p className="text-[11px] sm:text-xs text-slate-500">Gestión general del campus educativo</p>
           </div>
         </div>
@@ -592,9 +545,6 @@ export default function AdminPage() {
                   <UserPlus className="w-5 h-5 text-emerald-800" />
                   <h2 className="font-serif text-lg text-slate-900">Crear nuevo usuario</h2>
                 </div>
-                <button type="button" onClick={handleCreateInitialAccounts} className="w-full rounded-2xl border border-[#D8CDBB] bg-[#F3EEE5] px-4 py-3 text-left text-xs font-semibold text-[#51483B] hover:bg-[#ECE4D7] transition-colors">
-                  Crear las 6 cuentas iniciales (PIN provisional 123456)
-                </button>
                 <p className="text-[11px] leading-relaxed text-slate-500">Crea Claudia y Paula como mentoras, Alondra y Álvaro como alumnos, y Berna y José como padres. No establece vínculos entre ellos.</p>
                 <form onSubmit={handleCreateUser} className="space-y-3 pt-2">
                   <div>
