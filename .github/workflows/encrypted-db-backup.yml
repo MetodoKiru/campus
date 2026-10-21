@@ -1,0 +1,54 @@
+name: Encrypted database backup
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kiru-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check backup secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || { echo "::error::Missing SUPABASE_DB_URL repository secret"; exit 1; }
+          test -n "$BACKUP_AGE_RECIPIENT" || { echo "::error::Missing BACKUP_AGE_RECIPIENT repository secret"; exit 1; }
+
+      - name: Install PostgreSQL client and age
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client age
+
+      - name: Create encrypted logical backup
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          mkdir -p backup
+          FILE="backup/kiru-db-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump"
+          pg_dump "$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --file="$FILE"
+          test -s "$FILE"
+          age --recipient "$BACKUP_AGE_RECIPIENT" --output "$FILE.age" "$FILE"
+          rm -f "$FILE"
+          sha256sum "$FILE.age" > "$FILE.age.sha256"
+          printf 'Backup created and encrypted: %s.age\n' "$FILE"
+
+      - name: Store encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiru-encrypted-db-backup-${{ github.run_id }}
+          path: backup/*.age*
+          retention-days: 90
+          if-no-files-found: error
