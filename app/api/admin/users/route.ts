@@ -47,9 +47,9 @@ export async function POST(request: Request) {
   });
   if (createError || !created.user) return NextResponse.json({ error: createError?.message || "No se pudo crear la cuenta." }, { status: 400 });
 
-  const { error: profileError } = await admin.from("profiles").insert({
+  const { error: profileError } = await admin.from("profiles").upsert({
     id: created.user.id, full_name: fullName, username, role, is_active: true,
-  });
+  }, { onConflict: "id" });
   if (profileError) {
     await admin.auth.admin.deleteUser(created.user.id);
     return NextResponse.json({ error: "No se pudo crear el perfil: " + profileError.message }, { status: 500 });
