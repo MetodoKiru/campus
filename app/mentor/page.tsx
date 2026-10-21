@@ -173,7 +173,7 @@ export default function MentorPage() {
     if (!bulkText.trim()) return;
     const targets = bulkTarget === "todos" ? students : students.filter((student) => student.username === bulkTarget);
     if (!targets.length) { setSavedMsg("Selecciona un alumno asignado."); return; }
-    const lines = bulkText.split("\\n").filter((line) => line.trim());
+    const lines = bulkText.split(/\r?\n/).filter((line) => line.trim());
     const cards = lines.map((line) => { let parts = line.split(":"); if (parts.length < 2) parts = line.split(" - "); return parts.length >= 2 ? { term: parts[0].trim(), definition: parts.slice(1).join(":").trim() } : null; }).filter((card): card is { term: string; definition: string } => !!card?.term && !!card.definition);
     if (!cards.length) { alert("Usa el formato: Término - Definición (un concepto por línea)"); return; }
     try {
