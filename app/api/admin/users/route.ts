@@ -88,12 +88,35 @@ export async function PATCH(request: Request) {
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: caller } = await admin.from("profiles").select("role,is_active").eq("id", authData.user.id).single();
   if (caller?.role !== "admin" || !caller.is_active) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
-  let body: { userId?: unknown; password?: unknown };
+  let body: { userId?: unknown; password?: unknown; fullName?: unknown; username?: unknown; role?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const userId = typeof body.userId === "string" ? body.userId : "";
-  const password = typeof body.password === "string" ? body.password : "";
-  if (!userId || password.length < 12) return NextResponse.json({ error: "Indica una contraseña de al menos 12 caracteres." }, { status: 400 });
-  const { error } = await admin.auth.admin.updateUserById(userId, { password });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!userId) return NextResponse.json({ error: "Falta el usuario." }, { status: 400 });
+  const updates: Record<string, unknown> = {};
+  if (typeof body.password === "string" && body.password.length) {
+    if (body.password.length < 12) return NextResponse.json({ error: "La contraseña debe tener al menos 12 caracteres." }, { status: 400 });
+    updates.password = body.password;
+  }
+  const profileUpdates: Record<string, unknown> = {};
+  if (typeof body.fullName === "string" && body.fullName.trim()) profileUpdates.full_name = body.fullName.trim();
+  if (typeof body.username === "string" && /^[a-z0-9._-]{3,40}$/.test(body.username.trim().toLowerCase())) {
+    const username = body.username.trim().toLowerCase();
+    const { data: duplicate } = await admin.from("profiles").select("id").eq("username", username).neq("id", userId).maybeSingle();
+    if (duplicate) return NextResponse.json({ error: "Ese nombre de usuario ya existe." }, { status: 409 });
+    profileUpdates.username = username;
+  } else if (body.username !== undefined) return NextResponse.json({ error: "Nombre de usuario no válido." }, { status: 400 });
+  if (typeof body.role === "string" && ROLES.includes(body.role as Role)) {
+    profileUpdates.role = body.role;
+    updates.app_metadata = { kiru_role: body.role };
+  }
+  if (!Object.keys(updates).length && !Object.keys(profileUpdates).length) return NextResponse.json({ error: "No hay cambios para guardar." }, { status: 400 });
+  if (Object.keys(updates).length) {
+    const { error } = await admin.auth.admin.updateUserById(userId, updates);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  if (Object.keys(profileUpdates).length) {
+    const { error } = await admin.from("profiles").update(profileUpdates).eq("id", userId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
   return NextResponse.json({ ok: true });
 }
