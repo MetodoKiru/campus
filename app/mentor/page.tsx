@@ -115,7 +115,7 @@ export default function MentorPage() {
         const assigned = (profiles || []).filter((p: any) => p.username).map((p: any) => ({ id: p.id, username: p.username, name: p.full_name }));
         setStudents(assigned);
         if (assigned.length && !selectedStudent) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); setEnglishConfig((current) => ({ ...current, studentUsername: assigned[0].username })); }
-        const [activities, settings, progress] = await Promise.all([getKiruRecords<any>("activity"), getKiruRecords<any>("settings"), getKiruRecords<any>("progress")]);
+        const [activities, settings, progress] = await Promise.all([getKiruRecords<any>("activity"), getKiruRecords<any>("activity"), getKiruRecords<any>("progress")]);
         if (!active) return;
         const subjects: Record<string, string[]> = {};
         activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
@@ -187,7 +187,7 @@ export default function MentorPage() {
     e.preventDefault();
     const student = students.find((item) => item.username === selectedStudent);
     if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
-    try { await saveKiruRecord("settings", `english_config_${student.id}`, { kind: "english_config", studentId: student.id, config: englishConfig }, student.id); setSavedMsg("Configuración de Inglés A1 guardada en Supabase."); }
+    try { await saveKiruRecord("activity", `english_config_${student.id}`, { kind: "english_config", studentId: student.id, config: englishConfig }, student.id); setSavedMsg("Configuración de Inglés A1 guardada en Supabase."); }
     catch { setSavedMsg("No se pudo guardar la configuración de Inglés A1."); }
   };
 
