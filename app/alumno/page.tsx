@@ -138,6 +138,8 @@ export default function AlumnoPage() {
   const [currentUsername, setCurrentUsername] = useState("");
 
   // Estado de Flashcards
+  const [flashcardProgressLoaded, setFlashcardProgressLoaded] = useState(false);
+  const [flashcardProgressStatus, setFlashcardProgressStatus] = useState("");
   const [allCards, setAllCards] = useState<Flashcard[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("todas");
   const [cardIndex, setCardIndex] = useState(0);
@@ -189,6 +191,18 @@ export default function AlumnoPage() {
           .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
           .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
         setAllCards(cards);
+        const savedPractice = activityRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
+        if (savedPractice) {
+          setGameScore(Number(savedPractice.gameScore) || 0);
+          setGameAnswersCount(Number(savedPractice.gameAnswersCount) || 0);
+          setGameDuration(Number(savedPractice.gameDuration) || 180);
+          setTimeLeft(Math.max(0, Number(savedPractice.timeLeft) || 0));
+          setGameFinished(Boolean(savedPractice.gameFinished));
+          setIsGameActive(Boolean(savedPractice.isGameActive) && Number(savedPractice.timeLeft) > 0);
+          if (Array.isArray(savedPractice.gameOptions)) setGameOptions(savedPractice.gameOptions.filter((option: unknown) => typeof option === "string"));
+          if (typeof savedPractice.cardIndex === "number") setCardIndex(savedPractice.cardIndex);
+        }
+        setFlashcardProgressLoaded(true);
         setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value: any) => ({ ...value, studentId: value.studentUsername || value.studentId, date: value.date ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
         const latestSkillCoins = progressRecords.map((record) => record.data).find((value) => value?.module === "skillcoins");
         if (latestSkillCoins?.scores) setScData({
@@ -217,6 +231,25 @@ export default function AlumnoPage() {
   }, [categoryFilter]);
 
   // Temporizador del juego de práctica
+  // Guarda la sesión en Supabase para poder recuperarla tras recargar la página.
+  useEffect(() => {
+    if (!flashcardProgressLoaded) return;
+    const persistPractice = async () => {
+      try {
+        await saveKiruRecord("progress", "flashcard_practice_state", {
+          kind: "flashcard_practice_state",
+          gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex,
+          updatedAt: new Date().toISOString(),
+        });
+        setFlashcardProgressStatus("Progreso guardado");
+      } catch {
+        setFlashcardProgressStatus("No se pudo guardar el progreso");
+      }
+    };
+    const debounce = window.setTimeout(() => { void persistPractice(); }, 700);
+    return () => window.clearTimeout(debounce);
+  }, [flashcardProgressLoaded, gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex]);
+
   // Temporizador estable: no se reinicia cada segundo ni al cambiar de pestaña.
   useEffect(() => {
     if (!isGameActive) return;
