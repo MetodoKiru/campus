@@ -80,7 +80,7 @@ export async function PATCH(request: Request) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anon || !service) return NextResponse.json({ error: "Servicio no configurado." }, { status: 503 });
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "Inicia sesión como administradora." }, { status: 401 });
   const authClient = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
@@ -94,7 +94,9 @@ export async function PATCH(request: Request) {
   if (!userId) return NextResponse.json({ error: "Falta el usuario." }, { status: 400 });
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
-    if (body.password.length < 12) return NextResponse.json({ error: "La contraseña debe tener al menos 12 caracteres." }, { status: 400 });
+    const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    const isStudentPin = targetProfile?.role === "alumno" && /^\\d{6}$/.test(body.password);
+    if (!isStudentPin && body.password.length < 12) return NextResponse.json({ error: "Usa un PIN de 6 cifras para alumnos o una contraseña de al menos 12 caracteres para otros roles." }, { status: 400 });
     updates.password = body.password;
   }
   const profileUpdates: Record<string, unknown> = {};
