@@ -17,6 +17,7 @@ import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
 
 interface Child {
+  id: string;
   name: string;
   username: string;
   avatarUrl?: string;
@@ -107,7 +108,7 @@ export default function PadrePage() {
           const { data: profiles, error: profilesError } = await supabase.from("profiles").select("id,full_name,username").in("id", studentIds);
           if (profilesError) throw profilesError;
           if (!active) return;
-          setChildrenList((profiles || []).map((profile: any) => ({ id: profile.id, name: profile.full_name, username: profile.username, level: "Alumno/a de Método Kiru" })) as any);
+          setChildrenList((profiles || []).map((profile: any) => ({ id: profile.id, name: profile.full_name, username: profile.username, level: "Alumno/a de Método Kiru" })));
         } else if (active) setChildrenList([]);
 
         const [documentsResult, noticesResult, paymentsResult, acceptanceResult] = await Promise.all([
@@ -121,7 +122,6 @@ export default function PadrePage() {
         if (paymentsResult.error) throw paymentsResult.error;
         if (acceptanceResult.error) throw acceptanceResult.error;
         if (!active) return;
-        const nameById = new Map((relations || []).map((relation: any) => [relation.student_id, (relation.student_id)]));
         const profileResult = studentIds.length ? await supabase.from("profiles").select("id,username").in("id", studentIds) : { data: [], error: null };
         if (profileResult.error) throw profileResult.error;
         const usernameById = new Map((profileResult.data || []).map((profile: any) => [profile.id, profile.username]));
@@ -151,7 +151,7 @@ export default function PadrePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión no válida.");
-      const { error } = await supabase.from("kiru_document_acceptances").insert({ document_id: docId, student_id: (selectedChild as any).id, accepted_by: user.id });
+      const { error } = await supabase.from("kiru_document_acceptances").insert({ document_id: docId, student_id: selectedChild.id, accepted_by: user.id });
       if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
       setAcceptedLog((previous) => ({ ...previous, [docId]: { user: "Familia", date: new Date().toLocaleString("es-ES") } }));
     } catch (error) { console.error("No se pudo registrar la aceptación del documento.", error); }
