@@ -1043,10 +1043,7 @@ export default function AdminPage() {
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Usuario</label>
                 <input type="text" value={editingUser.username} onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contraseña</label>
-                <input type="text" value={editingUser.password || ""} onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
-              </div>
+              <p className="text-[11px] text-slate-500">La contraseña se gestiona por separado con el botón «Contraseña» de la lista. No se puede consultar ni editar desde este formulario.</p>
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Rol asignado</label>
                 <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
@@ -1061,7 +1058,7 @@ export default function AdminPage() {
                 <button type="button" onClick={() => setEditingUser(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition">
                   Cancelar
                 </button>
-                <button type="submit" className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow-sm">
+                <button type="submit" onClick={() => setMsg(null)} className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow-sm">
                   <Save className="w-3.5 h-3.5" /> Guardar cambios
                 </button>
               </div>
