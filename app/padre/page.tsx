@@ -39,6 +39,7 @@ interface DocItem {
   requiresAcceptance: boolean;
   fileData?: string;
   fileName?: string;
+  storagePath?: string;
 }
 
 interface PaymentRecord {
@@ -91,151 +92,69 @@ export default function PadrePage() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
   // SkillCoins automáticas
-  const [scData, setScData] = useState({
-    estudios: 8,
-    compromiso: 9,
-    organizacion: 7,
-    bienestar: 9,
-    updatedAt: "12/5/26"
-  });
+  const [scData, setScData] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0, updatedAt: "Sin datos" });
 
   useEffect(() => {
-    // 1. Cargar dinámicamente TODOS los alumnos registrados en el sistema (tanto antiguos como nuevos)
-    const rawUsers = localStorage.getItem("kiru_custom_users");
-    if (rawUsers) {
+    let active = true;
+    const loadFamilyData = async () => {
       try {
-        const parsed = JSON.parse(rawUsers);
-        const students = parsed.filter((u: any) => u.role === "alumno");
-        if (students.length > 0) {
-          const mapped = students.map((s: any) => ({
-            name: s.name.split(" ")[0], // Extrae el primer nombre
-            username: s.username,
-            avatarUrl: "",
-            level: "Explorador (1)"
-          }));
-          setChildrenList(mapped);
-        }
-      } catch (e) {}
-    }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: relations, error: relationsError } = await supabase.from("student_guardians").select("student_id").eq("guardian_id", user.id);
+        if (relationsError) throw relationsError;
+        const studentIds = Array.from(new Set((relations || []).map((row: any) => row.student_id)));
+        if (studentIds.length) {
+          const { data: profiles, error: profilesError } = await supabase.from("profiles").select("id,full_name,username").in("id", studentIds);
+          if (profilesError) throw profilesError;
+          if (!active) return;
+          setChildrenList((profiles || []).map((profile: any) => ({ id: profile.id, name: profile.full_name, username: profile.username, level: "Alumno/a de Método Kiru" })) as any);
+        } else if (active) setChildrenList([]);
 
-    // 2. Cargar documentos
-    const rawDocs = localStorage.getItem("kiru_admin_docs");
-    if (rawDocs) {
-      try { setDocs(JSON.parse(rawDocs)); } catch (e) {}
-    } else {
-      setDocs([
-        {
-          id: "d1",
-          title: "Propuesta personalizada",
-          targetStudent: "carmen",
-          type: "Propuesta",
-          requiresAcceptance: false,
-          fileName: "Propuesta_Kiru_Carmen.pdf"
-        },
-        {
-          id: "d2",
-          title: "Normas de Método Kiru",
-          targetStudent: "todos",
-          type: "Normas",
-          requiresAcceptance: true,
-          fileName: "Normas_Metodo_Kiru_2026.pdf"
-        }
-      ]);
-    }
-
-    // 3. Cargar avisos
-    const rawNotices = localStorage.getItem("kiru_admin_notices");
-    if (rawNotices) {
-      try { setNotices(JSON.parse(rawNotices)); } catch (e) {}
-    } else {
-      setNotices([
-        {
-          id: "n1",
-          title: "Festivo Nacional",
-          targetStudent: "todos",
-          date: "12 de Octubre",
-          content: "No habrá sesiones lectivas durante esta jornada festiva."
-        }
-      ]);
-    }
-
-    // 4. Cargar pagos
-    const rawPayments = localStorage.getItem("kiru_admin_payments");
-    if (rawPayments) {
-      try { setPayments(JSON.parse(rawPayments)); } catch (e) {}
-    } else {
-      setPayments([
-        {
-          id: "p1",
-          studentUsername: "carmen",
-          concept: "Mentoría agosto",
-          amount: 75,
-          dueDate: "15/08/2026",
-          status: "Pagado",
-          payLink: "https://bizum.es"
-        },
-        {
-          id: "p2",
-          studentUsername: "carmen",
-          concept: "Mentoría septiembre",
-          amount: 75,
-          dueDate: "15/09/2026",
-          status: "Pendiente",
-          payLink: "https://bizum.es"
-        }
-      ]);
-    }
-
-    // 5. Cargar registro de firmas
-    const rawAccepted = localStorage.getItem("kiru_accepted_docs_log");
-    if (rawAccepted) {
-      try { setAcceptedLog(JSON.parse(rawAccepted)); } catch (e) {}
-    }
-
-    // 6. Cargar SkillCoins en vivo de Google Sheets
-    const fetchSheetData = async () => {
-      try {
-        const sheetUrl = "https://docs.google.com/spreadsheets/d/1bgZYmXc4uol1GvfyD7QaAldnK37OG3hLC27jMVg6A1c/gviz/tq?tqx=out:json";
-        const res = await fetch(sheetUrl);
-        const text = await res.text();
-        const jsonText = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-        const data = JSON.parse(jsonText);
-        const rows = data?.table?.rows;
-
-        if (rows && rows.length > 0) {
-          const lastRow = rows[rows.length - 1].c;
-          let dateStr = "12/5/26";
-          if (lastRow[0]?.f) dateStr = lastRow[0].f.split(" ")[0];
-          else if (lastRow[0]?.v) dateStr = String(lastRow[0].v).split("T")[0];
-
-          setScData({
-            estudios: Number(lastRow[2]?.v) || 8,
-            compromiso: Number(lastRow[3]?.v) || 9,
-            organizacion: Number(lastRow[4]?.v) || 7,
-            bienestar: Number(lastRow[5]?.v) || 9,
-            updatedAt: dateStr
-          });
-        }
-      } catch (e) {}
+        const [documentsResult, noticesResult, paymentsResult, acceptanceResult] = await Promise.all([
+          supabase.from("kiru_documents").select("*").order("created_at", { ascending: false }),
+          supabase.from("kiru_notices").select("*").order("published_at", { ascending: false }),
+          supabase.from("kiru_payments").select("*").order("created_at", { ascending: false }),
+          supabase.from("kiru_document_acceptances").select("document_id,student_id,accepted_at,accepted_by"),
+        ]);
+        if (documentsResult.error) throw documentsResult.error;
+        if (noticesResult.error) throw noticesResult.error;
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (acceptanceResult.error) throw acceptanceResult.error;
+        if (!active) return;
+        const nameById = new Map((relations || []).map((relation: any) => [relation.student_id, (relation.student_id)]));
+        const profileResult = studentIds.length ? await supabase.from("profiles").select("id,username").in("id", studentIds) : { data: [], error: null };
+        if (profileResult.error) throw profileResult.error;
+        const usernameById = new Map((profileResult.data || []).map((profile: any) => [profile.id, profile.username]));
+        const allowedIds = new Set(studentIds);
+        const mappedDocs = await Promise.all((documentsResult.data || []).filter((doc: any) => !doc.target_student_id || allowedIds.has(doc.target_student_id)).map(async (doc: any) => {
+          let fileData: string | undefined;
+          if (doc.storage_path) {
+            const { data: signed } = await supabase.storage.from("kiru-documents").createSignedUrl(doc.storage_path, 300);
+            fileData = signed?.signedUrl;
+          }
+          return { id: doc.id, title: doc.title, targetStudent: doc.target_student_id ? usernameById.get(doc.target_student_id) : "todos", type: doc.document_type, requiresAcceptance: doc.requires_acceptance, fileName: doc.file_name, fileData, storagePath: doc.storage_path } as DocItem;
+        }));
+        setDocs(mappedDocs);
+        setNotices((noticesResult.data || []).filter((notice: any) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice: any) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url, linkTitle: notice.link_title })));
+        setPayments((paymentsResult.data || []).filter((payment: any) => allowedIds.has(payment.student_id)).map((payment: any) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id), concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
+        const accepted: Record<string, { user: string; date: string }> = {};
+        for (const row of acceptanceResult.data || []) if (allowedIds.has(row.student_id)) accepted[row.document_id] = { user: "Familia", date: new Date(row.accepted_at).toLocaleString("es-ES") };
+        setAcceptedLog(accepted);
+      } catch (error) { console.error("No se pudieron cargar los datos familiares desde Supabase.", error); }
     };
-
-    fetchSheetData();
+    void loadFamilyData();
+    return () => { active = false; };
   }, []);
 
-  const handleConfirmDoc = (docId: string) => {
-    const timestamp = new Date().toLocaleString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-    const updated = {
-      ...acceptedLog,
-      [docId]: { user: "Familia", date: timestamp }
-    };
-    setAcceptedLog(updated);
-    localStorage.setItem("kiru_accepted_docs_log", JSON.stringify(updated));
+  const handleConfirmDoc = async (docId: string) => {
+    if (!selectedChild) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sesión no válida.");
+      const { error } = await supabase.from("kiru_document_acceptances").insert({ document_id: docId, student_id: (selectedChild as any).id, accepted_by: user.id });
+      if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
+      setAcceptedLog((previous) => ({ ...previous, [docId]: { user: "Familia", date: new Date().toLocaleString("es-ES") } }));
+    } catch (error) { console.error("No se pudo registrar la aceptación del documento.", error); }
   };
 
   const currentChildDocs = docs.filter(
