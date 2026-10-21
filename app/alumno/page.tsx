@@ -105,6 +105,7 @@ const SUBJECTS = [
 ];
 
 export default function AlumnoPage() {
+  const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   useEffect(() => {
@@ -130,7 +131,6 @@ export default function AlumnoPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const router = useRouter();
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
   // Usuario dinámico
