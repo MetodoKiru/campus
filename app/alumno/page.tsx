@@ -158,10 +158,11 @@ export default function AlumnoPage() {
   const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
 
   // Inglés A1 Motor de ejercicios corregido y real
+  const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
   const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: ENGLISH_A1_DATABASE.length, checked: false });
   const [englishSaveStatus, setEnglishSaveStatus] = useState<string>("");
-  const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string }>>([]);
+  const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string }>>([]);
 
   // SkillCoins Semanales
   const [scData, setScData] = useState({
@@ -269,7 +270,7 @@ export default function AlumnoPage() {
   // Corrección basada en el banco central de preguntas de Inglés A1.
   const checkEnglishExercises = async (e: React.FormEvent) => {
     e.preventDefault();
-    const questions = ENGLISH_A1_DATABASE;
+    const questions = ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory);
     const hits = questions.reduce((count, question, index) => {
       const given = (englishAnswers[index] || "").trim().toLocaleLowerCase();
       const expected = question.answer.trim().toLocaleLowerCase();
@@ -281,13 +282,14 @@ export default function AlumnoPage() {
       const completedAt = new Date().toISOString();
       await saveKiruRecord("progress", `english_a1_attempt_${Date.now()}`, {
         module: "english_a1",
+        category: englishCategory,
         score: hits,
         total: questions.length,
         percentage: Math.round((hits / questions.length) * 100),
         answers: questions.map((question, index) => ({ questionId: question.id, answer: englishAnswers[index] ?? "", correct: (englishAnswers[index] ?? "").trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase() })),
         completedAt,
       });
-      setEnglishHistory(previous => [{ score: hits, total: questions.length, completedAt }, ...previous].slice(0, 5));
+      setEnglishHistory(previous => [{ score: hits, total: questions.length, completedAt, category: englishCategory }, ...previous].slice(0, 5));
       setEnglishSaveStatus("Resultado guardado.");
     } catch {
       setEnglishSaveStatus("No se ha podido guardar el historial. Comprueba que has iniciado sesión.");
@@ -709,7 +711,15 @@ export default function AlumnoPage() {
             </div>
 
             <form onSubmit={checkEnglishExercises} className="space-y-4">
-              {ENGLISH_A1_DATABASE.map((question, index) => (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">Categoría (20 ejercicios)</label>
+                <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 20, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
+                  <option value="Grammar">Gramática</option>
+                  <option value="Vocabulary">Vocabulario</option>
+                  <option value="Everyday English">Inglés cotidiano</option>
+                </select>
+              </div>
+              {ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory).map((question, index) => (
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
@@ -758,7 +768,7 @@ export default function AlumnoPage() {
                   <h3 className="text-xs font-semibold text-[#343330]">Últimos resultados guardados</h3>
                   {englishHistory.map((attempt, index) => (
                     <div key={`${attempt.completedAt}-${index}`} className="flex items-center justify-between gap-3 text-xs text-[#6D6962]">
-                      <span>{new Date(attempt.completedAt).toLocaleDateString("es-ES")}</span>
+                      <span>{attempt.category || "Inglés A1"} · {new Date(attempt.completedAt).toLocaleDateString("es-ES")}</span>
                       <span>{attempt.score}/{attempt.total} · {attempt.total ? ((attempt.score / attempt.total) * 10).toFixed(1) : "0.0"}/10</span>
                     </div>
                   ))}
