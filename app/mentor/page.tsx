@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { 
   Users, 
   BookOpen, 
-  Sparkles, 
   CheckCircle2, 
   ExternalLink,
   Save,
@@ -307,7 +306,7 @@ export default function MentorPage() {
               activeTab === "ingles" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <BookOpen className="w-3.5 h-3.5" />
             <span>Motor de Inglés A1</span>
           </button>
           <button
