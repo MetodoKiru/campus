@@ -163,7 +163,7 @@ export default function AlumnoPage() {
   const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
   const [englishAssignedConfig, setEnglishAssignedConfig] = useState<{ questionCount: number; selectedCategory: string; difficulty: string; selectedUnits: string[] } | null>(null);
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
-  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: getAssignedEnglishQuestions().length, checked: false });
+  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: 0, checked: false });
   const [englishSaveStatus, setEnglishSaveStatus] = useState<string>("");
   const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string }>>([]);
 
@@ -335,14 +335,15 @@ export default function AlumnoPage() {
   };
 
   const getAssignedEnglishQuestions = () => {
-    let pool = ENGLISH_A1_DATABASE.filter((question) => question.category === englishCategory);
+    let pool = ENGLISH_A1_DATABASE;
     if (englishAssignedConfig) {
       if (englishAssignedConfig.selectedCategory !== "Todas") pool = pool.filter((question) => question.category === englishAssignedConfig.selectedCategory);
+      else pool = pool.filter((question) => question.category === englishCategory);
       if (englishAssignedConfig.difficulty !== "todas") pool = pool.filter((question) => question.difficulty === englishAssignedConfig.difficulty);
       if (englishAssignedConfig.selectedUnits.length) pool = pool.filter((question) => englishAssignedConfig.selectedUnits.includes(question.unit));
-      pool = pool.slice(0, englishAssignedConfig.questionCount);
+      return pool.slice(0, englishAssignedConfig.questionCount);
     }
-    return pool;
+    return pool.filter((question) => question.category === englishCategory);
   };
 
   // Corrección basada en el banco central de preguntas de Inglés A1.
@@ -784,19 +785,30 @@ export default function AlumnoPage() {
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B] bg-[#F3EEE5] px-2.5 py-1 rounded-full border border-[#E4D8C5]">
                 A1 Beginner · Macmillan Curriculum
               </span>
-              <h2 className="text-2xl font-serif text-[#292825] font-bold mt-2">Módulo de Inglés A1</h2>
-              <p className="text-xs text-[#77736B]">Ejercicios autocorregibles con cálculo de nota exacta en tiempo real.</p>
+              <h2 className="text-2xl font-serif text-[#292825] font-bold mt-2">Inglés: tu práctica de hoy</h2>
+              <p className="text-xs text-[#77736B]">Completa la tanda asignada, revisa los errores y mejora poco a poco.</p>
+              {englishAssignedConfig && (
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Ejercicios</p><p className="text-sm font-bold">{getAssignedEnglishQuestions().length}</p></div>
+                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Dificultad</p><p className="text-sm font-bold">{({facil:"Fácil",medio:"Media",desafiante:"Desafiante",todas:"Todas"} as Record<string,string>)[englishAssignedConfig.difficulty] || "Todas"}</p></div>
+                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Sección</p><p className="text-sm font-bold">{englishAssignedConfig.selectedCategory}</p></div>
+                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Objetivo</p><p className="text-sm font-bold">Completar la tanda</p></div>
+                </div>
+              )}
             </div>
 
             <form onSubmit={checkEnglishExercises} className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">Categoría · {getAssignedEnglishQuestions().length} ejercicios asignados</label>
-                <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: getAssignedEnglishQuestions().length, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
-                  <option value="Grammar">Gramática</option>
-                  <option value="Vocabulary">Vocabulario</option>
-                  <option value="Everyday English">Inglés cotidiano</option>
-                </select>
+                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">{getAssignedEnglishQuestions().length} ejercicios en esta tanda</label>
+                {!englishAssignedConfig || englishAssignedConfig.selectedCategory === "Todas" ? (
+                  <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 0, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
+                    <option value="Grammar">Gramática</option>
+                    <option value="Vocabulary">Vocabulario</option>
+                    <option value="Everyday English">Inglés cotidiano</option>
+                  </select>
+                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{englishAssignedConfig.selectedCategory}</span>}
               </div>
+              <div className="h-2 rounded-full bg-[#EEECE7] overflow-hidden"><div className="h-full bg-[#8A9870] transition-all" style={{ width: (getAssignedEnglishQuestions().length ? Object.keys(englishAnswers).length / getAssignedEnglishQuestions().length * 100 : 0) + "%" }} /></div>
               {getAssignedEnglishQuestions().map((question, index) => (
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
@@ -835,9 +847,10 @@ export default function AlumnoPage() {
                 Corregir respuestas
               </button>
               {englishFeedback.checked && (
-                <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-[#F7F5F1]">
-                  <p className="text-sm font-semibold text-[#343330]">Resultado: {englishFeedback.score} de {englishFeedback.total}</p>
-                  <p className="text-xs text-[#6D6962] mt-1">Nota: {englishFeedback.total ? ((englishFeedback.score / englishFeedback.total) * 10).toFixed(1) : "0.0"} / 10</p>
+                <div className="p-5 rounded-2xl border border-[#DDE3D4] bg-[#F5F7F1]">
+                  <p className="text-sm font-semibold text-[#343330]">{englishFeedback.score === englishFeedback.total ? "¡Perfecto! Tanda completada." : englishFeedback.score / Math.max(1, englishFeedback.total) >= 0.7 ? "¡Buen trabajo! Vas avanzando." : "Buen intento. Revisa los errores y vuelve a practicar."}</p>
+                  <p className="text-sm font-semibold text-[#343330] mt-2">Resultado: {englishFeedback.score} de {englishFeedback.total}</p>
+                  <p className="text-xs text-[#6D6962] mt-1">Precisión: {englishFeedback.total ? Math.round(englishFeedback.score / englishFeedback.total * 100) : 0}% · Nota: {englishFeedback.total ? ((englishFeedback.score / englishFeedback.total) * 10).toFixed(1) : "0.0"} / 10</p>
                 </div>
               )}
               {englishFeedback.checked && englishSaveStatus && <p role="status" className="text-xs text-[#6D6962]">{englishSaveStatus}</p>}
