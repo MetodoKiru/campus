@@ -54,3 +54,21 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ ok: true, user: { id: created.user.id, full_name: fullName, username, role } }, { status: 201 });
 }
+
+export async function GET(request: Request) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !anon || !service) return NextResponse.json({ error: "Servicio no configurado." }, { status: 503 });
+  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  if (!token) return NextResponse.json({ error: "Inicia sesión como administradora." }, { status: 401 });
+  const authClient = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: authData, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !authData.user || authData.user.app_metadata?.kiru_role !== "admin") return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: caller } = await admin.from("profiles").select("role,is_active").eq("id", authData.user.id).single();
+  if (caller?.role !== "admin" || !caller.is_active) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  const { data, error } = await admin.from("profiles").select("id,full_name,username,role,is_active,created_at").order("created_at", { ascending: false });
+  if (error) return NextResponse.json({ error: "No se pudieron cargar los usuarios." }, { status: 500 });
+  return NextResponse.json({ users: data ?? [] });
+}
