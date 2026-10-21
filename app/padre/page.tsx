@@ -128,7 +128,7 @@ export default function PadrePage() {
         const allowedIds = new Set(studentIds);
         const mappedDocs = await Promise.all((documentsResult.data || []).filter((doc: any) => !doc.target_student_id || allowedIds.has(doc.target_student_id)).map(async (doc: any) => {
           let fileData: string | undefined;
-          if (doc.storage_path) {
+          if (doc.storage_path && doc.storage_path !== "no-file") {
             const { data: signed } = await supabase.storage.from("kiru-documents").createSignedUrl(doc.storage_path, 300);
             fileData = signed?.signedUrl;
           }
