@@ -10,7 +10,7 @@ export interface StoredKiruPdf {
   contentType: "application/pdf";
 }
 
-export async function uploadKiruPdf(file: File, folder = "documents"): Promise<StoredKiruPdf> {
+export async function uploadKiruPdf(file: File, studentProfileId: string, folder = "documents"): Promise<StoredKiruPdf> {
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
     throw new Error("Solo se admiten archivos PDF.");
   }
@@ -20,7 +20,8 @@ export async function uploadKiruPdf(file: File, folder = "documents"): Promise<S
   if (authError || !authData.user) throw new Error("Inicia sesión para subir documentos.");
 
   const safeName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${authData.user.id}/${folder}/${crypto.randomUUID()}-${safeName}`;
+  if (!studentProfileId) throw new Error("Selecciona el alumno al que pertenece el documento.");
+  const path = `${studentProfileId}/${folder}/${crypto.randomUUID()}-${safeName}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     contentType: "application/pdf",
     upsert: false,
