@@ -399,7 +399,7 @@ export default function AlumnoPage() {
         </div>
 
         <button
-          onClick={() => router.push("/")}
+          onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }}
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition flex items-center justify-center shadow-xs"
         >
