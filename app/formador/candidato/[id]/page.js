@@ -24,6 +24,8 @@ export default function PerfilCandidato() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [portalLink, setPortalLink] = useState('')
+  const [creatingPortalLink, setCreatingPortalLink] = useState(false)
 
   const loadCandidate = useCallback(async (accessToken) => {
     setLoading(true)
@@ -81,6 +83,34 @@ export default function PerfilCandidato() {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el cambio.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function generatePortalLink() {
+    if (!token || creatingPortalLink) return
+    if (!window.confirm('Generar un enlace nuevo invalidará el enlace anterior de esta candidatura. ¿Continuar?')) return
+    setCreatingPortalLink(true)
+    setError('')
+    setMessage('')
+    setPortalLink('')
+    try {
+      const response = await fetch(`/api/formador/candidatos/${encodeURIComponent(id)}/portal-link`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'No se pudo generar el enlace del candidato.')
+      setPortalLink(result.portalUrl)
+      try {
+        await navigator.clipboard.writeText(result.portalUrl)
+        setMessage('Enlace seguro generado y copiado. Guarda este enlace: el token solo se muestra ahora.')
+      } catch {
+        setMessage('Enlace seguro generado. Copia el enlace que aparece abajo; el token solo se muestra ahora.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo generar el enlace del candidato.')
+    } finally {
+      setCreatingPortalLink(false)
     }
   }
 
@@ -151,6 +181,17 @@ export default function PerfilCandidato() {
             </div>
           </section>
         )}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <h2 className="text-lg font-semibold">Enlace del portal del candidato</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Genera un enlace personal para que la persona candidata pueda consultar su fase y las instrucciones. Por seguridad, el enlace anterior se invalida y el token nuevo solo se muestra una vez.
+          </p>
+          <button type="button" onClick={generatePortalLink} disabled={creatingPortalLink} className="mt-4 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            {creatingPortalLink ? 'Generando enlace…' : 'Generar / renovar enlace'}
+          </button>
+          {portalLink && <div className="mt-4 break-all rounded-xl bg-slate-50 p-4 text-sm"><a href={portalLink} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">{portalLink}</a></div>}
+        </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
           <h2 className="text-lg font-semibold">Historial</h2>
