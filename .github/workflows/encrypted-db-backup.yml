@@ -40,7 +40,9 @@ jobs:
           FILE="backup/kiru-db-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump"
           pg_dump "$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --file="$FILE"
           test -s "$FILE"
+          pg_restore --list "$FILE" >/dev/null
           age --recipient "$BACKUP_AGE_RECIPIENT" --output "$FILE.age" "$FILE"
+          test -s "$FILE.age"
           rm -f "$FILE"
           sha256sum "$FILE.age" > "$FILE.age.sha256"
           printf 'Backup created and encrypted: %s.age\n' "$FILE"
