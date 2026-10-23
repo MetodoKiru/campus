@@ -228,8 +228,7 @@ export default function MentorPage() {
             <ExternalLink className="w-3.5 h-3.5 text-[#77736B]" />
           </a>
 
-          <Link
-            href="/"
+          <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }}
             title="Cerrar sesión"
             className="p-2 sm:p-2 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition shadow-xs flex items-center justify-center"
           >
@@ -237,7 +236,7 @@ export default function MentorPage() {
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
               <line x1="12" y1="2" x2="12" y2="12" />
             </svg>
-          </Link>
+          </button>
         </div>
       </header>
 
