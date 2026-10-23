@@ -49,6 +49,9 @@ jobs:
           'app/formador/candidato/[id]/page.js'
           'app/mentores/candidatura/[token]/page.js'
       - name: Lint admin changes (existing explicit-any debt is tracked separately)
-        run: npx eslint app/admin/page.tsx --rule '@typescript-eslint/no-explicit-any: off'
+        run: >-
+          npx eslint app/admin/page.tsx
+          --rule
+          '@typescript-eslint/no-explicit-any: off'
       - name: Build production app
         run: npm run build
