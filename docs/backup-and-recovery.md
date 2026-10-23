@@ -32,6 +32,17 @@ El workflow `.github/workflows/encrypted-db-backup.yml` intenta generar una copi
 4. Restaurar primero en una base de datos separada para comprobar integridad y versión. Para un dump custom de PostgreSQL, usar `pg_restore` y revisar roles/extensiones que deban recrearse.
 5. Restaurar Storage desde su respaldo independiente, validar permisos/RLS, relaciones, documentos y flujos críticos antes de reabrir el servicio.
 
+## Configuración obligatoria de GitHub Actions
+
+En GitHub, abrir el repositorio `MetodoKiru/campus-kiru` → Settings → Secrets and variables → Actions → New repository secret. Crear:
+
+- `SUPABASE_DB_URL`: cadena de conexión PostgreSQL del proyecto, obtenida en Supabase → Project Settings → Database → Connection string. Usar el formato URI compatible con `pg_dump`; si la contraseña contiene caracteres especiales, debe codificarse correctamente. No guardarla en archivos del repositorio.
+- `BACKUP_AGE_RECIPIENT`: clave pública de `age` (empieza por `age1...`). La clave privada correspondiente debe guardarse fuera de GitHub, en un lugar seguro y separado de las copias.
+
+Después, abrir Actions → Encrypted database backup → Run workflow. Confirmar que termina en verde y que adjunta el artefacto cifrado y su checksum. El workflow valida la estructura del dump antes de cifrarlo, pero esto no equivale a una prueba de restauración.
+
+**Alcance actual:** este workflow respalda la base de datos PostgreSQL. No incluye los archivos binarios de Supabase Storage; estos necesitan una copia independiente. No considerar el plan completo hasta que Storage también esté respaldado y se haya probado una restauración en un entorno separado.
+
 ## Refuerzo aplicado en base de datos
 
 Se añadieron índices para varias claves foráneas y consultas habituales de conjuntos de flashcards/registros. Las tablas públicas comprobadas tienen Row Level Security activado. El linter de Supabase aún informa de protección contra contraseñas filtradas desactivada y de oportunidades de optimización de políticas RLS; estas deben resolverse y probarse sin debilitar los permisos.
