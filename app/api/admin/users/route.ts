@@ -122,3 +122,54 @@ export async function PATCH(request: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+
+export async function DELETE(request: Request) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !anon || !service) return NextResponse.json({ error: "Servicio no configurado." }, { status: 503 });
+
+  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  if (!token) return NextResponse.json({ error: "Inicia sesión como administradora." }, { status: 401 });
+
+  const authClient = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: authData, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !authData.user || authData.user.app_metadata?.kiru_role !== "admin") {
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  }
+
+  const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: caller, error: callerError } = await admin.from("profiles").select("role,is_active").eq("id", authData.user.id).single();
+  if (callerError || caller?.role !== "admin" || !caller.is_active) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  }
+
+  let body: { userId?: unknown };
+  try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
+  const userId = typeof body.userId === "string" ? body.userId : "";
+  if (!userId) return NextResponse.json({ error: "Falta el usuario." }, { status: 400 });
+  if (userId === authData.user.id) return NextResponse.json({ error: "No puedes eliminar tu propia cuenta administradora." }, { status: 400 });
+
+  const { data: target, error: targetError } = await admin.from("profiles").select("id,username,role").eq("id", userId).maybeSingle();
+  if (targetError || !target) return NextResponse.json({ error: "No se encontró el usuario." }, { status: 404 });
+  if (target.role === "admin") return NextResponse.json({ error: "No se puede eliminar otra cuenta administradora desde este panel." }, { status: 403 });
+
+  // Preserve records authored by the user; stop deletion if dependent data prevents a safe cleanup.
+  const cleanupSteps = [
+    () => admin.from("student_mentors").delete().or(`student_id.eq.${userId},mentor_id.eq.${userId}`),
+    () => admin.from("student_guardians").delete().or(`student_id.eq.${userId},guardian_id.eq.${userId}`),
+    () => admin.from("kiru_document_acceptances").delete().eq("student_id", userId),
+    () => admin.from("kiru_document_acceptances").delete().eq("accepted_by", userId),
+    () => admin.from("kiru_app_records").delete().eq("owner_id", userId),
+    () => admin.from("students").delete().eq("profile_id", userId),
+  ];
+  for (const cleanup of cleanupSteps) {
+    const { error } = await cleanup();
+    if (error) return NextResponse.json({ error: "No se pudo completar la limpieza de relaciones. No se ha eliminado la cuenta; revisa los datos relacionados antes de volver a intentarlo." }, { status: 409 });
+  }
+
+  const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+  if (deleteError) return NextResponse.json({ error: "No se pudo eliminar la cuenta: " + deleteError.message }, { status: 409 });
+  return NextResponse.json({ ok: true, deletedUsername: target.username });
+}
