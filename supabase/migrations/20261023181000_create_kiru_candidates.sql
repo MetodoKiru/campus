@@ -58,13 +58,13 @@ CREATE POLICY kiru_candidates_staff_read
   ON public.kiru_candidates
   FOR SELECT
   TO authenticated
-  USING (public.kiru_is_active_candidate_staff());
+  USING ((select public.kiru_is_active_candidate_staff()));
 
 CREATE POLICY kiru_candidates_staff_insert
   ON public.kiru_candidates
   FOR INSERT
   TO authenticated
-  WITH CHECK (public.kiru_is_active_candidate_staff());
+  WITH CHECK ((select public.kiru_is_active_candidate_staff()));
 
 CREATE POLICY kiru_candidates_staff_update
   ON public.kiru_candidates
