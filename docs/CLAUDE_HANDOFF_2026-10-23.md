@@ -13,7 +13,7 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 ## Avances confirmados
 
 - La política de lectura de flashcards se corrigió y versionó en `main`.
-- La rama añade controles a la API de cuentas: sesión/rol activo, comprobación de duplicados, protección contra cambios de rol propios y contra degradar al último admin.
+- La rama añade controles a la API de cuentas: sesión/rol activo, comprobación de duplicados, protección contra cambios de rol propios y contra degradar al último admin. También se corrigió el cierre de sesión de alumno, mentor, padre y admin para llamar a `supabase.auth.signOut()` antes de volver al login; formador ya tenía logout real.
 - Se ha mejorado el guardado concurrente de registros y la lectura del temporizador.
 - Las asignaciones de mentor y tutor se prepararon como RPC atómicas con validación de roles.
 - Se añadió una migración para endurecer las políticas RLS de relaciones frente a administradores desactivados.
@@ -22,12 +22,12 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 - El motor A1 de Inglés en la rama contiene 100 preguntas en cinco unidades. Se añadió un validador automático. Un workflow anterior falló porque el merge commit probado contenía 101 preguntas. El validador ya pasa en el head `c89d85554bb41440b301d56d61b3137e9105ef54`: 100 preguntas, cinco unidades y tres categorías.
 - Existe el borrador de feedback constructivo en `docs/feedback-tecnico-panel-formador.md`.
 - El panel formador y portal de candidaturas están aislados en la rama. Los tokens del nuevo portal son aleatorios de 256 bits y se almacena solo el hash. Los enlaces antiguos deberán renovarse si se aprueba el lanzamiento.
-- El CI de GitHub Actions ha pasado en el head `c89d85554bb41440b301d56d61b3137e9105ef54` (run `39972258851`): instalación, auditoría, validador de Inglés, lint específico y build de producción. `npm ci` informa 0 vulnerabilidades tras actualizar el lockfile. Los checks de Vercel para el head actual siguen bloqueados por `build-rate-limit`; un preview anterior sí aparece en verde. La producción identificada sigue en `main`, SHA `5816d33ba34adbb14341b8e0015eef937f6b168d`.
+- El CI de GitHub Actions ha pasado en el head `c37eaa8cb35d9c8918df9a2ac1a24bed142f8921` (run `39972660842`): instalación, auditoría, validador de Inglés, lint específico y build de producción, incluidos los cambios de logout. `npm ci` informa 0 vulnerabilidades tras actualizar el lockfile. Los checks de Vercel para el head actual siguen bloqueados por `build-rate-limit`; un preview anterior sí aparece en verde. La producción identificada sigue en `main`, SHA `5816d33ba34adbb14341b8e0015eef937f6b168d`.
 
 ## Orden obligatorio
 
 ### P0 — Seguridad, login y permisos
-1. Identificar el head actual de la PR y ejecutar CI sobre ese commit.
+1. El CI ya pasó en el head `c37eaa8cb35d9c8918df9a2ac1a24bed142f8921` (run `39972660842`). Repetirlo después de futuros cambios y ejecutar pruebas de sesión end-to-end.
 2. Probar con cuentas desechables los cuatro roles actuales: login, redirección, sesión caducada, perfil inactivo y acceso cruzado.
 3. Supabase Security Advisor marca desactivada la protección de contraseñas filtradas. Si no se puede activar con herramientas, dar a la propietaria los pasos exactos desde Supabase.
 4. Revisar RLS de tablas y Storage; no aplicar migraciones en producción.
@@ -54,13 +54,13 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 ### P4 — Diseño y administración
 18. Unificar navegación, tipografía, espaciado, estados de carga y mensajes de mentor, familia y admin.
 19. Revisar la previsualización del administrador y retirar el botón de seis usuarios si sigue presente.
-20. Confirmar logout en todos los paneles/herramientas, retirar datos demo y verificar que no quedan alumnos ficticios.
+20. Se corrigió logout de Supabase en alumno, mentor, padre y admin en esta rama (formador ya lo hacía). Falta probar sesiones reales desechables. Retirar datos demo y verificar que no quedan alumnos ficticios.
 21. Confirmar que los formularios reflejan el estado realmente guardado en Supabase.
 
 ### P5 — Despliegue
 22. Producción identificada en `main`, SHA `5816d33ba34adbb14341b8e0015eef937f6b168d`. Confirmar que sigue siendo el deployment activo y revisar su runtime; no confundir previews con producción.
 23. Revisar logs/runtime y variables de entorno sin exponer secretos.
-24. Build de producción, TypeScript, lint específico y test de Inglés ya pasan en CI run `39972258851`; el check de Vercel del head actual sigue bloqueado por `build-rate-limit`. Completar pruebas de roles en staging y confirmar preview funcional; después proponer integración a `main`.
+24. Build de producción, TypeScript, lint específico y test de Inglés ya pasan en CI run `39972660842`; el check de Vercel del head actual sigue bloqueado por `build-rate-limit`. Completar pruebas de roles en staging y confirmar preview funcional; después proponer integración a `main`.
 
 ### P6 — Formador y Cristina
 25. Solo después de P0–P5, revisar la PR del formador.
