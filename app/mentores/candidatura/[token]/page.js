@@ -13,8 +13,14 @@ export default function PortalCandidato() {
   useEffect(() => {
     let alive = true
     async function loadCandidate() {
-      setLoading(true)
-      setError('')
+      if (!token) {
+        await Promise.resolve()
+        if (alive) {
+          setError('Este enlace no es válido. Contacta con el equipo de selección para recibir uno actualizado.')
+          setLoading(false)
+        }
+        return
+      }
       try {
         const response = await fetch(`/api/mentores/candidatura/${encodeURIComponent(token)}`, { cache: 'no-store' })
         const result = await response.json()
@@ -26,8 +32,7 @@ export default function PortalCandidato() {
         if (alive) setLoading(false)
       }
     }
-    if (token) void loadCandidate()
-    else { setError('Este enlace no es válido. Contacta con el equipo de selección para recibir uno actualizado.'); setLoading(false) }
+    void loadCandidate()
     return () => { alive = false }
   }, [token])
 
