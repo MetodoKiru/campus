@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -154,6 +154,9 @@ export default function AlumnoPage() {
   const [gameAnswersCount, setGameAnswersCount] = useState(0);
   const [gameOptions, setGameOptions] = useState<string[]>([]);
   const [gameFinished, setGameFinished] = useState(false);
+  // Keep the interval callback in sync without restarting its 5-second cadence every render.
+  const practiceStateRef = useRef({ gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex });
+  practiceStateRef.current = { gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex };
 
   // Asignaturas y mensajes del mentor
   const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
@@ -203,7 +206,7 @@ export default function AlumnoPage() {
           });
           if (["Grammar", "Vocabulary", "Everyday English"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
         }
-        const savedPractice = activityRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
+        const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
           setGameAnswersCount(Number(savedPractice.gameAnswersCount) || 0);
@@ -265,10 +268,11 @@ export default function AlumnoPage() {
   useEffect(() => {
     if (!flashcardProgressLoaded || !isGameActive) return;
     const syncTimer = window.setInterval(async () => {
+      const latest = practiceStateRef.current;
       try {
         await saveKiruRecord("progress", "flashcard_practice_state", {
-          kind: "flashcard_practice_state", gameScore, gameAnswersCount, gameDuration,
-          timeLeft: Math.max(0, timeLeft - 5), isGameActive, gameFinished, gameOptions, cardIndex,
+          kind: "flashcard_practice_state",
+          ...latest,
           updatedAt: new Date().toISOString(),
         });
       } catch {
