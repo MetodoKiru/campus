@@ -492,8 +492,7 @@ export default function AdminPage() {
             <span className="hidden sm:inline">Previsualizar campus</span>
             <span className="sm:hidden">Vista previa</span>
           </Link>
-          <Link 
-          href="/" 
+          <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }} 
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center shadow-sm"
         >
@@ -501,7 +500,7 @@ export default function AdminPage() {
             <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
             <line x1="12" y1="2" x2="12" y2="12" />
           </svg>
-          </Link>
+          </button>
         </div>
       </header>
 
