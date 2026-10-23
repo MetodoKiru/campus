@@ -39,3 +39,6 @@ Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 - Supabase Security Advisor mantiene el aviso de protección de contraseñas filtradas desactivada. Las herramientas disponibles permiten consultar el aviso, pero no cambiar esa opción de Auth.
 
 - El nuevo portal de candidaturas genera enlaces independientes con tokens aleatorios de 256 bits y guarda solo el hash. Al desplegarlo, los enlaces antiguos de token corto deberán renovarse y distribuirse de nuevo; no se deben tratar como compatibles automáticamente.
+
+- La revisión de políticas también detecta que varias reglas administrativas se basan directamente en `app_metadata.kiru_role = admin` sin comprobar `profiles.is_active`. La API de administración sí comprueba el estado activo, pero el acceso directo a tablas por RLS debe endurecerse en una migración separada y probada; no se ha cambiado producción.
+- En la inspección de datos, las tablas de relación de mentoría/familia y los registros persistentes consultados no tenían relaciones/registros de prueba suficientes para validar los flujos reales. No se deben inventar asignaciones; hace falta una cuenta de prueba y relaciones desechables.
