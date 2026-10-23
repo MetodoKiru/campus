@@ -172,9 +172,10 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_app_records").delete().eq("owner_id", userId),
     () => admin.from("kiru_notices").update({ created_by: authData.user.id }).eq("created_by", userId),
     () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
+    () => admin.from("kiru_documents").update({ created_by: authData.user.id }).eq("created_by", userId).neq("target_student_id", userId),
     () => admin.from("kiru_flashcard_sets").update({ created_by: authData.user.id }).eq("created_by", userId).neq("student_id", userId),
     async () => {
-      const docs = await admin.from("kiru_documents").select("id,storage_path").or("created_by.eq." + userId + ",target_student_id.eq." + userId);
+      const docs = await admin.from("kiru_documents").select("id,storage_path").eq("target_student_id", userId);
       if (docs.error) return { error: docs.error };
       const docIds = (docs.data || []).map((doc: { id: string }) => doc.id);
       const storagePaths = [...new Set((docs.data || []).map((doc: { storage_path: string | null }) => doc.storage_path).filter((value: string | null): value is string => Boolean(value)))];
@@ -189,14 +190,14 @@ export async function DELETE(request: Request) {
       return await admin.from("kiru_documents").delete().or("created_by.eq." + userId + ",target_student_id.eq." + userId);
     },
     async () => {
-      const lookup = await admin.from("kiru_flashcard_sets").select("id").or("student_id.eq." + userId + ",created_by.eq." + userId);
+      const lookup = await admin.from("kiru_flashcard_sets").select("id").eq("student_id", userId);
       if (lookup.error) return { error: lookup.error };
       const setIds = (lookup.data || []).map((set: { id: string }) => set.id);
       if (setIds.length) {
         const cards = await admin.from("kiru_flashcards").delete().in("set_id", setIds);
         if (cards.error) return { error: cards.error };
       }
-      return await admin.from("kiru_flashcard_sets").delete().or("student_id.eq." + userId + ",created_by.eq." + userId);
+      return await admin.from("kiru_flashcard_sets").delete().eq("student_id", userId);
     },
     () => admin.from("students").delete().eq("profile_id", userId),
   ];
