@@ -19,10 +19,10 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 - Se añadió una migración para endurecer las políticas RLS de relaciones frente a administradores desactivados.
 - Se generó un backup cifrado de PostgreSQL y se pudo inspeccionar su lista de contenido; la restauración completa sigue sin probarse.
 - El workflow de Storage informó 0 archivos; confirmar si el almacenamiento está vacío y probar recuperación.
-- El motor A1 de Inglés en la rama contiene 100 preguntas en cinco unidades. Se añadió un validador automático. Un workflow anterior falló porque el merge commit probado contenía 101 preguntas; el archivo consultado después contiene 100. Volver a validar el head actual.
+- El motor A1 de Inglés en la rama contiene 100 preguntas en cinco unidades. Se añadió un validador automático. Un workflow anterior falló porque el merge commit probado contenía 101 preguntas. El validador ya pasa en el head `c89d85554bb41440b301d56d61b3137e9105ef54`: 100 preguntas, cinco unidades y tres categorías.
 - Existe el borrador de feedback constructivo en `docs/feedback-tecnico-panel-formador.md`.
 - El panel formador y portal de candidaturas están aislados en la rama. Los tokens del nuevo portal son aleatorios de 256 bits y se almacena solo el hash. Los enlaces antiguos deberán renovarse si se aprueba el lanzamiento.
-- Los checks de Vercel de un preview asociado al commit `8734e7358208012cc9aeaa898f0305bc2422e5db` aparecen en verde; esto no demuestra qué SHA está publicado en producción.
+- El CI de GitHub Actions ha pasado en el head `c89d85554bb41440b301d56d61b3137e9105ef54` (run `39972258851`): instalación, auditoría, validador de Inglés, lint específico y build de producción. `npm ci` informa 0 vulnerabilidades tras actualizar el lockfile. Los checks de Vercel para el head actual siguen bloqueados por `build-rate-limit`; un preview anterior sí aparece en verde. La producción identificada sigue en `main`, SHA `5816d33ba34adbb14341b8e0015eef937f6b168d`.
 
 ## Orden obligatorio
 
@@ -31,7 +31,7 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 2. Probar con cuentas desechables los cuatro roles actuales: login, redirección, sesión caducada, perfil inactivo y acceso cruzado.
 3. Supabase Security Advisor marca desactivada la protección de contraseñas filtradas. Si no se puede activar con herramientas, dar a la propietaria los pasos exactos desde Supabase.
 4. Revisar RLS de tablas y Storage; no aplicar migraciones en producción.
-5. Investigar las 5 vulnerabilidades que aparecieron en `npm ci` (4 altas y 1 crítica). Ejecutar auditoría y proponer actualizaciones compatibles; no usar `npm audit fix --force` sin revisar incompatibilidades.
+5. Confirmar que `npm audit` sigue dando 0 vulnerabilidades en el head actual y revisar el aviso de paquete `eslint` obsoleto. Un run anterior encontró cinco vulnerabilidades (4 altas, 1 crítica) antes de actualizar el lockfile; no usar `npm audit fix --force` sin revisar incompatibilidades.
 
 ### P1 — Eliminación segura de cuentas
 6. Auditar DELETE en `app/api/admin/users/route.ts`. La limpieza de tablas y Storage es secuencial y no transaccional; un fallo puede dejar limpieza parcial. Diseñar estrategia transaccional/recuperable y probar con una cuenta desechable. No borrar usuarios reales.
@@ -45,7 +45,7 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 12. No declarar el backup validado hasta probar una restauración.
 
 ### P3 — Inglés
-13. Ejecutar el validador de `lib/english-engine.ts` en el head actual.
+13. El validador ya pasa en el head `c89d85554bb41440b301d56d61b3137e9105ef54` (100 preguntas, cinco unidades y tres categorías). Repetirlo tras cualquier cambio.
 14. Ampliar a siete áreas: **Grammar, Use of English, Vocabulary, Reading, Listening, Writing y Everyday English**, sin eliminar Everyday English.
 15. No fingir Listening/Writing como opción múltiple. Diseñar tipos reales: lectura con preguntas, audio reproducible y respuesta libre con feedback; definir contenidos/archivos y derechos de uso.
 16. Mantener filtros de unidad, dificultad y cantidad; comprobar asignación por mentor, finalización por alumno, feedback y persistencia en Supabase.
@@ -58,9 +58,9 @@ Continúa desde el estado actual del repositorio y de la PR. No empieces de cero
 21. Confirmar que los formularios reflejan el estado realmente guardado en Supabase.
 
 ### P5 — Despliegue
-22. Identificar el deployment de producción y su commit exacto; no confundir previews con producción.
+22. Producción identificada en `main`, SHA `5816d33ba34adbb14341b8e0015eef937f6b168d`. Confirmar que sigue siendo el deployment activo y revisar su runtime; no confundir previews con producción.
 23. Revisar logs/runtime y variables de entorno sin exponer secretos.
-24. Hacer build/lint/tests y pruebas de roles en staging; después proponer integración a `main`.
+24. Build de producción, TypeScript, lint específico y test de Inglés ya pasan en CI run `39972258851`; el check de Vercel del head actual sigue bloqueado por `build-rate-limit`. Completar pruebas de roles en staging y confirmar preview funcional; después proponer integración a `main`.
 
 ### P6 — Formador y Cristina
 25. Solo después de P0–P5, revisar la PR del formador.
