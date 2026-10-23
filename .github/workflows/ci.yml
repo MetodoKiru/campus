@@ -35,6 +35,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate English A1 question bank
+        run: npm run test:english
       - name: Lint new candidate APIs, portal, and persistence helper
         run: >-
           npx eslint
