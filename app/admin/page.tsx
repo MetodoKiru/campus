@@ -308,21 +308,30 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteUser = (id: string, userToDelete: string) => {
-    if (userToDelete === "admin") {
-      setMsg({ text: "No puedes eliminar el usuario administrador principal.", type: "error" });
+  const handleDeleteUser = async (id: string, userToDelete: string) => {
+    const target = users.find((user) => user.id === id);
+    if (!target || target.role === "admin") {
+      setMsg({ text: "No puedes eliminar una cuenta administradora desde este panel.", type: "error" });
       return;
     }
-    const updated = users.filter((u) => u.id !== id);
-    saveToStorage(updated);
-
-    const updatedLinks = links.filter(
-      l => l.studentUsername !== userToDelete && l.mentorUsername !== userToDelete
-    );
-    saveLinksToStorage(updatedLinks);
-
-    setMsg({ text: `Usuario «${userToDelete}» eliminado.`, type: "success" });
-    setTimeout(() => setMsg(null), 4000);
+    if (!window.confirm("Vas a eliminar la cuenta de «" + userToDelete + "». Esta acción no se puede deshacer. ¿Continuar?")) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a iniciar sesión.");
+      const response = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo eliminar el usuario.");
+      setUsers((current) => current.filter((user) => user.id !== id));
+      setLinks((current) => current.filter((link) => link.studentUsername !== userToDelete && link.mentorUsername !== userToDelete));
+      setMsg({ text: "La cuenta «" + userToDelete + "» se ha eliminado.", type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo eliminar la cuenta.", type: "error" });
+    }
+    setTimeout(() => setMsg(null), 5000);
   };
 
   // Mentor <-> Alumno (CORREGIDO PARA EVITAR QUE UN ALUMNO TENGA MÚLTIPLES MENTORES)
