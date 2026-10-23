@@ -117,8 +117,12 @@ export default function FormadorPage() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'No se pudo sincronizar Google Sheets.')
       setCandidates(Array.isArray(result.candidates) ? result.candidates : [])
-      setCandidateMessage(`Sincronización completada: ${Number(result.synced) || 0} filas procesadas.`)
-      if (result.truncated) setCandidateMessage((previous) => previous + ' Se alcanzó el límite de filas de esta ejecución.')
+      let summary = `Sincronización completada: ${Number(result.synced) || 0} filas procesadas.`
+      if (Number(result.unstableRows) > 0) {
+        summary += ` Aviso: ${Number(result.unstableRows)} filas no tienen identificador estable en Sheets; si se reordenan, podrían crear duplicados. Añade un identificador estable a esas filas.`
+      }
+      if (result.truncated) summary += ' Se alcanzó el límite de filas de esta ejecución.'
+      setCandidateMessage(summary)
     } catch (error) {
       setCandidateError(error instanceof Error ? error.message : 'No se pudo sincronizar Google Sheets.')
     } finally {
