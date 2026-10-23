@@ -189,23 +189,7 @@ export default function AdminPage() {
 
   const saveToStorage = (updatedUsers: UserAccount[]) => { setUsers(updatedUsers); };
 
-  const saveLinksToStorage = async (updatedLinks: MentorStudentLink[]) => {
-    setLinks(updatedLinks);
-    try {
-      const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,username");
-      if (profileError) throw profileError;
-      const idByUsername = new Map((profiles || []).map((profile: any) => [profile.username, profile.id]));
-      const { data: existing, error: existingError } = await supabase.from("student_mentors").select("student_id,mentor_id");
-      if (existingError) throw existingError;
-      for (const row of existing || []) {
-        const { error } = await supabase.from("student_mentors").delete().eq("student_id", row.student_id).eq("mentor_id", row.mentor_id);
-        if (error) throw error;
-      }
-      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row) => row.student_id && row.mentor_id);
-      if (rows.length) { const { error } = await supabase.from("student_mentors").insert(rows); if (error) throw error; }
-      setMsg({ text: "Asignaciones guardadas en Supabase.", type: "success" });
-    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
-  };
+
 
   // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
   const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setNoticePdf(e.target.files?.[0] || null);
@@ -322,7 +306,7 @@ export default function AdminPage() {
       const updated = users.map((u) => u.id === editingUser.id ? { ...editingUser, username: cleanUsername } : u);
       if (oldUsername && oldUsername !== cleanUsername) {
         const updatedLinks = links.map((l) => l.studentUsername === oldUsername ? { ...l, studentUsername: cleanUsername } : l.mentorUsername === oldUsername ? { ...l, mentorUsername: cleanUsername } : l);
-        saveLinksToStorage(updatedLinks);
+        setLinks(updatedLinks); // Relations use stable profile UUIDs, so renaming a username does not require DB rewrites.
       }
       setUsers(updated);
       setEditingUser(null);
@@ -359,23 +343,30 @@ export default function AdminPage() {
   };
 
   // Mentor <-> Alumno (CORREGIDO PARA EVITAR QUE UN ALUMNO TENGA MÚLTIPLES MENTORES)
-  const handleAssignMentor = (e: React.FormEvent) => {
+  const handleAssignMentor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent || !selectedMentor) {
-      setMsg({ text: "Selecciona tanto un alumno como un mentor.", type: "error" });
+    const student = alumnos.find((u) => u.username === selectedStudent);
+    const mentor = mentores.find((u) => u.username === selectedMentor);
+    if (!student || !mentor) {
+      setMsg({ text: "Selecciona tanto un alumno como un mentor válidos.", type: "error" });
       return;
     }
 
-    // Eliminamos cualquier asignación previa de este alumno específico para que solo tenga UN mentor exclusivo
-    const filtered = links.filter(l => l.studentUsername !== selectedStudent);
-    const updatedLinks = [...filtered, { studentUsername: selectedStudent, mentorUsername: selectedMentor }];
-    saveLinksToStorage(updatedLinks);
+    try {
+      // The table has one row per student; upsert changes only this student's mentor.
+      const { error } = await supabase
+        .from("student_mentors")
+        .upsert({ student_id: student.id, mentor_id: mentor.id }, { onConflict: "student_id" });
+      if (error) throw error;
 
-    setMsg({ 
-      text: `Vinculación exclusiva guardada: @${selectedStudent} asignado/a únicamente a @${selectedMentor}.`, 
-      type: "success" 
-    });
-    setTimeout(() => setMsg(null), 4000);
+      setLinks((current) => [
+        ...current.filter((link) => link.studentUsername !== student.username),
+        { studentUsername: student.username, mentorUsername: mentor.username },
+      ]);
+      setMsg({ text: `Vinculación guardada en Supabase: @${student.username} → @${mentor.username}.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación.", type: "error" });
+    }
   };
 
   // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
