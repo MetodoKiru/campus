@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function TareasPage() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function TareasPage() {
             <span className="text-xs text-slate-500 font-medium">Panel del Alumno</span>
           </div>
           <button
-            onClick={() => router.push('/')}
+            onClick={async () => { await supabase.auth.signOut(); router.replace('/'); }}
             title="Cerrar sesión"
             className="p-2 sm:p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center shadow-sm"
           >
