@@ -37,7 +37,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nombre, usuario, email, rol o PIN de 6 cifras no válidos." }, { status: 400 });
   }
 
-  const { data: duplicate } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+  const { data: duplicate, error: duplicateError } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+  if (duplicateError) return NextResponse.json({ error: "No se pudo validar la disponibilidad del usuario." }, { status: 500 });
   if (duplicate) return NextResponse.json({ error: "Ese nombre de usuario ya existe." }, { status: 409 });
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -92,9 +93,33 @@ export async function PATCH(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const userId = typeof body.userId === "string" ? body.userId : "";
   if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return NextResponse.json({ error: "Identificador de usuario no válido." }, { status: 400 });
+  const { data: targetProfile, error: targetProfileError } = await admin
+    .from("profiles")
+    .select("id,role,is_active")
+    .eq("id", userId)
+    .maybeSingle();
+  if (targetProfileError) return NextResponse.json({ error: "No se pudo comprobar el usuario que quieres editar." }, { status: 500 });
+  if (!targetProfile) return NextResponse.json({ error: "No se encontró el usuario." }, { status: 404 });
+
+  if (typeof body.role === "string" && ROLES.includes(body.role as Role) && body.role !== targetProfile.role) {
+    if (userId === authData.user.id) {
+      return NextResponse.json({ error: "No puedes cambiar tu propio rol desde esta sesión." }, { status: 409 });
+    }
+    if (targetProfile.role === "admin" && targetProfile.is_active) {
+      const { count, error: adminCountError } = await admin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "admin")
+        .eq("is_active", true);
+      if (adminCountError) return NextResponse.json({ error: "No se pudo comprobar el número de administradores activos." }, { status: 500 });
+      if ((count ?? 0) <= 1) {
+        return NextResponse.json({ error: "Debe quedar al menos un administrador activo en el Campus." }, { status: 409 });
+      }
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
-    const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
     const isSixDigitPin = new RegExp("^[0-9]{6}$").test(body.password);
     if (!isSixDigitPin) return NextResponse.json({ error: "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
     updates.password = body.password;
@@ -118,7 +143,13 @@ export async function PATCH(request: Request) {
   }
   if (Object.keys(profileUpdates).length) {
     const { error } = await admin.from("profiles").update(profileUpdates).eq("id", userId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      // If role metadata changed but the profile write failed, try to restore the Auth role claim.
+      if (updates.app_metadata && targetProfile.role) {
+        await admin.auth.admin.updateUserById(userId, { app_metadata: { kiru_role: targetProfile.role } });
+      }
+      return NextResponse.json({ error: "No se pudieron guardar todos los cambios. Revisa el rol del usuario antes de volver a intentarlo." }, { status: 409 });
+    }
   }
   return NextResponse.json({ ok: true });
 }
