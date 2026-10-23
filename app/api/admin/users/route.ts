@@ -148,7 +148,7 @@ export async function DELETE(request: Request) {
   let body: { userId?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const userId = typeof body.userId === "string" ? body.userId : "";
-  if (!userId) return NextResponse.json({ error: "Falta el usuario." }, { status: 400 });
+  if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return NextResponse.json({ error: "Identificador de usuario no válido." }, { status: 400 });
   if (userId === authData.user.id) return NextResponse.json({ error: "No puedes eliminar tu propia cuenta administradora." }, { status: 400 });
 
   const { data: target, error: targetError } = await admin.from("profiles").select("id,username,role").eq("id", userId).maybeSingle();
@@ -165,8 +165,16 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_notices").delete().eq("created_by", userId),
     () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
     () => admin.from("kiru_payments").delete().eq("student_id", userId),
-    () => admin.from("kiru_documents").delete().eq("created_by", userId),
-    () => admin.from("kiru_documents").delete().eq("target_student_id", userId),
+    async () => {
+      const docs = await admin.from("kiru_documents").select("id").or("created_by.eq." + userId + ",target_student_id.eq." + userId);
+      if (docs.error) return { error: docs.error };
+      const docIds = (docs.data || []).map((doc: { id: string }) => doc.id);
+      if (docIds.length) {
+        const accepts = await admin.from("kiru_document_acceptances").delete().in("document_id", docIds);
+        if (accepts.error) return { error: accepts.error };
+      }
+      return await admin.from("kiru_documents").delete().or("created_by.eq." + userId + ",target_student_id.eq." + userId);
+    },
     async () => {
       const lookup = await admin.from("kiru_flashcard_sets").select("id").or("student_id.eq." + userId + ",created_by.eq." + userId);
       if (lookup.error) return { error: lookup.error };
