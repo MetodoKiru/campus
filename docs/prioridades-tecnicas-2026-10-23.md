@@ -1,50 +1,31 @@
 # Estado de prioridades técnicas — Campus Kiru
 
-Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
+Fecha de revisión: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 
-## Prioridades acordadas
+## Orden acordado con Claude
 
-1. **Inicio de sesión con Supabase Auth.** La ruta de acceso utiliza Supabase Auth y valida el perfil activo y su rol. Falta una prueba real end-to-end por rol y revisar la recuperación de acceso.
-2. **Administración de cuentas reales.** Las rutas permiten crear, consultar, editar y eliminar cuentas mediante Supabase Auth y `profiles`. Se han mejorado en esta rama los errores al comprobar nombres duplicados y las salvaguardas al cambiar roles. Falta probar todas las operaciones con cuentas desechables.
-3. **Roles y redirección.** El Campus admite alumno, mentor, padre y administrador. Esta rama añade el rol formador a la interfaz administrativa y al inicio de sesión, con una migración pendiente. No se ha aplicado la migración a producción ni se ha desplegado esta rama.
-4. **RLS y permisos.** La política de lectura de flashcards está corregida y versionada. Falta probar los cuatro roles existentes y el futuro rol formador con cuentas independientes y pruebas de acceso cruzado.
-5. **Vinculaciones.** Existen tablas `student_mentors` y `student_guardians`; las tablas de producción inspeccionadas estaban vacías en esas relaciones. Falta probar asignación, lectura y aislamiento de cada vínculo.
-6. **Paneles y persistencia.** Los paneles principales leen/escriben en Supabase en varias áreas, pero falta una prueba completa de persistencia de flashcards, temporizador, avisos, documentos y pagos. No asumir que todo el estado de interfaz se persiste correctamente.
-7. **Despliegue final.** Vercel muestra estados de preview asociados a commits de esta rama, pero falta confirmar el deployment de producción y el commit publicado. No se ha desplegado este cambio a producción.
+La prioridad no es terminar primero el rol formador. El orden de trabajo es: **seguridad y acceso → pruebas con los cuatro roles existentes → eliminación segura de cuentas → copias y restauración → motor de Inglés → coherencia visual y panel de administración → verificación del despliegue → después, formador**.
 
-## Cambios aislados en esta rama
+## Estado por prioridad
 
-- Se añadió el rol `formador` a los tipos y opciones de administración.
-- El login dirige las cuentas con ese rol a `/formador`.
-- Se añadió una migración versionada para ampliar la restricción del rol en `profiles`.
-- Se preparó un panel protegido, API de candidaturas con comprobación de sesión/rol en servidor, sincronización con Google Sheets, API de detalle y ajustes de Calendly. La migración del esquema y los secretos de Google aún no se han aplicado/validado en un entorno de prueba, por lo que no debe considerarse listo para producción.
-- Se añadió una salvaguarda para evitar cambiar el propio rol desde la sesión administrativa o degradar al último administrador activo.
-- Se documentó feedback técnico constructivo sobre el panel y la integración con Sheets.
+1. **Seguridad y acceso con Supabase Auth.** El login valida sesión, perfil activo y rol, y redirige a los paneles correspondientes. La lectura de flashcards tiene una política RLS corregida en `main`. En la rama de trabajo se ha añadido una migración para reforzar las políticas de relaciones frente a administradores desactivados. Sigue pendiente una prueba end-to-end con cuentas de prueba independientes para alumno, mentor, padre y admin, incluyendo intentos de acceso cruzado y recuperación de acceso. Supabase Security Advisor sigue avisando de que la protección de contraseñas filtradas está desactivada; no se ha cambiado en producción.
 
-## Pendiente antes de integrar
+2. **Administración de cuentas reales.** La API de administración comprueba la sesión y el perfil activo. La rama incluye comprobaciones de duplicados y salvaguardas para no cambiar el propio rol ni dejar el Campus sin administrador activo. La eliminación bloquea cuentas con pagos asociados y limpia relaciones, documentos, flashcards y registros. **Riesgo pendiente:** la limpieza de datos se ejecuta mediante varios pasos secuenciales, no en una única transacción; un fallo intermedio puede dejar una limpieza parcial. No ejecutar una eliminación real hasta probar con una cuenta desechable y definir recuperación ante fallos.
 
-- Ejecutar build/lint y resolver cualquier fallo.
-- Aplicar la migración primero en un entorno de prueba y verificar que los cuatro roles existentes siguen funcionando.
-- Aplicar y validar la migración de candidaturas/Calendly en un entorno de prueba; verificar variables de Google, permisos de la hoja, sincronización, detalle, historial y transiciones.
-- Probar las operaciones de cuentas, relaciones y persistencia con datos desechables.
-- Validar la recuperación de backups en un entorno aislado.
-- Confirmar la versión desplegada y solo entonces valorar la integración en `main`.
+3. **RLS y permisos.** La política de lectura de flashcards está corregida y versionada en `main`. En la rama se añade `kiru_is_active_admin()` y se refuerzan políticas de relaciones. Falta probar las cuatro cuentas existentes y el futuro rol formador con usuarios independientes. Performance Advisor informó 36 avisos `auth_rls_initplan` y dos índices únicos redundantes en `kiru_app_records`; no se deben modificar en producción sin revisar semántica, medir y probar.
 
-**Importante:** esta rama es una propuesta de trabajo. No se ha aplicado la migración del rol formador a producción ni se ha desplegado la rama a producción.
+4. **Copias de seguridad y restauración.** El workflow de backup de PostgreSQL generó un artefacto cifrado y pasó la comprobación de listado con `pg_restore`; todavía no se ha probado una restauración completa. El workflow de Storage terminó correctamente, pero descargó 0 archivos y la consulta a `storage.objects` devolvió una tabla vacía. Confirmar si no hay archivos que respaldar y probar restauración en un entorno aislado antes de dar esta prioridad por cerrada.
 
+5. **Motor de Inglés A1.** En la rama, `lib/english-engine.ts` contiene 100 preguntas A1 en cinco unidades, incluidas Food & Shopping, Places & Directions y Free Time & Abilities. Se añadió `scripts/validate-english-engine.cjs` y el script `npm run test:english`. Un workflow anterior sobre el merge commit `05cabefe999756db68497cb196c764493c3a7d1f` falló porque aquella versión tenía 101 preguntas; el archivo consultado después en la rama contiene 100. Hay que volver a ejecutar la validación contra el head actual. **La experiencia actual solo cubre Grammar, Vocabulary y Everyday English con preguntas de opción múltiple.** El siguiente desarrollo debe ampliar a Grammar, Use of English, Vocabulary, Reading, Listening, Writing y Everyday English; Reading/Listening/Writing necesitan tipos de ejercicio propios (texto de lectura, audio y respuesta libre), no solo renombrar categorías. Mantener la experiencia cotidiana actual.
 
-## Hallazgos adicionales de la última revisión
-- Supabase Performance Advisor informa **36 avisos `auth_rls_initplan`** por llamadas a `auth.uid()`/`auth.jwt()` que podrían optimizarse en políticas RLS. No se han modificado estas políticas en producción; se requiere agruparlas, revisar la semántica y probar antes de aplicar una migración.
-- `kiru_app_records` tiene dos índices únicos redundantes sobre `(owner_id, record_type, record_key)`. No afectan a la integridad, pero añaden trabajo a las escrituras; revisar una limpieza controlada en una migración futura.
-- Supabase Security Advisor mantiene el aviso de protección de contraseñas filtradas desactivada. Las herramientas disponibles permiten consultar el aviso, pero no cambiar esa opción de Auth.
+6. **Experiencia visual y panel de administración.** Sigue pendiente unificar la estética y navegación de mentor, familia y admin; revisar la previsualización del administrador y retirar el botón de seis usuarios si sigue presente. Comprobar también que el cierre de sesión está implementado en todas las herramientas/paneles relevantes y que no quedan datos ficticios.
 
-- El nuevo portal de candidaturas genera enlaces independientes con tokens aleatorios de 256 bits y guarda solo el hash. Al desplegarlo, los enlaces antiguos de token corto deberán renovarse y distribuirse de nuevo; no se deben tratar como compatibles automáticamente.
+7. **Despliegue y verificación final.** Los checks de Vercel de un deployment de preview más reciente aparecen en verde para el commit `8734e7358208012cc9aeaa898f0305bc2422e5db`, pero eso no prueba qué versión está en producción. Debe identificarse el deployment de producción, confirmar su SHA y revisar errores/runtime. No fusionar la rama ni aplicar migraciones a producción hasta tener build verificable y pruebas aisladas.
 
-- La revisión de políticas también detecta que varias reglas administrativas se basan directamente en `app_metadata.kiru_role = admin` sin comprobar `profiles.is_active`. La API de administración sí comprueba el estado activo, pero el acceso directo a tablas por RLS debe endurecerse en una migración separada y probada; no se ha cambiado producción.
-- En la inspección de datos, las tablas de relación de mentoría/familia y los registros persistentes consultados no tenían relaciones/registros de prueba suficientes para validar los flujos reales. No se deben inventar asignaciones; hace falta una cuenta de prueba y relaciones desechables.
+8. **Rol formador y adaptación de Cristina.** La rama `feature/formador-role-foundation` prepara el rol, panel, APIs protegidas, sincronización con Google Sheets, Calendly y portal de candidatura con tokens aleatorios de 256 bits almacenados solo como hash. También incluye asignaciones atómicas de mentor y tutor. No se han aplicado sus migraciones a producción. El trabajo útil de Cristina (flujo de candidatos, fases, observaciones, historial, Sheets y Calendly) se ha tomado como referencia, no copiado sin revisión. El documento `docs/feedback-tecnico-panel-formador.md` es un borrador para revisar antes de enviárselo. Los enlaces antiguos de candidaturas no son compatibles con el nuevo portal y deberán renovarse si se aprueba el despliegue.
 
-- La revisión de esquema confirma que `student_mentors` tiene una restricción única por pareja alumno-mentor, no por alumno. Por eso se añadió una función RPC transaccional para sustituir la asignación del alumno de forma atómica y validar los roles en la base de datos; falta probarla en un entorno de desarrollo.
-- Los últimos checks de Vercel muestran `build-rate-limit`; no equivalen a un error confirmado del código, pero impiden validar el preview. El workflow de GitHub aparece como fallido sin jobs/logs recuperables mediante la integración actual. La compilación sigue pendiente de validación efectiva.
+## Otros hallazgos
 
-- El motor de inglés A1 se amplió de 75 a **100 preguntas** e incorpora tres unidades nuevas: Food & Shopping, Places & Directions y Free Time & Abilities. Las unidades disponibles se derivan del propio banco, por lo que aparecen en el selector del mentor sin una lista duplicada.
-- La asignación de tutor legal también se pasó a una función RPC transaccional, siguiendo el mismo patrón de asignación atómica de mentor. Ambas migraciones siguen pendientes de aplicación y prueba en un entorno de desarrollo.
+- El último `npm ci` de GitHub Actions mostró 5 vulnerabilidades en dependencias (4 altas y 1 crítica). Revisar `npm audit` y el árbol afectado antes de aplicar actualizaciones; no usar `npm audit fix --force` sin revisar cambios incompatibles.
+- Las migraciones de formador, candidaturas, asignación atómica de mentor/tutor y endurecimiento de RLS están versionadas en la rama de trabajo, no aplicadas a producción.
+- No se han borrado cuentas reales, creado relaciones ficticias ni importado candidaturas reales para probar.
