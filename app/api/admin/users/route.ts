@@ -91,7 +91,7 @@ export async function PATCH(request: Request) {
   let body: { userId?: unknown; password?: unknown; fullName?: unknown; username?: unknown; role?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const userId = typeof body.userId === "string" ? body.userId : "";
-  if (!userId) return NextResponse.json({ error: "Falta el usuario." }, { status: 400 });
+  if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return NextResponse.json({ error: "Identificador de usuario no válido." }, { status: 400 });
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
     const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
@@ -162,6 +162,21 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_document_acceptances").delete().eq("student_id", userId),
     () => admin.from("kiru_document_acceptances").delete().eq("accepted_by", userId),
     () => admin.from("kiru_app_records").delete().eq("owner_id", userId),
+    () => admin.from("kiru_notices").delete().eq("created_by", userId),
+    () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
+    () => admin.from("kiru_payments").delete().eq("student_id", userId),
+    () => admin.from("kiru_documents").delete().eq("created_by", userId),
+    () => admin.from("kiru_documents").delete().eq("target_student_id", userId),
+    async () => {
+      const lookup = await admin.from("kiru_flashcard_sets").select("id").or("student_id.eq." + userId + ",created_by.eq." + userId);
+      if (lookup.error) return { error: lookup.error };
+      const setIds = (lookup.data || []).map((set: { id: string }) => set.id);
+      if (setIds.length) {
+        const cards = await admin.from("kiru_flashcards").delete().in("set_id", setIds);
+        if (cards.error) return { error: cards.error };
+      }
+      return await admin.from("kiru_flashcard_sets").delete().or("student_id.eq." + userId + ",created_by.eq." + userId);
+    },
     () => admin.from("students").delete().eq("profile_id", userId),
   ];
   for (const cleanup of cleanupSteps) {
