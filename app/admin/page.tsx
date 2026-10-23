@@ -219,11 +219,16 @@ export default function AdminPage() {
       return;
     }
     if (role !== "alumno" && !email.trim()) {
-      setMsg({ text: "Para padres, mentores y administradores es necesario un correo propio.", type: "error" });
+      setMsg({ text: "Para padres, mentores, formadores y administradores es necesario un correo propio.", type: "error" });
       return;
     }
-    if (!/^\d{6}$/.test(password)) {
-      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
+    const validCredential = role === "formador"
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(password)
+      : /^\d{6}$/.test(password);
+    if (!validCredential) {
+      setMsg({ text: role === "formador"
+        ? "La contraseña del formador debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
+        : "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
@@ -249,10 +254,18 @@ export default function AdminPage() {
   };
 
   const handleResetPassword = async (user: UserAccount) => {
-    const nextPassword = window.prompt(`Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
+    const isFormador = user.role === "formador";
+    const nextPassword = window.prompt(isFormador
+      ? `Nueva contraseña segura para @${user.username} (12+ caracteres, mayúscula, minúscula y número):`
+      : `Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
     if (nextPassword === null) return;
-    if (!/^\d{6}$/.test(nextPassword)) {
-      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
+    const validCredential = isFormador
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(nextPassword)
+      : /^\d{6}$/.test(nextPassword);
+    if (!validCredential) {
+      setMsg({ text: isFormador
+        ? "La contraseña debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
+        : "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
@@ -284,13 +297,24 @@ export default function AdminPage() {
       setMsg({ text: "Ese nombre de usuario ya pertenece a otra cuenta.", type: "error" });
       return;
     }
+    const originalUser = users.find((user) => user.id === editingUser.id);
+    let passwordForRoleChange: string | undefined;
+    if (editingUser.role === "formador" && originalUser?.role !== "formador") {
+      const suppliedPassword = window.prompt("Para asignar el rol formador, introduce una contraseña segura (12+ caracteres, mayúscula, minúscula y número):");
+      if (suppliedPassword === null) return;
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(suppliedPassword)) {
+        setMsg({ text: "La contraseña debe tener al menos 12 caracteres, con mayúscula, minúscula y número.", type: "error" });
+        return;
+      }
+      passwordForRoleChange = suppliedPassword;
+    }
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
       const response = await fetch("/api/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ userId: editingUser.id, fullName: editingUser.name.trim(), username: cleanUsername, role: editingUser.role }),
+        body: JSON.stringify({ userId: editingUser.id, fullName: editingUser.name.trim(), username: cleanUsername, role: editingUser.role, ...(passwordForRoleChange ? { password: passwordForRoleChange } : {}) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios.");
@@ -569,15 +593,15 @@ export default function AdminPage() {
                     <input type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">PIN de acceso (6 cifras)</label>
-                    <input type="password" autoComplete="new-password" placeholder="Introduce 6 cifras numéricas" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">{role === "formador" ? "Contraseña segura (12+ caracteres)" : "PIN de acceso (6 cifras)"}</label>
+                    <input type="password" autoComplete="new-password" placeholder={role === "formador" ? "12+ caracteres, mayúscula, minúscula y número" : "Introduce 6 cifras numéricas"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de usuario / Rol</label>
                     <select value={role} onChange={(e) => setRole(e.target.value as any)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                       <option value="alumno">Alumno</option>
                       <option value="mentor">Mentor</option>
-                       <option value="formador">Formador</option>
+                      <option value="formador">Formador</option>
                       <option value="padre">Padre / Madre</option>
                       <option value="admin">Administrador</option>
                     </select>
