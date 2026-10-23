@@ -1,6 +1,8 @@
 -- Candidate tracking data for the dedicated formador workflow.
 -- Apply in a development/staging database first; do not import production Sheets data during tests.
 
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS calendly_url text;
+
 CREATE TABLE IF NOT EXISTS public.kiru_candidates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source_key text NOT NULL UNIQUE,
@@ -52,6 +54,9 @@ CREATE POLICY kiru_candidates_staff_all
   TO authenticated
   USING (public.kiru_is_active_candidate_staff())
   WITH CHECK (public.kiru_is_active_candidate_staff());
+
+COMMENT ON COLUMN public.profiles.calendly_url IS
+  'Optional Calendly booking URL for an active formador; edited only through the protected formador API.';
 
 COMMENT ON TABLE public.kiru_candidates IS
   'Candidate pipeline used by the formador role. Google Sheets credentials and source tokens are never stored here.';
