@@ -1,11 +1,11 @@
 import "server-only";
 
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type CandidateStaffSuccess = {
   ok: true;
-  admin: ReturnType<typeof createClient>;
+  admin: SupabaseClient;
   user: User;
   role: "admin" | "formador";
 };
