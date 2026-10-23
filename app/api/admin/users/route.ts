@@ -172,8 +172,8 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_app_records").delete().eq("owner_id", userId),
     () => admin.from("kiru_notices").update({ created_by: authData.user.id }).eq("created_by", userId),
     () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
-    () => admin.from("kiru_documents").update({ created_by: authData.user.id }).eq("created_by", userId).neq("target_student_id", userId),
-    () => admin.from("kiru_flashcard_sets").update({ created_by: authData.user.id }).eq("created_by", userId).neq("student_id", userId),
+    () => admin.from("kiru_documents").update({ created_by: authData.user.id }).eq("created_by", userId).or("target_student_id.is.null,target_student_id.neq." + userId),
+    () => admin.from("kiru_flashcard_sets").update({ created_by: authData.user.id }).eq("created_by", userId).or("student_id.is.null,student_id.neq." + userId),
     async () => {
       const docs = await admin.from("kiru_documents").select("id,storage_path").eq("target_student_id", userId);
       if (docs.error) return { error: docs.error };
