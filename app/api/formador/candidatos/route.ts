@@ -113,6 +113,7 @@ export async function POST(request: Request) {
   const sourceRows = rows.slice(1, 2001);
   const syncedAt = new Date().toISOString();
   const seenKeys = new Set<string>();
+  let unstableRows = 0;
   const payload = sourceRows.flatMap((row, index) => {
     const name = getCell(row, 3);
     if (!name || name.toLowerCase() === "desconocido" || name.toLowerCase().includes("elige pasa o no pasa")) return [];
@@ -120,6 +121,8 @@ export async function POST(request: Request) {
     const sheetRow = index + 2;
     const sourceToken = getCell(row, 35);
     // Never return or persist the source token itself; hash it to create an opaque stable key.
+    // Rows without a source token fall back to their row number and may duplicate if the sheet is reordered.
+    if (!sourceToken) unstableRows += 1;
     const sourceKey = createHash("sha256")
       .update(sourceToken ? "token:" + sourceToken : "row:" + sheetRow)
       .digest("hex");
@@ -155,6 +158,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     candidates: data ?? [],
     synced: payload.length,
+    unstableRows,
     truncated: rows.length > 2001,
     syncedAt,
   }, { headers: { "Cache-Control": "no-store" } });
