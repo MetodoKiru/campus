@@ -378,9 +378,20 @@ export default function AdminPage() {
     try {
       const { data: existing, error: lookupError } = await supabase.from("student_guardians").select("student_id,guardian_id").eq("student_id", student.id);
       if (lookupError) throw lookupError;
-      for (const row of existing || []) { const { error } = await supabase.from("student_guardians").delete().eq("student_id", row.student_id).eq("guardian_id", row.guardian_id); if (error) throw error; }
-      const { error } = await supabase.from("student_guardians").insert({ student_id: student.id, guardian_id: guardian.id });
-      if (error) throw error;
+
+      // Create the new link first so a failed insert never removes the existing guardian.
+      const alreadyAssigned = (existing || []).some((row) => row.guardian_id === guardian.id);
+      if (!alreadyAssigned) {
+        const { error: insertError } = await supabase.from("student_guardians").insert({ student_id: student.id, guardian_id: guardian.id });
+        if (insertError) throw insertError;
+      }
+
+      // Only remove previous links after the new relationship is safely present.
+      for (const row of existing || []) {
+        if (row.guardian_id === guardian.id) continue;
+        const { error: deleteError } = await supabase.from("student_guardians").delete().eq("student_id", row.student_id).eq("guardian_id", row.guardian_id);
+        if (deleteError) throw deleteError;
+      }
       setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: guardian.username } : u));
       setMsg({ text: "Vinculación guardada en Supabase: @" + selectedChild + " ↔ @" + selectedParent + ".", type: "success" });
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" }); }
