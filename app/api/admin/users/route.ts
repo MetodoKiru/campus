@@ -130,7 +130,7 @@ export async function DELETE(request: Request) {
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anon || !service) return NextResponse.json({ error: "Servicio no configurado." }, { status: 503 });
 
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "Inicia sesión como administradora." }, { status: 401 });
 
   const authClient = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -166,9 +166,14 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
     () => admin.from("kiru_payments").delete().eq("student_id", userId),
     async () => {
-      const docs = await admin.from("kiru_documents").select("id").or("created_by.eq." + userId + ",target_student_id.eq." + userId);
+      const docs = await admin.from("kiru_documents").select("id,storage_path").or("created_by.eq." + userId + ",target_student_id.eq." + userId);
       if (docs.error) return { error: docs.error };
       const docIds = (docs.data || []).map((doc: { id: string }) => doc.id);
+      const storagePaths = [...new Set((docs.data || []).map((doc: { storage_path: string | null }) => doc.storage_path).filter((value: string | null): value is string => Boolean(value)))];
+      if (storagePaths.length) {
+        const removed = await admin.storage.from("kiru-document").remove(storagePaths);
+        if (removed.error) return { error: removed.error };
+      }
       if (docIds.length) {
         const accepts = await admin.from("kiru_document_acceptances").delete().in("document_id", docIds);
         if (accepts.error) return { error: accepts.error };
