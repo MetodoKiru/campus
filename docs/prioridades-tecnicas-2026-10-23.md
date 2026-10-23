@@ -45,3 +45,6 @@ Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 
 - La revisión de esquema confirma que `student_mentors` tiene una restricción única por pareja alumno-mentor, no por alumno. Por eso se añadió una función RPC transaccional para sustituir la asignación del alumno de forma atómica y validar los roles en la base de datos; falta probarla en un entorno de desarrollo.
 - Los últimos checks de Vercel muestran `build-rate-limit`; no equivalen a un error confirmado del código, pero impiden validar el preview. El workflow de GitHub aparece como fallido sin jobs/logs recuperables mediante la integración actual. La compilación sigue pendiente de validación efectiva.
+
+- El motor de inglés A1 se amplió de 75 a **100 preguntas** e incorpora tres unidades nuevas: Food & Shopping, Places & Directions y Free Time & Abilities. Las unidades disponibles se derivan del propio banco, por lo que aparecen en el selector del mentor sin una lista duplicada.
+- La asignación de tutor legal también se pasó a una función RPC transaccional, siguiendo el mismo patrón de asignación atómica de mentor. Ambas migraciones siguen pendientes de aplicación y prueba en un entorno de desarrollo.
