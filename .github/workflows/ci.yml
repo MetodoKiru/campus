@@ -35,6 +35,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Audit dependency vulnerabilities (report-only)
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); const v=Object.entries(a.vulnerabilities||{}).map(([name,x])=>({name,severity:x.severity,range:x.range,fixAvailable:x.fixAvailable,via:(x.via||[]).map(y=>typeof y==='string'?y:y.title)})); console.log(JSON.stringify({summary:a.metadata?.vulnerabilities,packages:v},null,2))"
       - name: Validate English A1 question bank
         run: npm run test:english
       - name: Lint new candidate APIs, portal, and persistence helper
