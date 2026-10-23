@@ -108,6 +108,8 @@ export default function AlumnoPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [currentStudentName, setCurrentStudentName] = useState("");
+  const [currentUsername, setCurrentUsername] = useState("");
   useEffect(() => {
     let alive = true;
     const verifyRole = async () => {
@@ -134,8 +136,6 @@ export default function AlumnoPage() {
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
   // Usuario dinámico
-  const [currentStudentName, setCurrentStudentName] = useState("");
-  const [currentUsername, setCurrentUsername] = useState("");
 
   // Estado de Flashcards
   const [flashcardProgressLoaded, setFlashcardProgressLoaded] = useState(false);
@@ -154,9 +154,11 @@ export default function AlumnoPage() {
   const [gameAnswersCount, setGameAnswersCount] = useState(0);
   const [gameOptions, setGameOptions] = useState<string[]>([]);
   const [gameFinished, setGameFinished] = useState(false);
-  // Keep the interval callback in sync without restarting its 5-second cadence every render.
+  // Keep the interval callback in sync without restarting its 5-second cadence.
   const practiceStateRef = useRef({ gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex });
-  practiceStateRef.current = { gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex };
+  useEffect(() => {
+    practiceStateRef.current = { gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex };
+  }, [gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex]);
 
   // Asignaturas y mensajes del mentor
   const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
