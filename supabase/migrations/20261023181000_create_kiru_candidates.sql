@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS public.kiru_candidates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source_key text NOT NULL UNIQUE,
   source_row integer,
+  public_token_hash text UNIQUE,
+  public_token_issued_at timestamptz,
   name text NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 180),
   sheet_status text,
   phase smallint NOT NULL DEFAULT 1 CHECK (phase BETWEEN 1 AND 6),
@@ -75,6 +77,9 @@ CREATE POLICY kiru_candidates_staff_update
 
 COMMENT ON COLUMN public.profiles.calendly_url IS
   'Optional Calendly booking URL for an active formador; edited only through the protected formador API.';
+
+COMMENT ON COLUMN public.kiru_candidates.public_token_hash IS
+  'SHA-256 hash of a cryptographically random public candidate portal token; never store the raw token.';
 
 COMMENT ON TABLE public.kiru_candidates IS
   'Candidate pipeline used by the formador role. Google Sheets credentials and source tokens are never stored here.';
