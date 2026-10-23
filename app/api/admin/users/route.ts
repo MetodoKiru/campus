@@ -155,23 +155,31 @@ export async function DELETE(request: Request) {
   if (targetError || !target) return NextResponse.json({ error: "No se encontró el usuario." }, { status: 404 });
   if (target.role === "admin") return NextResponse.json({ error: "No se puede eliminar otra cuenta administradora desde este panel." }, { status: 403 });
 
-  // Preserve records authored by the user; stop deletion if dependent data prevents a safe cleanup.
+  // Do not destroy financial history. If the user has payment records, require a deliberate
+  // archival/anonymisation workflow before allowing account deletion.
+  const paymentCheck = await admin.from("kiru_payments").select("id").eq("student_id", userId).limit(1);
+  if (paymentCheck.error) return NextResponse.json({ error: "No se pudo comprobar el historial de pagos; no se ha eliminado la cuenta." }, { status: 409 });
+  if (paymentCheck.data?.length) return NextResponse.json({ error: "Esta cuenta tiene historial de pagos. Para proteger la trazabilidad económica, archiva o anonimiza esos registros antes de eliminarla." }, { status: 409 });
+
+  // Preserve authored records belonging to other people by reassigning their audit owner
+  // to the authenticated administrator. Delete only user-owned records and user-targeted content.
   const cleanupSteps = [
     () => admin.from("student_mentors").delete().or(`student_id.eq.${userId},mentor_id.eq.${userId}`),
     () => admin.from("student_guardians").delete().or(`student_id.eq.${userId},guardian_id.eq.${userId}`),
     () => admin.from("kiru_document_acceptances").delete().eq("student_id", userId),
     () => admin.from("kiru_document_acceptances").delete().eq("accepted_by", userId),
+    () => admin.from("kiru_app_records").update({ created_by: authData.user.id }).eq("created_by", userId),
     () => admin.from("kiru_app_records").delete().eq("owner_id", userId),
-    () => admin.from("kiru_notices").delete().eq("created_by", userId),
+    () => admin.from("kiru_notices").update({ created_by: authData.user.id }).eq("created_by", userId),
     () => admin.from("kiru_notices").delete().eq("target_student_id", userId),
-    () => admin.from("kiru_payments").delete().eq("student_id", userId),
+    () => admin.from("kiru_flashcard_sets").update({ created_by: authData.user.id }).eq("created_by", userId).neq("student_id", userId),
     async () => {
       const docs = await admin.from("kiru_documents").select("id,storage_path").or("created_by.eq." + userId + ",target_student_id.eq." + userId);
       if (docs.error) return { error: docs.error };
       const docIds = (docs.data || []).map((doc: { id: string }) => doc.id);
       const storagePaths = [...new Set((docs.data || []).map((doc: { storage_path: string | null }) => doc.storage_path).filter((value: string | null): value is string => Boolean(value)))];
       if (storagePaths.length) {
-        const removed = await admin.storage.from("kiru-document").remove(storagePaths);
+        const removed = await admin.storage.from("kiru-documents").remove(storagePaths);
         if (removed.error) return { error: removed.error };
       }
       if (docIds.length) {
