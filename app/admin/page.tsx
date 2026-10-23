@@ -19,7 +19,6 @@ import {
   Plus,
   Users,
   CreditCard,
-  Upload,
   ExternalLink,
   Download
 } from "lucide-react";
@@ -187,11 +186,7 @@ export default function AdminPage() {
     return () => { active = false; };
   }, []);
 
-  const saveToStorage = (updatedUsers: UserAccount[]) => { setUsers(updatedUsers); };
-
-
-
-  // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
+    // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
   const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setNoticePdf(e.target.files?.[0] || null);
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setUploadedPdf(e.target.files?.[0] || null);
 
