@@ -29,7 +29,7 @@ interface UserAccount {
   name: string;
   username: string;
   password?: string;
-  role: "alumno" | "mentor" | "padre" | "admin";
+  role: "alumno" | "mentor" | "padre" | "formador" | "admin";
   createdAt: string;
   assignedParent?: string; // Vinculación alumno -> padre
 }
@@ -115,7 +115,7 @@ export default function AdminPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "admin">("alumno");
+  const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "formador" | "admin">("alumno");
   
   // Mentor <-> Alumno
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -577,6 +577,7 @@ export default function AdminPage() {
                     <select value={role} onChange={(e) => setRole(e.target.value as any)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                       <option value="alumno">Alumno</option>
                       <option value="mentor">Mentor</option>
+                       <option value="formador">Formador</option>
                       <option value="padre">Padre / Madre</option>
                       <option value="admin">Administrador</option>
                     </select>
@@ -669,6 +670,7 @@ export default function AdminPage() {
                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                               user.role === "admin" ? "bg-purple-100 text-purple-700" :
                               user.role === "mentor" ? "bg-blue-100 text-blue-700" :
+                               user.role === "formador" ? "bg-indigo-100 text-indigo-700" :
                               user.role === "padre" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
                             }`}>
                               {user.role}
@@ -1007,6 +1009,7 @@ export default function AdminPage() {
                 <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                   <option value="alumno">Alumno</option>
                   <option value="mentor">Mentor</option>
+                       <option value="formador">Formador</option>
                   <option value="padre">Padre / Madre</option>
                   <option value="admin">Administrador</option>
                 </select>
