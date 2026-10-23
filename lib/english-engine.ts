@@ -172,7 +172,6 @@ export const ENGLISH_A1_DATABASE: EnglishQuestion[] = [
   {"id":73,"level":"A1","topic":"Everyday English","question":"You want to ask for the Wi-Fi password politely.","options":["What's the Wi-Fi password, please?","Give Wi-Fi.","Where password you?","Wi-Fi me now."],"answer":"What's the Wi-Fi password, please?","unit":"Unit 1: Introductions & To Be","category":"Everyday English","difficulty":"medio"},
   {"id":74,"level":"A1","topic":"Everyday English","question":"How do you ask someone to help you?","options":["Can you help me, please?","You help me can?","Help I you?","Can help you me."],"answer":"Can you help me, please?","unit":"Unit 1: Introductions & To Be","category":"Everyday English","difficulty":"facil"},
   {"id":75,"level":"A1","topic":"Everyday English","question":"Someone asks 'Where are you from?' You answer…","options":["I'm from Mexico.","I'm 14 years.","It's half past two.","I'm fine, thanks."],"answer":"I'm from Mexico.","unit":"Unit 1: Introductions & To Be","category":"Everyday English","difficulty":"facil"},
-,
   {
     id: 76,
     level: "A1",
