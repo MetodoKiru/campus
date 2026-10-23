@@ -1,0 +1,100 @@
+name: Encrypted Storage backup
+
+on:
+  schedule:
+    - cron: "43 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kiru-storage-backup
+  cancel-in-progress: false
+
+jobs:
+  backup-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check required secrets
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY repository secret"; exit 1; }
+          test -n "$BACKUP_AGE_RECIPIENT" || { echo "::error::Missing BACKUP_AGE_RECIPIENT repository secret"; exit 1; }
+
+      - name: Install age
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+
+      - name: Download and encrypt Storage files
+        env:
+          SUPABASE_URL: https://hysbfejhefcuhsronykb.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          mkdir -p backup/storage
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.parse, urllib.request, urllib.error
+          base = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          bucket = "kiru-documents"
+          root = pathlib.Path("backup/storage")
+          headers = {"apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json"}
+          downloaded = 0
+          def request_json(path, payload):
+              req = urllib.request.Request(base + path, data=json.dumps(payload).encode(), headers=headers, method="POST")
+              with urllib.request.urlopen(req, timeout=60) as res:
+                  return json.load(res)
+          def walk(prefix=""):
+              global downloaded
+              offset = 0
+              while True:
+                  entries = request_json("/storage/v1/object/list/" + bucket, {"prefix": prefix, "limit": 100, "offset": offset, "sortBy": {"column": "name", "order": "asc"}})
+                  if not isinstance(entries, list):
+                      raise RuntimeError("Unexpected Storage listing response")
+                  for entry in entries:
+                      name = entry.get("name")
+                      if not name or name in (".", ".."):
+                          continue
+                      path = (prefix + "/" + name).strip("/")
+                      if entry.get("id") is None and entry.get("metadata") is None:
+                          walk(path)
+                          continue
+                      encoded = urllib.parse.quote(path, safe="/")
+                      req = urllib.request.Request(base + "/storage/v1/object/" + bucket + "/" + encoded, headers={"apikey": key, "Authorization": "Bearer " + key})
+                      with urllib.request.urlopen(req, timeout=120) as res:
+                          data = res.read()
+                      target = root / pathlib.PurePosixPath(path)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(data)
+                      downloaded += 1
+                  if len(entries) < 100:
+                      break
+                  offset += len(entries)
+          walk()
+          manifest = {"bucket": bucket, "files_downloaded": downloaded}
+          (root / "manifest.json").write_text(json.dumps(manifest, indent=2))
+          print(f"Storage backup downloaded: {downloaded} file(s)")
+          PY
+          ARCHIVE="backup/kiru-storage-$(date -u +%Y-%m-%dT%H-%M-%SZ).tar.gz"
+          tar -czf "$ARCHIVE" -C backup storage
+          test -s "$ARCHIVE"
+          age --recipient "$BACKUP_AGE_RECIPIENT" --output "$ARCHIVE.age" "$ARCHIVE"
+          test -s "$ARCHIVE.age"
+          rm -f "$ARCHIVE"
+          sha256sum "$ARCHIVE.age" > "$ARCHIVE.age.sha256"
+          rm -rf backup/storage
+          printf 'Encrypted Storage backup created: %s.age\n' "$ARCHIVE"
+
+      - name: Store encrypted Storage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiru-encrypted-storage-backup-${{ github.run_id }}
+          path: backup/*.age*
+          retention-days: 90
+          if-no-files-found: error
