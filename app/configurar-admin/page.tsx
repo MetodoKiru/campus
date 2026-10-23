@@ -7,7 +7,7 @@ export default function ConfigurarAdminPage() {
   const [secret, setSecret] = useState("");
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("admin");
-  const [email, setEmail] = useState("m.sofiamunoz05@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
