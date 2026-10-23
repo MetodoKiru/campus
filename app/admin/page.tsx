@@ -353,10 +353,11 @@ export default function AdminPage() {
     }
 
     try {
-      // The table has one row per student; upsert changes only this student's mentor.
-      const { error } = await supabase
-        .from("student_mentors")
-        .upsert({ student_id: student.id, mentor_id: mentor.id }, { onConflict: "student_id" });
+      // The RPC performs an atomic replacement and validates roles on the database side.
+      const { error } = await supabase.rpc("kiru_assign_student_mentor", {
+        p_student_id: student.id,
+        p_mentor_id: mentor.id,
+      });
       if (error) throw error;
 
       setLinks((current) => [
