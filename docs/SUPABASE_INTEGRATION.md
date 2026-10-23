@@ -1,30 +1,43 @@
 # Integración de Supabase en el Campus Kiru
 
-## Estado
-- La tabla `profiles` vincula cada perfil con `auth.users`.
-- El rol privilegiado debe establecerse desde `app_metadata.kiru_role`, nunca desde `user_metadata` editable por el usuario.
-- `kiru_app_records` permite guardar registros JSON tipados bajo las políticas RLS existentes.
-- `lib/kiru-storage.ts` contiene funciones para listar, guardar y eliminar registros.
-- `lib/kiru-auth.ts` contiene funciones de inicio/cierre de sesión con Supabase Auth y validación del perfil.
-- La pantalla de acceso existente aún usa usuarios de demostración/localStorage. No se ha sustituido deliberadamente hasta crear y verificar cuentas reales para evitar bloquear el acceso al campus.
+## Estado actual
+
+- `public.profiles` vincula cada perfil con `auth.users`; los permisos deben comprobar el rol activo y el UUID autenticado.
+- El inicio de sesión usa `/api/auth/login` para resolver el nombre de usuario y autenticar mediante Supabase Auth. El cliente comprueba después el perfil activo y el rol.
+- `app/api/admin/users` administra cuentas reales mediante el cliente de servidor y la clave `service_role`, que nunca debe llegar al navegador.
+- `kiru_app_records` guarda registros JSON bajo políticas RLS. `lib/kiru-records.ts` ofrece funciones de lectura/escritura que dependen de RLS.
+- Los paneles de alumno y mentor consultan datos de Supabase. La persistencia debe validarse por flujo: cargar, modificar, recargar y volver a iniciar sesión.
+- El temporizador de práctica guarda su estado como un registro de tipo `progress`. En la rama `feature/formador-role-foundation` se corrige la lectura desde el tipo de registro correcto y se evita que el intervalo de sincronización use valores obsoletos.
+- El rol `formador`, su panel, API de candidaturas, sincronización con Google Sheets y ajuste de Calendly se están preparando en una rama aislada. La migración aún no se ha aplicado a producción y la integración no está aprobada para despliegue.
 
 ## Variables de entorno
-En Vercel, proyecto `campus-kiru-vrwu`, configurar para Production, Preview y Development:
+
+Configurar solo en el servidor cuando corresponda:
+
 - `NEXT_PUBLIC_SUPABASE_URL`: URL del proyecto Supabase.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: clave publicable/anon de Supabase.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: clave pública de Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY`: clave privada de servidor. Nunca usar el prefijo `NEXT_PUBLIC_`.
+- `GOOGLE_CLIENT_EMAIL` y `GOOGLE_PRIVATE_KEY`: credenciales de la cuenta de servicio de Google para la integración de Sheets.
+- `GOOGLE_SHEETS_SPREADSHEET_ID` y `GOOGLE_SHEETS_RANGE`: configuración de la hoja y rango. La integración tiene valores de compatibilidad con la hoja que usaba el prototipo, pero es preferible configurar estas variables explícitamente.
 
-No poner nunca la clave `service_role` en una variable `NEXT_PUBLIC_*`, en el navegador ni en el repositorio.
+No copiar secretos al repositorio, a los componentes cliente, a las respuestas HTTP ni a los registros del navegador.
 
-## Alta inicial de cuentas
-1. Crear cada usuario en Supabase Auth con su correo y contraseña temporal.
-2. Crear/vincular su fila en `public.profiles` con el mismo UUID que `auth.users.id`.
-3. Asignar rol privilegiado mediante el mecanismo administrativo seguro; no confiar en metadatos editables desde el cliente.
+## Alta y administración de cuentas
+
+1. Crear cuentas desde el panel administrativo/API protegida o mediante un procedimiento administrativo aprobado.
+2. Confirmar que el usuario de Auth y la fila de `profiles` comparten el mismo UUID.
+3. El rol debe estar en `app_metadata.kiru_role` y en `profiles.role`; los dos valores deben coincidir.
 4. Para alumnos, verificar que existe la fila correspondiente en `public.students`.
 5. Asignar mentores y tutores legales en `student_mentors` y `student_guardians`.
-6. Probar inicio de sesión y comprobar las políticas RLS con cuentas de cada rol antes de retirar las cuentas de demostración.
+6. Probar acceso y políticas RLS con cuentas desechables de cada rol, incluidos intentos de acceso cruzado.
 
-## Siguiente fase de integración
-- Sustituir el login de demostración por `signInKiru` cuando existan cuentas reales y se haya verificado la configuración de entorno.
-- Reemplazar gradualmente las claves de localStorage por `saveKiruRecord`/ `listKiruRecords`, usando el UUID de perfil autenticado como `ownerId`.
-- No migrar documentos PDF en Base64 a `jsonb`; usar Supabase Storage con políticas de acceso y guardar únicamente la ruta del objeto en los registros.
-- No desplegar la integración completa hasta probar la separación de datos entre alumno, mentor, familia y administración.
+## Validación pendiente
+
+- Probar inicio de sesión, roles, alta/edición/borrado y relaciones con cuentas desechables.
+- Probar persistencia de flashcards, temporizador, avisos, documentos y pagos.
+- Validar RLS para cada rol con usuarios independientes.
+- Restaurar backups cifrados en un entorno aislado.
+- Aplicar primero las migraciones del rol formador y de candidaturas en un entorno de prueba; comprobar credenciales y permisos de Google Sheets.
+- Confirmar qué deployment de Vercel corresponde a la versión de producción antes de publicar cambios.
+
+No se considera terminada una integración solo porque el código exista o un workflow de copia haya terminado; debe comprobarse el comportamiento real y la recuperación.
