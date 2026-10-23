@@ -150,7 +150,8 @@ export async function PATCH(request: Request) {
   if (typeof body.fullName === "string" && body.fullName.trim()) profileUpdates.full_name = body.fullName.trim();
   if (typeof body.username === "string" && /^[a-z0-9._-]{3,40}$/.test(body.username.trim().toLowerCase())) {
     const username = body.username.trim().toLowerCase();
-    const { data: duplicate } = await admin.from("profiles").select("id").eq("username", username).neq("id", userId).maybeSingle();
+    const { data: duplicate, error: duplicateError } = await admin.from("profiles").select("id").eq("username", username).neq("id", userId).maybeSingle();
+    if (duplicateError) return NextResponse.json({ error: "No se pudo validar la disponibilidad del usuario." }, { status: 500 });
     if (duplicate) return NextResponse.json({ error: "Ese nombre de usuario ya existe." }, { status: 409 });
     profileUpdates.username = username;
   } else if (body.username !== undefined) return NextResponse.json({ error: "Nombre de usuario no válido." }, { status: 400 });
