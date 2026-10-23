@@ -13,8 +13,10 @@ import {
   Calendar
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function StudentDetailMentorPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("inicio");
   const [logs, setLogs] = useState<any[]>([]);
 
@@ -34,15 +36,7 @@ export default function StudentDetailMentorPage() {
         .eq("student_username", "carmen")
         .order("created_at", { ascending: false });
 
-      if (data && data.length > 0) {
-        setLogs(data);
-      } else {
-        setLogs([
-          { action_text: "Ha terminado la actividad con 8/10.", created_at: "11:58" },
-          { action_text: "Ha realizado la actividad 'Vocabulary — Unit 1'.", created_at: "11:52" },
-          { action_text: "El alumno ha accedido al campus.", created_at: "11:50" }
-        ]);
-      }
+      setLogs(data ?? []);
     }
     loadLogs();
   }, []);
@@ -74,9 +68,9 @@ export default function StudentDetailMentorPage() {
             </div>
           </div>
         </div>
-        <Link href="/" className="text-xs font-semibold text-red-500 hover:underline">
+        <button onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }} className="text-xs font-semibold text-red-500 hover:underline">
           Cerrar sesión
-        </Link>
+        </button>
       </header>
 
       {/* Barra de navegación superior horizontal */}
@@ -124,14 +118,14 @@ export default function StudentDetailMentorPage() {
               <div className="space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-kiru-forest">Hoy</p>
                 <div className="border-l-2 border-kiru-forest-light ml-2 pl-4 space-y-4">
-                  {logs.map((log, idx) => (
-                    <div key={idx} className="relative text-xs">
+                  {logs.length ? logs.map((log, idx) => (
+                    <div key={log.id ?? idx} className="relative text-xs">
                       <span className="font-semibold text-kiru-forest mr-2">
-                        {log.created_at?.slice(11, 16) || log.created_at || "11:50"} —
+                        {log.created_at?.slice(11, 16) || "—"} —
                       </span>
                       <span className="text-kiru-text">{log.action_text}</span>
                     </div>
-                  ))}
+                  )) : <p className="text-xs text-kiru-muted">Todavía no hay actividad registrada.</p>}
                 </div>
               </div>
             </div>
@@ -144,15 +138,15 @@ export default function StudentDetailMentorPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-kiru-card p-6 rounded-3xl border border-kiru-border shadow-sm text-center">
                 <p className="text-xs uppercase font-semibold text-kiru-muted mb-2">SkillCoins</p>
-                <p className="font-serif text-4xl text-kiru-text font-bold">19</p>
+                <p className="font-serif text-4xl text-kiru-text font-bold">—</p>
               </div>
               <div className="bg-kiru-card p-6 rounded-3xl border border-kiru-border shadow-sm text-center">
                 <p className="text-xs uppercase font-semibold text-kiru-muted mb-2">Actividades Realizadas</p>
-                <p className="font-serif text-4xl text-kiru-text font-bold">12</p>
+                <p className="font-serif text-4xl text-kiru-text font-bold">—</p>
               </div>
               <div className="bg-kiru-card p-6 rounded-3xl border border-kiru-border shadow-sm text-center">
                 <p className="text-xs uppercase font-semibold text-kiru-muted mb-2">Precisión Media</p>
-                <p className="font-serif text-4xl text-kiru-text font-bold">85%</p>
+                <p className="font-serif text-4xl text-kiru-text font-bold">—</p>
               </div>
             </div>
 
