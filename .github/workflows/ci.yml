@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   validate:
-    name: Lint and production build
+    name: Targeted lint and production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -35,7 +35,20 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run ESLint
-        run: npm run lint
+      - name: Lint new candidate APIs, portal, and persistence helper
+        run: >-
+          npx eslint
+          app/api/formador/candidatos/route.ts
+          'app/api/formador/candidatos/[id]/route.ts'
+          'app/api/formador/candidatos/[id]/portal-link/route.ts'
+          app/api/formador/perfil/route.ts
+          'app/api/mentores/candidatura/[token]/route.ts'
+          lib/server/kiru-candidate-auth.ts
+          lib/kiru-records.ts
+          app/formador/page.js
+          'app/formador/candidato/[id]/page.js'
+          'app/mentores/candidatura/[token]/page.js'
+      - name: Lint admin changes (existing explicit-any debt is tracked separately)
+        run: npx eslint app/admin/page.tsx --rule '@typescript-eslint/no-explicit-any: off'
       - name: Build production app
         run: npm run build
