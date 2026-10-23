@@ -17,7 +17,7 @@ Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 - Se añadió el rol `formador` a los tipos y opciones de administración.
 - El login dirige las cuentas con ese rol a `/formador`.
 - Se añadió una migración versionada para ampliar la restricción del rol en `profiles`.
-- El panel de formadores se dejó en una pantalla protegida y sin datos de candidaturas hasta que la API de Sheets y el modelo de datos superen las pruebas. Esto evita exponer candidaturas mientras la conexión no esté lista.
+- Se preparó un panel protegido, API de candidaturas con comprobación de sesión/rol en servidor, sincronización con Google Sheets, API de detalle y ajustes de Calendly. La migración del esquema y los secretos de Google aún no se han aplicado/validado en un entorno de prueba, por lo que no debe considerarse listo para producción.
 - Se añadió una salvaguarda para evitar cambiar el propio rol desde la sesión administrativa o degradar al último administrador activo.
 - Se documentó feedback técnico constructivo sobre el panel y la integración con Sheets.
 
@@ -25,7 +25,7 @@ Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 
 - Ejecutar build/lint y resolver cualquier fallo.
 - Aplicar la migración primero en un entorno de prueba y verificar que los cuatro roles existentes siguen funcionando.
-- Terminar API, tablas, RLS y sincronización de Google Sheets.
+- Aplicar y validar la migración de candidaturas/Calendly en un entorno de prueba; verificar variables de Google, permisos de la hoja, sincronización, detalle, historial y transiciones.
 - Probar las operaciones de cuentas, relaciones y persistencia con datos desechables.
 - Validar la recuperación de backups en un entorno aislado.
 - Confirmar la versión desplegada y solo entonces valorar la integración en `main`.
