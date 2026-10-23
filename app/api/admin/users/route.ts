@@ -33,8 +33,13 @@ export async function POST(request: Request) {
   const role = body.role as Role;
   // Students can sign in with username only; this internal alias is not used for email delivery.
   const email = role === "alumno" && !suppliedEmail ? `${username}@alumnos.campus-kiru.invalid` : suppliedEmail;
-  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !new RegExp("^[0-9]{6}$").test(password) || !ROLES.includes(role)) {
-    return NextResponse.json({ error: "Nombre, usuario, email, rol o PIN de 6 cifras no válidos." }, { status: 400 });
+  const validCredential = role === "formador"
+    ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{12,}$/.test(password)
+    : /^\\d{6}$/.test(password);
+  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) || !validCredential || !ROLES.includes(role)) {
+    return NextResponse.json({ error: role === "formador"
+      ? "Revisa los campos y usa una contraseña de al menos 12 caracteres con mayúscula, minúscula y número."
+      : "Nombre, usuario, email, rol o PIN de 6 cifras no válidos." }, { status: 400 });
   }
 
   const { data: duplicate, error: duplicateError } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
@@ -118,10 +123,27 @@ export async function PATCH(request: Request) {
     }
   }
 
+  if (body.role !== undefined && (typeof body.role !== "string" || !ROLES.includes(body.role as Role))) {
+    return NextResponse.json({ error: "Rol no válido." }, { status: 400 });
+  }
+  const desiredRole = typeof body.role === "string" && ROLES.includes(body.role as Role)
+    ? body.role as Role
+    : targetProfile.role as Role;
+
+  if (desiredRole === "formador" && targetProfile.role !== "formador" && !(typeof body.password === "string" && body.password.length)) {
+    return NextResponse.json({ error: "Para asignar el rol formador, establece una contraseña segura en la misma operación." }, { status: 400 });
+  }
+
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
-    const isSixDigitPin = new RegExp("^[0-9]{6}$").test(body.password);
-    if (!isSixDigitPin) return NextResponse.json({ error: "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
+    const validCredential = desiredRole === "formador"
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{12,}$/.test(body.password)
+      : /^\\d{6}$/.test(body.password);
+    if (!validCredential) {
+      return NextResponse.json({ error: desiredRole === "formador"
+        ? "La contraseña del formador debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
+        : "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
+    }
     updates.password = body.password;
   }
   const profileUpdates: Record<string, unknown> = {};
