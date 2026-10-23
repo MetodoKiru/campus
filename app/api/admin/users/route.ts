@@ -34,9 +34,9 @@ export async function POST(request: Request) {
   // Students can sign in with username only; this internal alias is not used for email delivery.
   const email = role === "alumno" && !suppliedEmail ? `${username}@alumnos.campus-kiru.invalid` : suppliedEmail;
   const validCredential = role === "formador"
-    ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{12,}$/.test(password)
-    : /^\\d{6}$/.test(password);
-  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) || !validCredential || !ROLES.includes(role)) {
+    ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(password)
+    : /^\d{6}$/.test(password);
+  if (!fullName || !/^[a-z0-9._-]{3,40}$/.test(username) || (role !== "alumno" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !validCredential || !ROLES.includes(role)) {
     return NextResponse.json({ error: role === "formador"
       ? "Revisa los campos y usa una contraseña de al menos 12 caracteres con mayúscula, minúscula y número."
       : "Nombre, usuario, email, rol o PIN de 6 cifras no válidos." }, { status: 400 });
@@ -137,8 +137,8 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
     const validCredential = desiredRole === "formador"
-      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{12,}$/.test(body.password)
-      : /^\\d{6}$/.test(body.password);
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(body.password)
+      : /^\d{6}$/.test(body.password);
     if (!validCredential) {
       return NextResponse.json({ error: desiredRole === "formador"
         ? "La contraseña del formador debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
