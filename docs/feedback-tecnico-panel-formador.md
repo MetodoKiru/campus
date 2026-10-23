@@ -43,7 +43,18 @@ Se recomienda probar casos sin sesión, con roles no autorizados, con usuarios d
 - Algunas escrituras de Supabase no comprueban el error antes de mostrar éxito.
 - La búsqueda por nombre no garantiza unicidad.
 - El panel requiere las tablas `candidatos` y `formadores`, aún no verificadas en el esquema de producción inspeccionado.
-- En el Campus oficial, el inicio de sesión y el esquema de perfiles todavía no reconocían el rol `formador`; se está preparando su incorporación en una rama aislada.
+- En el Campus oficial, el inicio de sesión y el esquema de perfiles todavía no reconocían el rol `formador`; se ha preparado su incorporación en una rama aislada; todavía no está desplegado ni habilitado en producción.
+
+
+## Mejoras ya preparadas en la rama de trabajo
+
+- Se añadió un rol `formador` separado y una política de contraseña más robusta para sus cuentas.
+- La lectura y edición de candidaturas pasa por APIs de servidor que verifican sesión, rol activo y metadatos del usuario; el navegador no recibe credenciales de Google ni la clave de servicio de Supabase.
+- La sincronización guarda un hash del identificador de origen, informa cuando una fila no tiene identificador estable y evita devolver el token de la hoja.
+- Los enlaces públicos de candidatura se generan con un token aleatorio independiente de 256 bits. La base de datos conserva solo el hash; el enlace se muestra una vez y renovarlo invalida el anterior.
+- El modelo de candidaturas y sus políticas RLS están versionados en migraciones. Las asignaciones de mentor y tutor legal se han movido a operaciones atómicas para reducir estados parciales.
+- El banco de inglés A1 se amplió a 100 preguntas y se añadió una prueba automática de IDs, opciones, respuestas, categorías y unidades.
+- La rama tiene validación automatizada de lint dirigido y build de producción. Esto verifica la compilación, pero no sustituye las pruebas con cuentas desechables ni la validación de las migraciones en un entorno de pruebas.
 
 ## Siguiente paso recomendado
 
