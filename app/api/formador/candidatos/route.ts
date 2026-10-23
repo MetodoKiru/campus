@@ -1,4 +1,5 @@
 import { createHash, createSign } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { requireCandidateStaff } from "@/lib/server/kiru-candidate-auth";
 
@@ -73,7 +74,7 @@ function getCell(row: string[], index: number): string {
   return String(row[index] ?? "").trim();
 }
 
-async function loadCandidates(admin: ReturnType<typeof import("@supabase/supabase-js").createClient>) {
+async function loadCandidates(admin: SupabaseClient) {
   return admin
     .from("kiru_candidates")
     .select(CANDIDATE_FIELDS)
