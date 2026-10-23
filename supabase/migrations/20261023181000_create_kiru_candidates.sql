@@ -48,12 +48,30 @@ GRANT EXECUTE ON FUNCTION public.kiru_is_active_candidate_staff() TO authenticat
 ALTER TABLE public.kiru_candidates ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS kiru_candidates_staff_all ON public.kiru_candidates;
-CREATE POLICY kiru_candidates_staff_all
+DROP POLICY IF EXISTS kiru_candidates_staff_read ON public.kiru_candidates;
+DROP POLICY IF EXISTS kiru_candidates_staff_insert ON public.kiru_candidates;
+DROP POLICY IF EXISTS kiru_candidates_staff_update ON public.kiru_candidates;
+
+CREATE POLICY kiru_candidates_staff_read
   ON public.kiru_candidates
-  FOR ALL
+  FOR SELECT
+  TO authenticated
+  USING (public.kiru_is_active_candidate_staff());
+
+CREATE POLICY kiru_candidates_staff_insert
+  ON public.kiru_candidates
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.kiru_is_active_candidate_staff());
+
+CREATE POLICY kiru_candidates_staff_update
+  ON public.kiru_candidates
+  FOR UPDATE
   TO authenticated
   USING (public.kiru_is_active_candidate_staff())
   WITH CHECK (public.kiru_is_active_candidate_staff());
+
+-- Deliberately no DELETE policy: candidate records and history should be retained.
 
 COMMENT ON COLUMN public.profiles.calendly_url IS
   'Optional Calendly booking URL for an active formador; edited only through the protected formador API.';
