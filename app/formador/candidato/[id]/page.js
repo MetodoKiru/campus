@@ -16,7 +16,7 @@ export default function PerfilCandidato({ params }) {
     async function cargarCandidato() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        router.push('/login')
+        router.replace('/')
         return
       }
 
