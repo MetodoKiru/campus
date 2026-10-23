@@ -29,12 +29,11 @@ async function currentUserId(): Promise<string> {
   return data.user.id;
 }
 
-/** Reads only records belonging to the authenticated user (RLS applies as a second barrier). */
+/** Reads the records allowed by the signed-in user's RLS policies. */
 export async function getKiruRecords<T = unknown>(
   recordType: KiruRecordType,
 ): Promise<KiruRecord<T>[]> {
   await currentUserId();
-  // Row-level security determines which own and assigned-student records are visible.
   const { data, error } = await supabase
     .from("kiru_app_records")
     .select("id,owner_id,record_type,record_key,data,created_by,created_at,updated_at")
@@ -45,7 +44,11 @@ export async function getKiruRecords<T = unknown>(
   return (data ?? []) as KiruRecord<T>[];
 }
 
-/** Saves a record for the signed-in user; it never accepts an owner id from the UI. */
+/**
+ * Saves a record for the signed-in user or for a requested owner that RLS permits
+ * (for example, a mentor and an assigned student). The database remains the final
+ * authority for ownership and relationship checks.
+ */
 export async function saveKiruRecord<T>(
   recordType: KiruRecordType,
   recordKey: string,
@@ -53,33 +56,75 @@ export async function saveKiruRecord<T>(
   requestedOwnerId?: string,
 ): Promise<KiruRecord<T>> {
   const userId = await currentUserId();
+  const normalizedKey = recordKey.trim();
+  if (!normalizedKey || normalizedKey.length > 200) {
+    throw new Error("La clave del registro debe tener entre 1 y 200 caracteres.");
+  }
+
   const ownerId = requestedOwnerId || userId;
   const { data: existing, error: lookupError } = await supabase
     .from("kiru_app_records")
     .select("id")
     .eq("owner_id", ownerId)
     .eq("record_type", recordType)
-    .eq("record_key", recordKey)
+    .eq("record_key", normalizedKey)
     .maybeSingle();
 
   if (lookupError) throw new Error(`No se pudo comprobar el registro: ${lookupError.message}`);
 
-  const payload = {
+  const now = new Date().toISOString();
+  const updatePayload = {
     owner_id: ownerId,
     record_type: recordType,
-    record_key: recordKey,
+    record_key: normalizedKey,
     data: value,
-    created_by: userId,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
-  const query = existing?.id
-    ? supabase.from("kiru_app_records").update(payload).eq("id", existing.id).select("*").single()
-    : supabase.from("kiru_app_records").insert(payload).select("*").single();
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from("kiru_app_records")
+      .update(updatePayload)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(`No se pudo guardar el registro (${recordType}): ${error.message}`);
+    return data as KiruRecord<T>;
+  }
 
-  const { data, error } = await query;
-  if (error) throw new Error(`No se pudo guardar el registro (${recordType}): ${error.message}`);
-  return data as KiruRecord<T>;
+  const { data: inserted, error: insertError } = await supabase
+    .from("kiru_app_records")
+    .insert({ ...updatePayload, created_by: userId })
+    .select("*")
+    .single();
+
+  if (!insertError) return inserted as KiruRecord<T>;
+
+  // A concurrent save may have inserted the same unique owner/type/key after our lookup.
+  if (insertError.code === "23505") {
+    const { data: concurrent, error: concurrentLookupError } = await supabase
+      .from("kiru_app_records")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .eq("record_type", recordType)
+      .eq("record_key", normalizedKey)
+      .maybeSingle();
+
+    if (concurrentLookupError || !concurrent?.id) {
+      throw new Error("El registro se estaba guardando en paralelo y no se pudo recuperar. Vuelve a intentarlo.");
+    }
+
+    const { data, error } = await supabase
+      .from("kiru_app_records")
+      .update(updatePayload)
+      .eq("id", concurrent.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(`No se pudo guardar el registro (${recordType}): ${error.message}`);
+    return data as KiruRecord<T>;
+  }
+
+  throw new Error(`No se pudo guardar el registro (${recordType}): ${insertError.message}`);
 }
 
 /** Deletes one record by its id; RLS enforces whether the user may do so. */
