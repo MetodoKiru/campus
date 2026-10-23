@@ -181,7 +181,7 @@ export default function PadrePage() {
         <div className="max-w-md mx-auto px-4 sm:px-6 pt-5 space-y-6">
           <header className="flex items-center justify-between pb-3">
             <button
-              onClick={() => router.push("/")}
+              onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }}
               title="Cerrar sesión"
               className="p-2.5 rounded-2xl border border-slate-300 bg-white text-[#292825] hover:bg-[#F3F0EA] transition-colors shadow-xs"
             >
@@ -278,7 +278,7 @@ export default function PadrePage() {
                 Mis pagos
               </button>
               <button
-                onClick={() => router.push("/")}
+                onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }}
                 title="Cerrar sesión"
                 className="p-1.5 rounded-xl text-[#77736B] hover:text-[#292825] hover:bg-[#F3F0EA] transition ml-1 shrink-0"
               >
