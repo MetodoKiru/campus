@@ -37,3 +37,5 @@ Fecha: 23 de octubre de 2026. Repositorio oficial: `MetodoKiru/campus-kiru`.
 - Supabase Performance Advisor informa **36 avisos `auth_rls_initplan`** por llamadas a `auth.uid()`/`auth.jwt()` que podrían optimizarse en políticas RLS. No se han modificado estas políticas en producción; se requiere agruparlas, revisar la semántica y probar antes de aplicar una migración.
 - `kiru_app_records` tiene dos índices únicos redundantes sobre `(owner_id, record_type, record_key)`. No afectan a la integridad, pero añaden trabajo a las escrituras; revisar una limpieza controlada en una migración futura.
 - Supabase Security Advisor mantiene el aviso de protección de contraseñas filtradas desactivada. Las herramientas disponibles permiten consultar el aviso, pero no cambiar esa opción de Auth.
+
+- El nuevo portal de candidaturas genera enlaces independientes con tokens aleatorios de 256 bits y guarda solo el hash. Al desplegarlo, los enlaces antiguos de token corto deberán renovarse y distribuirse de nuevo; no se deben tratar como compatibles automáticamente.
