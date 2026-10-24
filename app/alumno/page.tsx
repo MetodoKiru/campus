@@ -165,7 +165,7 @@ export default function AlumnoPage() {
   const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
 
   // Inglés A1 Motor de ejercicios corregido y real
-  const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
+  const [englishCategory, setEnglishCategory] = useState<string>("Grammar");
   const [englishAssignedConfig, setEnglishAssignedConfig] = useState<{ questionCount: number; selectedCategory: string; difficulty: string; selectedUnits: string[] } | null>(null);
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
   const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: 0, checked: false });
@@ -206,7 +206,7 @@ export default function AlumnoPage() {
             difficulty: typeof config.difficulty === "string" ? config.difficulty : "todas",
             selectedUnits: Array.isArray(config.selectedUnits) ? config.selectedUnits.filter((unit: unknown) => typeof unit === "string") : [],
           });
-          if (["Grammar", "Vocabulary", "Everyday English"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
+          if (["Grammar", "Vocabulary", "Everyday English", "Use of English", "Reading"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
         }
         const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
@@ -811,12 +811,15 @@ export default function AlumnoPage() {
                     <option value="Grammar">Gramática</option>
                     <option value="Vocabulary">Vocabulario</option>
                     <option value="Everyday English">Inglés cotidiano</option>
+                    <option value="Use of English">Uso del inglés</option>
+                    <option value="Reading">Comprensión lectora</option>
                   </select>
                 ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{englishAssignedConfig.selectedCategory}</span>}
               </div>
               <div className="h-2 rounded-full bg-[#EEECE7] overflow-hidden"><div className="h-full bg-[#8A9870] transition-all" style={{ width: (getAssignedEnglishQuestions().length ? Object.keys(englishAnswers).length / getAssignedEnglishQuestions().length * 100 : 0) + "%" }} /></div>
               {getAssignedEnglishQuestions().map((question, index) => (
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
+                  {question.context && <p className="rounded-xl border border-[#E7E3DC] bg-white p-3 text-[12px] leading-6 text-[#45433F]">{question.context}</p>}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
                     <span className="text-[10px] text-[#8D887F]">{question.topic}</span>
