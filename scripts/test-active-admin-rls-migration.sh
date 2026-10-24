@@ -64,6 +64,11 @@ CREATE POLICY kiru_records_read_authorized
     owner_id = auth.uid()
     OR ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text) = 'admin'::text
   );
+CREATE POLICY kiru_records_update_authorized
+  ON public.kiru_app_records
+  FOR UPDATE
+  USING ((( SELECT ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text)) = 'admin'::text))
+  WITH CHECK ((( SELECT ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text)) = 'admin'::text));
 SQL
 
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261024080000_harden_active_admin_rls.sql
@@ -98,17 +103,22 @@ END;
 $test$;
 
 DO $test$
-DECLARE policy_qual text;
+DECLARE policy_row record;
 BEGIN
-  SELECT qual INTO policy_qual
-  FROM pg_policies
-  WHERE schemaname = 'public'
-    AND tablename = 'kiru_app_records'
-    AND policyname = 'kiru_records_read_authorized';
-
-  IF policy_qual IS NULL OR position('kiru_is_active_admin' IN policy_qual) = 0 THEN
-    RAISE EXCEPTION 'RLS policy was not rewritten to use the active-admin helper: %', policy_qual;
-  END IF;
+  FOR policy_row IN
+    SELECT policyname, qual, with_check
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'kiru_app_records'
+      AND policyname IN ('kiru_records_read_authorized', 'kiru_records_update_authorized')
+  LOOP
+    IF position('kiru_is_active_admin' IN coalesce(policy_row.qual, '') || ' ' || coalesce(policy_row.with_check, '')) = 0 THEN
+      RAISE EXCEPTION 'RLS policy was not rewritten to use the active-admin helper: %', policy_row.policyname;
+    END IF;
+    IF position('kiru_role' IN coalesce(policy_row.qual, '') || ' ' || coalesce(policy_row.with_check, '')) > 0 THEN
+      RAISE EXCEPTION 'RLS policy still contains a direct JWT role check: %', policy_row.policyname;
+    END IF;
+  END LOOP;
 END;
 $test$;
 
