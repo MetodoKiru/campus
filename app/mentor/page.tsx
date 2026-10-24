@@ -583,6 +583,8 @@ export default function MentorPage() {
                   <option value="Grammar">Gramática</option>
                   <option value="Vocabulary">Vocabulario temático</option>
                   <option value="Everyday English">Inglés funcional y cotidiano</option>
+                  <option value="Use of English">Uso del inglés</option>
+                  <option value="Reading">Comprensión lectora</option>
                 </select>
               </div>
 
