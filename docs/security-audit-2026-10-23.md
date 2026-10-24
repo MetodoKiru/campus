@@ -55,3 +55,11 @@ No declarar el campus listo para datos reales hasta completar las pruebas de ais
 - El validador de Inglés A1 en la rama pasa con 120 preguntas y cinco áreas, incluida Reading con pasajes. Listening y Writing siguen pendientes porque necesitan tipos de actividad y recursos adecuados.
 - El workflow de PostgreSQL se ha generado correctamente y su archivo de dump se pudo listar; la restauración completa de base de datos y Storage sigue pendiente.
 - Los cambios de formador/candidaturas y las nuevas migraciones siguen en una PR draft y no están habilitados en producción.
+
+### Seguimiento de logs — 24 de octubre de 2026
+
+Se volvió a consultar la ventana reciente de logs PostgreSQL. La búsqueda devuelve los mismos tres fallos de autenticación del usuario `postgres`, concentrados en torno a las 09:52:28–09:52:33 UTC del 23 de octubre, desde tres conexiones IPv6 cercanas entre sí. No aparecieron fallos más recientes en esa búsqueda. Esto no permite atribuir el origen con certeza ni demuestra por sí solo un acceso no autorizado. Próximo paso: comparar la hora con ejecuciones de backup/conexiones automatizadas y revisar de nuevo los logs tras esa comprobación; no rotar credenciales a ciegas sin más evidencia.
+
+### Seguimiento de Storage — 24 de octubre de 2026
+
+La consulta de solo lectura a `storage.objects` devuelve actualmente **0 objetos**. Esto confirma que la tabla está vacía en el momento de la consulta, pero no valida el proceso de copia ni de restauración. Antes de cerrar la prioridad de backups, comprobar si los documentos esperados se están guardando en otro bucket/proyecto y completar una restauración aislada si procede.
