@@ -219,6 +219,32 @@ export async function DELETE(request: Request) {
   if (paymentCheck.error) return NextResponse.json({ error: "No se pudo comprobar todas las referencias del historial de pagos; no se ha eliminado la cuenta." }, { status: 409 });
   if (paymentCheck.data?.length) return NextResponse.json({ error: "Esta cuenta aparece en el historial de pagos, como alumno o como autor del registro. Para proteger la trazabilidad económica, archiva o anonimiza esos registros antes de eliminarla." }, { status: 409 });
 
+  // Preflight the two multi-table cleanup paths before any destructive step. This reduces
+  // partial cleanup when a lookup itself fails; it does not make the whole workflow transactional.
+  const docsPreflight = await admin
+    .from("kiru_documents")
+    .select("id,storage_path")
+    .eq("target_student_id", userId);
+  if (docsPreflight.error) {
+    return NextResponse.json({ error: "No se pudieron comprobar los documentos del usuario; no se ha iniciado la limpieza." }, { status: 409 });
+  }
+  const docsToRemove = docsPreflight.data || [];
+  const documentIdsToRemove = docsToRemove.map((doc: { id: string }) => doc.id);
+  const storagePathsToRemove = [...new Set(
+    docsToRemove
+      .map((doc: { storage_path: string | null }) => doc.storage_path)
+      .filter((value: string | null): value is string => Boolean(value))
+  )];
+
+  const flashcardSetsPreflight = await admin
+    .from("kiru_flashcard_sets")
+    .select("id")
+    .eq("student_id", userId);
+  if (flashcardSetsPreflight.error) {
+    return NextResponse.json({ error: "No se pudieron comprobar las flashcards del usuario; no se ha iniciado la limpieza." }, { status: 409 });
+  }
+  const flashcardSetIdsToRemove = (flashcardSetsPreflight.data || []).map((set: { id: string }) => set.id);
+
   // Preserve authored records belonging to other people by reassigning their audit owner
   // to the authenticated administrator. Delete only user-owned records and user-targeted content.
   const cleanupSteps = [
@@ -233,26 +259,19 @@ export async function DELETE(request: Request) {
     () => admin.from("kiru_documents").update({ created_by: authData.user.id }).eq("created_by", userId).or("target_student_id.is.null,target_student_id.neq." + userId),
     () => admin.from("kiru_flashcard_sets").update({ created_by: authData.user.id }).eq("created_by", userId).or("student_id.is.null,student_id.neq." + userId),
     async () => {
-      const docs = await admin.from("kiru_documents").select("id,storage_path").eq("target_student_id", userId);
-      if (docs.error) return { error: docs.error };
-      const docIds = (docs.data || []).map((doc: { id: string }) => doc.id);
-      const storagePaths = [...new Set((docs.data || []).map((doc: { storage_path: string | null }) => doc.storage_path).filter((value: string | null): value is string => Boolean(value)))];
-      if (storagePaths.length) {
-        const removed = await admin.storage.from("kiru-documents").remove(storagePaths);
+      if (storagePathsToRemove.length) {
+        const removed = await admin.storage.from("kiru-documents").remove(storagePathsToRemove);
         if (removed.error) return { error: removed.error };
       }
-      if (docIds.length) {
-        const accepts = await admin.from("kiru_document_acceptances").delete().in("document_id", docIds);
+      if (documentIdsToRemove.length) {
+        const accepts = await admin.from("kiru_document_acceptances").delete().in("document_id", documentIdsToRemove);
         if (accepts.error) return { error: accepts.error };
       }
       return await admin.from("kiru_documents").delete().or("created_by.eq." + userId + ",target_student_id.eq." + userId);
     },
     async () => {
-      const lookup = await admin.from("kiru_flashcard_sets").select("id").eq("student_id", userId);
-      if (lookup.error) return { error: lookup.error };
-      const setIds = (lookup.data || []).map((set: { id: string }) => set.id);
-      if (setIds.length) {
-        const cards = await admin.from("kiru_flashcards").delete().in("set_id", setIds);
+      if (flashcardSetIdsToRemove.length) {
+        const cards = await admin.from("kiru_flashcards").delete().in("set_id", flashcardSetIdsToRemove);
         if (cards.error) return { error: cards.error };
       }
       return await admin.from("kiru_flashcard_sets").delete().eq("student_id", userId);
