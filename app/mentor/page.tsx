@@ -16,7 +16,7 @@ import {
   Send,
   Award
 } from "lucide-react";
-import { ENGLISH_A1_DATABASE, EnglishQuestion, EnglishConfig } from "@/lib/english-engine";
+import { ENGLISH_A1_DATABASE, EnglishQuestion, EnglishConfig, getSimilarEnglishReviewQuestions } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
@@ -95,6 +95,16 @@ export default function MentorPage() {
     questionCount: 20
   });
   const [previewQuestions, setPreviewQuestions] = useState<EnglishQuestion[]>([]);
+  const [mentorUserId, setMentorUserId] = useState("");
+  const [englishAttempts, setEnglishAttempts] = useState<Array<{
+    recordKey: string; studentId: string; studentName: string; score: number; total: number; completedAt: string;
+    category: string; attemptType?: string;
+    answers: Array<{ questionId: number; topic?: string; unit?: string; category?: string; questionText?: string; givenAnswer?: string; correctAnswer?: string; correct: boolean }>;
+  }>>([]);
+  const [englishWritingSubmissions, setEnglishWritingSubmissions] = useState<Array<{
+    recordKey: string; studentId: string; studentName: string; promptTitle: string; instruction: string;
+    response: string; wordCount: number; completedAt: string; rubric: string[];
+  }>>([]);
 
   const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
 
@@ -104,6 +114,7 @@ export default function MentorPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+        setMentorUserId(user.id);
         const { data: links, error: linkError } = await supabase.from("student_mentors").select("student_id").eq("mentor_id", user.id);
         if (linkError) throw linkError;
         const ids = Array.from(new Set((links || []).map((link: any) => link.student_id)));
@@ -123,6 +134,55 @@ export default function MentorPage() {
         if (cfg) { const student = assigned.find((s) => s.id === cfg.studentId); setEnglishConfig({ ...cfg.config, studentUsername: student?.username || "" }); }
         const sc = progress.map((r) => r.data).find((d) => d?.module === "skillcoins" && assigned.some((s) => s.id === d.studentId));
         if (sc?.scores) setStudentSC({ estudios: Number(sc.scores.estudios) || 0, compromiso: Number(sc.scores.compromiso) || 0, organizacion: Number(sc.scores.organizacion) || 0, bienestar: Number(sc.scores.bienestar) || 0 });
+
+        const attempts = progress.flatMap((record: any) => {
+          const data = record.data;
+          const student = assigned.find((item) => item.id === record.owner_id);
+          if (data?.module !== "english_a1" || !student) return [];
+          const answers = Array.isArray(data.answers) ? data.answers.map((answer: any) => {
+            const question = ENGLISH_A1_DATABASE.find((item) => item.id === Number(answer.questionId));
+            return {
+              questionId: Number(answer.questionId),
+              topic: answer.topic || question?.topic || "Inglés A1",
+              unit: answer.unit || question?.unit || "",
+              category: answer.category || question?.category || data.category || "Inglés A1",
+              questionText: answer.questionText || question?.question || "",
+              givenAnswer: answer.givenAnswer ?? answer.answer ?? "",
+              correctAnswer: answer.correctAnswer || question?.answer || "",
+              correct: Boolean(answer.correct),
+            };
+          }) : [];
+          return [{
+            recordKey: record.record_key,
+            studentId: student.id,
+            studentName: student.name || student.username,
+            score: Number(data.score) || 0,
+            total: Number(data.total) || answers.length,
+            completedAt: data.completedAt || record.created_at,
+            category: data.category || "Inglés A1",
+            attemptType: data.attemptType,
+            answers,
+          }];
+        }).sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        setEnglishAttempts(attempts);
+
+        const writings = progress.flatMap((record: any) => {
+          const data = record.data;
+          const student = assigned.find((item) => item.id === record.owner_id);
+          if (data?.module !== "english_a1_writing" || !student || typeof data.response !== "string") return [];
+          return [{
+            recordKey: record.record_key,
+            studentId: student.id,
+            studentName: student.name || student.username,
+            promptTitle: data.promptTitle || "Writing A1",
+            instruction: data.instruction || "",
+            response: data.response,
+            wordCount: Number(data.wordCount) || data.response.trim().split(/\\s+/).filter(Boolean).length,
+            completedAt: data.completedAt || record.created_at,
+            rubric: Array.isArray(data.rubric) ? data.rubric.filter((item: unknown): item is string => typeof item === "string") : [],
+          }];
+        }).sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        setEnglishWritingSubmissions(writings);
       } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
     };
     void loadAssignedStudents();
@@ -200,6 +260,39 @@ export default function MentorPage() {
   };
 
   const availableUnits = Array.from(new Set(ENGLISH_A1_DATABASE.map((q) => q.unit)));
+  const selectedStudentRecord = students.find((item) => item.username === selectedStudent);
+  const selectedEnglishAttempts = englishAttempts.filter((attempt) => attempt.studentId === selectedStudentRecord?.id);
+  const selectedEnglishWriting = englishWritingSubmissions.filter((submission) => submission.studentId === selectedStudentRecord?.id);
+
+  const handleCreateErrorReview = async (attempt: (typeof englishAttempts)[number]) => {
+    const missedAnswers = attempt.answers.filter((answer) => !answer.correct && Number.isFinite(answer.questionId));
+    if (!missedAnswers.length) { setSavedMsg("Este intento no tiene errores que necesiten repaso."); return; }
+    const reviewQuestions = getSimilarEnglishReviewQuestions(missedAnswers.map((answer) => answer.questionId), 2);
+    if (!reviewQuestions.length) { setSavedMsg("No hay suficientes preguntas parecidas disponibles en el banco para crear este repaso."); return; }
+    const student = students.find((item) => item.id === attempt.studentId);
+    if (!student) { setSavedMsg("No se encuentra el alumno de este resultado."); return; }
+    const assignmentId = `english_review_${student.id}_${Date.now()}`;
+    const focusTopics = Array.from(new Set(missedAnswers.map((answer) => answer.topic || ENGLISH_A1_DATABASE.find((question) => question.id === answer.questionId)?.topic || "Inglés A1")));
+    try {
+      await saveKiruRecord("activity", assignmentId, {
+        kind: "english_review_assignment",
+        id: assignmentId,
+        studentId: student.id,
+        mentorId: mentorUserId,
+        title: "Repaso personalizado de errores",
+        questionIds: reviewQuestions.map((question) => question.id),
+        focusTopics,
+        sourceAttemptKey: attempt.recordKey,
+        sourceScore: attempt.score,
+        sourceTotal: attempt.total,
+        createdAt: new Date().toISOString(),
+        status: "assigned",
+      }, student.id);
+      setSavedMsg(`Repaso enviado a ${student.name || student.username}: ${reviewQuestions.length} ejercicios nuevos sobre ${focusTopics.join(", ")}.`);
+    } catch {
+      setSavedMsg("No se pudo enviar el repaso. Comprueba que el alumno sigue asignado a tu cuenta.");
+    }
+  };
 
   if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -585,6 +678,7 @@ export default function MentorPage() {
                   <option value="Everyday English">Inglés funcional y cotidiano</option>
                   <option value="Use of English">Uso del inglés</option>
                   <option value="Reading">Comprensión lectora</option>
+                  <option value="Listening">Comprensión auditiva</option>
                 </select>
               </div>
 
@@ -666,6 +760,56 @@ export default function MentorPage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "ingles" && (
+          <div className="space-y-6">
+            <section className="rounded-3xl border border-[#E7E3DC] bg-white p-6 sm:p-8 shadow-xs space-y-4">
+              <div><h3 className="font-serif text-xl font-bold text-[#292825]">Seguimiento de Inglés A1</h3><p className="mt-1 text-xs text-[#77736B]">Consulta cuándo terminó cada tanda, la nota y los errores concretos. Desde cada resultado puedes enviar ejercicios distintos para reforzar los mismos temas.</p></div>
+              {!selectedStudentRecord ? <p className="text-xs text-[#77736B]">Selecciona un alumno asignado para ver sus resultados.</p> : selectedEnglishAttempts.length === 0 ? <p className="rounded-xl bg-[#F7F5F1] p-4 text-xs text-[#77736B]">Todavía no hay resultados de Inglés guardados para este alumno.</p> : (
+                <div className="space-y-4">
+                  {selectedEnglishAttempts.map((attempt) => {
+                    const mistakes = attempt.answers.filter((answer) => !answer.correct);
+                    return (
+                      <article key={attempt.recordKey} className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4 sm:p-5 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div><p className="text-sm font-bold text-[#292825]">{attempt.attemptType === "error_review" ? "Repaso de errores" : attempt.category}</p><p className="mt-1 text-[11px] text-[#77736B]">Terminado: {new Date(attempt.completedAt).toLocaleString("es-ES")}</p></div>
+                          <div className="rounded-xl border border-[#DDE3D4] bg-white px-4 py-2"><p className="text-[10px] text-[#77736B]">Nota</p><p className="text-lg font-bold">{attempt.total ? (attempt.score / attempt.total * 10).toFixed(1) : "0.0"} / 10</p><p className="text-[10px] text-[#77736B]">{attempt.score}/{attempt.total} aciertos</p></div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-[11px]"><span className="rounded-full bg-white px-3 py-1 border border-[#E7E3DC]">{mistakes.length} errores</span><span className="rounded-full bg-white px-3 py-1 border border-[#E7E3DC]">{attempt.answers.length} respuestas registradas</span></div>
+                        {mistakes.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-xs font-bold">Qué necesita repasar</p>
+                            {mistakes.map((mistake, index) => (
+                              <div key={`${attempt.recordKey}-${mistake.questionId}-${index}`} className="rounded-xl border border-[#E7E3DC] bg-white p-3 space-y-1">
+                                <p className="text-xs font-semibold">{mistake.questionText || `Pregunta ${mistake.questionId}`}</p>
+                                <p className="text-[11px] text-[#8A6D62]">Respuesta del alumno: {mistake.givenAnswer || "Sin respuesta"}</p>
+                                <p className="text-[11px] text-[#6F765D]">Respuesta correcta: {mistake.correctAnswer || "No disponible"}</p>
+                                <p className="text-[10px] text-[#77736B]">{mistake.topic} · {mistake.unit}</p>
+                              </div>
+                            ))}
+                            <button type="button" onClick={() => void handleCreateErrorReview(attempt)} className="rounded-xl bg-[#242321] px-4 py-3 text-xs font-semibold text-white hover:bg-[#3A3835]">Crear y enviar ejercicios de repaso de errores</button>
+                          </div>
+                        ) : <p className="rounded-xl bg-white p-3 text-xs text-[#6F765D]">¡Sin errores en esta tanda! No hace falta crear un repaso a partir de este resultado.</p>}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-[#E7E3DC] bg-white p-6 sm:p-8 shadow-xs space-y-4">
+              <div><h3 className="font-serif text-xl font-bold text-[#292825]">Writing: textos para revisar</h3><p className="mt-1 text-xs text-[#77736B]">Las respuestas abiertas del alumno quedan guardadas con una rúbrica orientativa.</p></div>
+              {!selectedStudentRecord || selectedEnglishWriting.length === 0 ? <p className="rounded-xl bg-[#F7F5F1] p-4 text-xs text-[#77736B]">No hay textos escritos pendientes de revisar para este alumno.</p> : selectedEnglishWriting.map((submission) => (
+                <article key={submission.recordKey} className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{submission.promptTitle}</p><span className="text-[11px] text-[#77736B]">{new Date(submission.completedAt).toLocaleString("es-ES")} · {submission.wordCount} palabras</span></div>
+                  {submission.instruction && <p className="text-xs text-[#77736B]">{submission.instruction}</p>}
+                  <p className="whitespace-pre-wrap rounded-xl border border-[#E7E3DC] bg-white p-4 text-sm leading-6">{submission.response}</p>
+                  <div className="rounded-xl border border-[#E7E3DC] bg-white p-3"><p className="text-xs font-semibold mb-2">Rúbrica orientativa</p><ul className="list-disc pl-5 space-y-1 text-xs text-[#6D6962]">{submission.rubric.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                </article>
+              ))}
+            </section>
           </div>
         )}
 
