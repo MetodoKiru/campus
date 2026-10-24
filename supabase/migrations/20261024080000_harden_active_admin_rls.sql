@@ -26,7 +26,8 @@ DECLARE
   policy_row record;
   updated_qual text;
   updated_check text;
-  admin_predicate constant text := $$((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text) = 'admin'::text$$;
+  admin_predicate constant text := $((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text) = 'admin'::text$;
+  admin_predicate_select constant text := $(( SELECT ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text)) = 'admin'::text)$;
 BEGIN
   FOR policy_row IN
     SELECT schemaname, tablename, policyname, qual, with_check
@@ -38,7 +39,8 @@ BEGIN
       )
   LOOP
     IF policy_row.qual IS NOT NULL THEN
-      updated_qual := replace(policy_row.qual, admin_predicate, '(select public.kiru_is_active_admin())');
+      updated_qual := replace(policy_row.qual, admin_predicate_select, '(select public.kiru_is_active_admin())');
+      updated_qual := replace(updated_qual, admin_predicate, '(select public.kiru_is_active_admin())');
       IF updated_qual <> policy_row.qual THEN
         EXECUTE format(
           'ALTER POLICY %I ON %I.%I USING (%s)',
@@ -51,7 +53,8 @@ BEGIN
     END IF;
 
     IF policy_row.with_check IS NOT NULL THEN
-      updated_check := replace(policy_row.with_check, admin_predicate, '(select public.kiru_is_active_admin())');
+      updated_check := replace(policy_row.with_check, admin_predicate_select, '(select public.kiru_is_active_admin())');
+      updated_check := replace(updated_check, admin_predicate, '(select public.kiru_is_active_admin())');
       IF updated_check <> policy_row.with_check THEN
         EXECUTE format(
           'ALTER POLICY %I ON %I.%I WITH CHECK (%s)',
