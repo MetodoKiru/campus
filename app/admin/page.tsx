@@ -19,7 +19,6 @@ import {
   Plus,
   Users,
   CreditCard,
-  Upload,
   ExternalLink,
   Download
 } from "lucide-react";
@@ -29,7 +28,7 @@ interface UserAccount {
   name: string;
   username: string;
   password?: string;
-  role: "alumno" | "mentor" | "padre" | "admin";
+  role: "alumno" | "mentor" | "padre" | "formador" | "admin";
   createdAt: string;
   assignedParent?: string; // Vinculación alumno -> padre
 }
@@ -115,7 +114,7 @@ export default function AdminPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "admin">("alumno");
+  const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "formador" | "admin">("alumno");
   
   // Mentor <-> Alumno
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -187,27 +186,7 @@ export default function AdminPage() {
     return () => { active = false; };
   }, []);
 
-  const saveToStorage = (updatedUsers: UserAccount[]) => { setUsers(updatedUsers); };
-
-  const saveLinksToStorage = async (updatedLinks: MentorStudentLink[]) => {
-    setLinks(updatedLinks);
-    try {
-      const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,username");
-      if (profileError) throw profileError;
-      const idByUsername = new Map((profiles || []).map((profile: any) => [profile.username, profile.id]));
-      const { data: existing, error: existingError } = await supabase.from("student_mentors").select("student_id,mentor_id");
-      if (existingError) throw existingError;
-      for (const row of existing || []) {
-        const { error } = await supabase.from("student_mentors").delete().eq("student_id", row.student_id).eq("mentor_id", row.mentor_id);
-        if (error) throw error;
-      }
-      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row) => row.student_id && row.mentor_id);
-      if (rows.length) { const { error } = await supabase.from("student_mentors").insert(rows); if (error) throw error; }
-      setMsg({ text: "Asignaciones guardadas en Supabase.", type: "success" });
-    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
-  };
-
-  // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
+    // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
   const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setNoticePdf(e.target.files?.[0] || null);
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setUploadedPdf(e.target.files?.[0] || null);
 
@@ -219,11 +198,16 @@ export default function AdminPage() {
       return;
     }
     if (role !== "alumno" && !email.trim()) {
-      setMsg({ text: "Para padres, mentores y administradores es necesario un correo propio.", type: "error" });
+      setMsg({ text: "Para padres, mentores, formadores y administradores es necesario un correo propio.", type: "error" });
       return;
     }
-    if (!/^\d{6}$/.test(password)) {
-      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
+    const validCredential = role === "formador"
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(password)
+      : /^\d{6}$/.test(password);
+    if (!validCredential) {
+      setMsg({ text: role === "formador"
+        ? "La contraseña del formador debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
+        : "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
@@ -249,10 +233,18 @@ export default function AdminPage() {
   };
 
   const handleResetPassword = async (user: UserAccount) => {
-    const nextPassword = window.prompt(`Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
+    const isFormador = user.role === "formador";
+    const nextPassword = window.prompt(isFormador
+      ? `Nueva contraseña segura para @${user.username} (12+ caracteres, mayúscula, minúscula y número):`
+      : `Nuevo PIN de 6 cifras para @${user.username} (solo números):`);
     if (nextPassword === null) return;
-    if (!/^\d{6}$/.test(nextPassword)) {
-      setMsg({ text: "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
+    const validCredential = isFormador
+      ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(nextPassword)
+      : /^\d{6}$/.test(nextPassword);
+    if (!validCredential) {
+      setMsg({ text: isFormador
+        ? "La contraseña debe tener al menos 12 caracteres, con mayúscula, minúscula y número."
+        : "El PIN debe tener exactamente 6 cifras numéricas.", type: "error" });
       return;
     }
     try {
@@ -284,13 +276,24 @@ export default function AdminPage() {
       setMsg({ text: "Ese nombre de usuario ya pertenece a otra cuenta.", type: "error" });
       return;
     }
+    const originalUser = users.find((user) => user.id === editingUser.id);
+    let passwordForRoleChange: string | undefined;
+    if (editingUser.role === "formador" && originalUser?.role !== "formador") {
+      const suppliedPassword = window.prompt("Para asignar el rol formador, introduce una contraseña segura (12+ caracteres, mayúscula, minúscula y número):");
+      if (suppliedPassword === null) return;
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/.test(suppliedPassword)) {
+        setMsg({ text: "La contraseña debe tener al menos 12 caracteres, con mayúscula, minúscula y número.", type: "error" });
+        return;
+      }
+      passwordForRoleChange = suppliedPassword;
+    }
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
       const response = await fetch("/api/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ userId: editingUser.id, fullName: editingUser.name.trim(), username: cleanUsername, role: editingUser.role }),
+        body: JSON.stringify({ userId: editingUser.id, fullName: editingUser.name.trim(), username: cleanUsername, role: editingUser.role, ...(passwordForRoleChange ? { password: passwordForRoleChange } : {}) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios.");
@@ -298,7 +301,7 @@ export default function AdminPage() {
       const updated = users.map((u) => u.id === editingUser.id ? { ...editingUser, username: cleanUsername } : u);
       if (oldUsername && oldUsername !== cleanUsername) {
         const updatedLinks = links.map((l) => l.studentUsername === oldUsername ? { ...l, studentUsername: cleanUsername } : l.mentorUsername === oldUsername ? { ...l, mentorUsername: cleanUsername } : l);
-        saveLinksToStorage(updatedLinks);
+        setLinks(updatedLinks); // Relations use stable profile UUIDs, so renaming a username does not require DB rewrites.
       }
       setUsers(updated);
       setEditingUser(null);
@@ -335,23 +338,31 @@ export default function AdminPage() {
   };
 
   // Mentor <-> Alumno (CORREGIDO PARA EVITAR QUE UN ALUMNO TENGA MÚLTIPLES MENTORES)
-  const handleAssignMentor = (e: React.FormEvent) => {
+  const handleAssignMentor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent || !selectedMentor) {
-      setMsg({ text: "Selecciona tanto un alumno como un mentor.", type: "error" });
+    const student = alumnos.find((u) => u.username === selectedStudent);
+    const mentor = mentores.find((u) => u.username === selectedMentor);
+    if (!student || !mentor) {
+      setMsg({ text: "Selecciona tanto un alumno como un mentor válidos.", type: "error" });
       return;
     }
 
-    // Eliminamos cualquier asignación previa de este alumno específico para que solo tenga UN mentor exclusivo
-    const filtered = links.filter(l => l.studentUsername !== selectedStudent);
-    const updatedLinks = [...filtered, { studentUsername: selectedStudent, mentorUsername: selectedMentor }];
-    saveLinksToStorage(updatedLinks);
+    try {
+      // The RPC performs an atomic replacement and validates roles on the database side.
+      const { error } = await supabase.rpc("kiru_assign_student_mentor", {
+        p_student_id: student.id,
+        p_mentor_id: mentor.id,
+      });
+      if (error) throw error;
 
-    setMsg({ 
-      text: `Vinculación exclusiva guardada: @${selectedStudent} asignado/a únicamente a @${selectedMentor}.`, 
-      type: "success" 
-    });
-    setTimeout(() => setMsg(null), 4000);
+      setLinks((current) => [
+        ...current.filter((link) => link.studentUsername !== student.username),
+        { studentUsername: student.username, mentorUsername: mentor.username },
+      ]);
+      setMsg({ text: `Vinculación guardada en Supabase: @${student.username} → @${mentor.username}.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación.", type: "error" });
+    }
   };
 
   // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
@@ -359,16 +370,21 @@ export default function AdminPage() {
     e.preventDefault();
     const student = alumnos.find((u) => u.username === selectedChild);
     const guardian = padres.find((u) => u.username === selectedParent);
-    if (!student || !guardian) { setMsg({ text: "Selecciona un alumno y una familia válidos.", type: "error" }); return; }
+    if (!student || !guardian) {
+      setMsg({ text: "Selecciona un alumno y una familia válidos.", type: "error" });
+      return;
+    }
     try {
-      const { data: existing, error: lookupError } = await supabase.from("student_guardians").select("student_id,guardian_id").eq("student_id", student.id);
-      if (lookupError) throw lookupError;
-      for (const row of existing || []) { const { error } = await supabase.from("student_guardians").delete().eq("student_id", row.student_id).eq("guardian_id", row.guardian_id); if (error) throw error; }
-      const { error } = await supabase.from("student_guardians").insert({ student_id: student.id, guardian_id: guardian.id });
+      const { error } = await supabase.rpc("kiru_assign_student_guardian", {
+        p_student_id: student.id,
+        p_guardian_id: guardian.id,
+      });
       if (error) throw error;
       setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: guardian.username } : u));
       setMsg({ text: "Vinculación guardada en Supabase: @" + selectedChild + " ↔ @" + selectedParent + ".", type: "success" });
-    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" }); }
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" });
+    }
   };
 
   // Avisos, documentos y pagos se persisten en tablas protegidas de Supabase.
@@ -476,8 +492,7 @@ export default function AdminPage() {
             <span className="hidden sm:inline">Previsualizar campus</span>
             <span className="sm:hidden">Vista previa</span>
           </Link>
-          <Link 
-          href="/" 
+          <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }} 
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center shadow-sm"
         >
@@ -485,7 +500,7 @@ export default function AdminPage() {
             <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
             <line x1="12" y1="2" x2="12" y2="12" />
           </svg>
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -569,14 +584,15 @@ export default function AdminPage() {
                     <input type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">PIN de acceso (6 cifras)</label>
-                    <input type="password" autoComplete="new-password" placeholder="Introduce 6 cifras numéricas" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">{role === "formador" ? "Contraseña segura (12+ caracteres)" : "PIN de acceso (6 cifras)"}</label>
+                    <input type="password" autoComplete="new-password" placeholder={role === "formador" ? "12+ caracteres, mayúscula, minúscula y número" : "Introduce 6 cifras numéricas"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-medium text-slate-900 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de usuario / Rol</label>
                     <select value={role} onChange={(e) => setRole(e.target.value as any)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                       <option value="alumno">Alumno</option>
                       <option value="mentor">Mentor</option>
+                      <option value="formador">Formador</option>
                       <option value="padre">Padre / Madre</option>
                       <option value="admin">Administrador</option>
                     </select>
@@ -669,6 +685,7 @@ export default function AdminPage() {
                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                               user.role === "admin" ? "bg-purple-100 text-purple-700" :
                               user.role === "mentor" ? "bg-blue-100 text-blue-700" :
+                               user.role === "formador" ? "bg-indigo-100 text-indigo-700" :
                               user.role === "padre" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
                             }`}>
                               {user.role}
@@ -1007,6 +1024,7 @@ export default function AdminPage() {
                 <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                   <option value="alumno">Alumno</option>
                   <option value="mentor">Mentor</option>
+                       <option value="formador">Formador</option>
                   <option value="padre">Padre / Madre</option>
                   <option value="admin">Administrador</option>
                 </select>

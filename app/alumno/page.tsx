@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -15,7 +15,7 @@ import {
   Send
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
-import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
+import { ENGLISH_A1_DATABASE, ENGLISH_A1_WRITING_PROMPTS } from "@/lib/english-engine";
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
 import { supabase } from "@/lib/supabase";
 
@@ -108,6 +108,8 @@ export default function AlumnoPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [currentStudentName, setCurrentStudentName] = useState("");
+  const [currentUsername, setCurrentUsername] = useState("");
   useEffect(() => {
     let alive = true;
     const verifyRole = async () => {
@@ -134,8 +136,6 @@ export default function AlumnoPage() {
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
   // Usuario dinámico
-  const [currentStudentName, setCurrentStudentName] = useState("");
-  const [currentUsername, setCurrentUsername] = useState("");
 
   // Estado de Flashcards
   const [flashcardProgressLoaded, setFlashcardProgressLoaded] = useState(false);
@@ -154,18 +154,29 @@ export default function AlumnoPage() {
   const [gameAnswersCount, setGameAnswersCount] = useState(0);
   const [gameOptions, setGameOptions] = useState<string[]>([]);
   const [gameFinished, setGameFinished] = useState(false);
+  // Keep the interval callback in sync without restarting its 5-second cadence.
+  const practiceStateRef = useRef({ gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex });
+  useEffect(() => {
+    practiceStateRef.current = { gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex };
+  }, [gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex]);
 
   // Asignaturas y mensajes del mentor
   const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
   const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
 
   // Inglés A1 Motor de ejercicios corregido y real
-  const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
+  const [englishCategory, setEnglishCategory] = useState<string>("Grammar");
   const [englishAssignedConfig, setEnglishAssignedConfig] = useState<{ questionCount: number; selectedCategory: string; difficulty: string; selectedUnits: string[] } | null>(null);
   const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
   const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: 0, checked: false });
   const [englishSaveStatus, setEnglishSaveStatus] = useState<string>("");
-  const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string }>>([]);
+  const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string; attemptType?: string }>>([]);
+  const [englishReviewAssignments, setEnglishReviewAssignments] = useState<Array<{ id: string; questionIds: number[]; focusTopics: string[]; createdAt: string; sourceScore: number; sourceTotal: number; completed: boolean }>>([]);
+  const [activeEnglishReviewId, setActiveEnglishReviewId] = useState<string | null>(null);
+  const [writingPromptId, setWritingPromptId] = useState<number>(1);
+  const [writingResponse, setWritingResponse] = useState("");
+  const [writingSaveStatus, setWritingSaveStatus] = useState("");
+  const [listeningStatus, setListeningStatus] = useState("");
 
   // SkillCoins Semanales
   const [scData, setScData] = useState({
@@ -192,6 +203,33 @@ export default function AlumnoPage() {
           .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
           .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
         setAllCards(cards);
+        const savedEnglishAttempts = progressRecords
+          .filter((record: any) => record.data?.module === "english_a1" && typeof record.data?.score === "number")
+          .map((record: any) => ({
+            score: Number(record.data.score) || 0,
+            total: Number(record.data.total) || 0,
+            completedAt: record.data.completedAt || record.created_at,
+            category: typeof record.data.category === "string" ? record.data.category : "Inglés A1",
+            attemptType: record.data.attemptType === "error_review" ? "Repaso de errores" : "Práctica",
+          }))
+          .sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        setEnglishHistory(savedEnglishAttempts.slice(0, 5));
+        const completedReviewIds = new Set<string>(
+          progressRecords.map((record: any) => record.data?.reviewAssignmentId).filter((id: unknown): id is string => typeof id === "string"),
+        );
+        const reviewAssignments = activityRecords
+          .filter((record: any) => record.data?.kind === "english_review_assignment" && Array.isArray(record.data?.questionIds))
+          .map((record: any) => ({
+            id: String(record.data.id || record.record_key),
+            questionIds: record.data.questionIds.filter((id: unknown): id is number => typeof id === "number"),
+            focusTopics: Array.isArray(record.data.focusTopics) ? record.data.focusTopics.filter((topic: unknown): topic is string => typeof topic === "string") : [],
+            createdAt: record.data.createdAt || record.created_at,
+            sourceScore: Number(record.data.sourceScore) || 0,
+            sourceTotal: Number(record.data.sourceTotal) || 0,
+            completed: completedReviewIds.has(String(record.data.id || record.record_key)),
+          }))
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setEnglishReviewAssignments(reviewAssignments);
         const englishAssignment = activityRecords.map((record) => record.data).find((value) => value?.kind === "english_config" && value?.config);
         if (englishAssignment?.config) {
           const config = englishAssignment.config;
@@ -201,9 +239,9 @@ export default function AlumnoPage() {
             difficulty: typeof config.difficulty === "string" ? config.difficulty : "todas",
             selectedUnits: Array.isArray(config.selectedUnits) ? config.selectedUnits.filter((unit: unknown) => typeof unit === "string") : [],
           });
-          if (["Grammar", "Vocabulary", "Everyday English"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
+          if (["Grammar", "Vocabulary", "Everyday English", "Use of English", "Reading"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
         }
-        const savedPractice = activityRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
+        const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
           setGameAnswersCount(Number(savedPractice.gameAnswersCount) || 0);
@@ -265,10 +303,11 @@ export default function AlumnoPage() {
   useEffect(() => {
     if (!flashcardProgressLoaded || !isGameActive) return;
     const syncTimer = window.setInterval(async () => {
+      const latest = practiceStateRef.current;
       try {
         await saveKiruRecord("progress", "flashcard_practice_state", {
-          kind: "flashcard_practice_state", gameScore, gameAnswersCount, gameDuration,
-          timeLeft: Math.max(0, timeLeft - 5), isGameActive, gameFinished, gameOptions, cardIndex,
+          kind: "flashcard_practice_state",
+          ...latest,
           updatedAt: new Date().toISOString(),
         });
       } catch {
@@ -335,6 +374,12 @@ export default function AlumnoPage() {
   };
 
   const getAssignedEnglishQuestions = () => {
+    if (activeEnglishReviewId) {
+      const assignment = englishReviewAssignments.find((item) => item.id === activeEnglishReviewId);
+      if (assignment) return assignment.questionIds
+        .map((id) => ENGLISH_A1_DATABASE.find((question) => question.id === id))
+        .filter((question): question is (typeof ENGLISH_A1_DATABASE)[number] => Boolean(question));
+    }
     let pool = ENGLISH_A1_DATABASE;
     if (englishAssignedConfig) {
       if (englishAssignedConfig.selectedCategory !== "Todas") pool = pool.filter((question) => question.category === englishAssignedConfig.selectedCategory);
@@ -359,19 +404,101 @@ export default function AlumnoPage() {
     setEnglishSaveStatus("Guardando resultado…");
     try {
       const completedAt = new Date().toISOString();
+      const activeReview = activeEnglishReviewId
+        ? englishReviewAssignments.find((item) => item.id === activeEnglishReviewId)
+        : undefined;
+      const attemptType = activeReview ? "error_review" : "regular";
       await saveKiruRecord("progress", `english_a1_attempt_${Date.now()}`, {
         module: "english_a1",
-        category: englishCategory,
+        category: activeReview ? "Repaso de errores" : (questions[0]?.category || englishCategory),
+        attemptType,
+        reviewAssignmentId: activeReview?.id,
         score: hits,
         total: questions.length,
-        percentage: Math.round((hits / questions.length) * 100),
-        answers: questions.map((question, index) => ({ questionId: question.id, answer: englishAnswers[index] ?? "", correct: (englishAnswers[index] ?? "").trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase() })),
+        percentage: Math.round((hits / Math.max(1, questions.length)) * 100),
+        answers: questions.map((question, index) => {
+          const givenAnswer = (englishAnswers[index] ?? "").trim();
+          const correct = givenAnswer.toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase();
+          return {
+            questionId: question.id,
+            topic: question.topic,
+            unit: question.unit,
+            category: question.category,
+            questionText: question.question,
+            givenAnswer,
+            correctAnswer: question.answer,
+            answer: givenAnswer,
+            correct,
+          };
+        }),
         completedAt,
       });
-      setEnglishHistory(previous => [{ score: hits, total: questions.length, completedAt, category: englishCategory }, ...previous].slice(0, 5));
+      setEnglishHistory(previous => [{ score: hits, total: questions.length, completedAt, category: activeReview ? "Repaso de errores" : (questions[0]?.category || englishCategory), attemptType: activeReview ? "Repaso de errores" : "Práctica" }, ...previous].slice(0, 5));
+      if (activeReview) setEnglishReviewAssignments(previous => previous.map((item) => item.id === activeReview.id ? { ...item, completed: true } : item));
       setEnglishSaveStatus("Resultado guardado.");
     } catch {
       setEnglishSaveStatus("No se ha podido guardar el historial. Comprueba que has iniciado sesión.");
+    }
+  };
+
+  const playListeningAudio = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setListeningStatus("Este navegador no admite audio por voz. Prueba con otro navegador actualizado.");
+      return;
+    }
+
+    const synthesis = window.speechSynthesis;
+    synthesis.cancel();
+    setListeningStatus("Preparando audio en inglés…");
+
+    let started = false;
+    const speak = () => {
+      if (started) return;
+      started = true;
+      synthesis.removeEventListener("voiceschanged", speak);
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = synthesis.getVoices();
+      const voice = voices.find((item) => /^en(-|_)/i.test(item.lang))
+        || voices.find((item) => /^en/i.test(item.lang));
+      if (voice) utterance.voice = voice;
+      utterance.lang = voice?.lang || "en-GB";
+      utterance.rate = 0.85;
+      utterance.onstart = () => setListeningStatus("Reproduciendo audio…");
+      utterance.onend = () => setListeningStatus("Audio terminado. Puedes volver a escucharlo.");
+      utterance.onerror = () => setListeningStatus("No se ha podido reproducir el audio. Comprueba el volumen o prueba otro navegador.");
+      synthesis.speak(utterance);
+    };
+
+    if (synthesis.getVoices().length > 0) {
+      speak();
+    } else {
+      synthesis.addEventListener("voiceschanged", speak);
+      // Some browsers do not fire voiceschanged when the voice list is empty.
+      window.setTimeout(speak, 700);
+    }
+  };
+
+  const selectedWritingPrompt = ENGLISH_A1_WRITING_PROMPTS.find((prompt) => prompt.id === writingPromptId) || ENGLISH_A1_WRITING_PROMPTS[0];
+  const saveWritingPractice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!writingResponse.trim()) { setWritingSaveStatus("Escribe tu respuesta antes de guardarla."); return; }
+    const completedAt = new Date().toISOString();
+    try {
+      await saveKiruRecord("progress", `english_a1_writing_${Date.now()}`, {
+        module: "english_a1_writing",
+        promptId: selectedWritingPrompt.id,
+        promptTitle: selectedWritingPrompt.title,
+        instruction: selectedWritingPrompt.instruction,
+        unit: selectedWritingPrompt.unit,
+        response: writingResponse.trim(),
+        wordCount: writingResponse.trim().split(/\s+/).filter(Boolean).length,
+        rubric: selectedWritingPrompt.rubric,
+        completedAt,
+        status: "pending_mentor_review",
+      });
+      setWritingSaveStatus("Texto guardado. Tu mentor podrá revisarlo con la rúbrica.");
+    } catch {
+      setWritingSaveStatus("No se pudo guardar el texto. Vuelve a intentarlo.");
     }
   };
 
@@ -393,7 +520,7 @@ export default function AlumnoPage() {
         </div>
 
         <button
-          onClick={() => router.push("/")}
+          onClick={async () => { await supabase.auth.signOut(); router.replace("/"); }}
           title="Cerrar sesión"
           className="p-2 sm:p-2.5 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition flex items-center justify-center shadow-xs"
         >
@@ -798,19 +925,48 @@ export default function AlumnoPage() {
             </div>
 
             <form onSubmit={checkEnglishExercises} className="space-y-4">
+              {activeEnglishReviewId && (
+                <div className="rounded-2xl border border-[#DDE3D4] bg-[#F5F7F1] p-4 flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="text-sm font-semibold">Repaso personalizado de errores</p><p className="text-xs text-[#6D6962] mt-1">Son preguntas diferentes, elegidas para practicar los temas que te costaron.</p></div>
+                  <button type="button" onClick={() => { setActiveEnglishReviewId(null); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 0, checked: false }); setEnglishSaveStatus(""); }} className="rounded-xl border border-[#D8DCCF] bg-white px-3 py-2 text-xs font-semibold">Volver a la práctica normal</button>
+                </div>
+              )}
+              {!activeEnglishReviewId && englishReviewAssignments.length > 0 && (
+                <div className="rounded-2xl border border-[#E7E3DC] bg-white p-4 space-y-3">
+                  <div><h3 className="text-sm font-semibold">Repasos enviados por tu mentor</h3><p className="mt-1 text-xs text-[#77736B]">Practica con ejercicios nuevos sobre los temas que necesitas reforzar.</p></div>
+                  {englishReviewAssignments.map((assignment) => (
+                    <div key={assignment.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-[#F7F5F1] p-3">
+                      <div><p className="text-xs font-semibold">{assignment.focusTopics.join(" · ") || "Repaso de Inglés A1"}</p><p className="mt-1 text-[11px] text-[#77736B]">{new Date(assignment.createdAt).toLocaleString("es-ES")} · {assignment.questionIds.length} ejercicios · {assignment.completed ? "Completado" : "Pendiente"}</p></div>
+                      <button type="button" onClick={() => { setActiveEnglishReviewId(assignment.id); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 0, checked: false }); setEnglishSaveStatus(""); }} className="rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white">{assignment.completed ? "Repetir repaso" : "Empezar repaso"}</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">{getAssignedEnglishQuestions().length} ejercicios en esta tanda</label>
-                {!englishAssignedConfig || englishAssignedConfig.selectedCategory === "Todas" ? (
+                {!activeEnglishReviewId && (!englishAssignedConfig || englishAssignedConfig.selectedCategory === "Todas") ? (
                   <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 0, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
                     <option value="Grammar">Gramática</option>
                     <option value="Vocabulary">Vocabulario</option>
                     <option value="Everyday English">Inglés cotidiano</option>
+                    <option value="Use of English">Uso del inglés</option>
+                    <option value="Reading">Comprensión lectora</option>
+                    <option value="Listening">Comprensión auditiva</option>
                   </select>
-                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{englishAssignedConfig.selectedCategory}</span>}
+                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{activeEnglishReviewId ? "Repaso de errores" : englishAssignedConfig?.selectedCategory || englishCategory}</span>}
               </div>
               <div className="h-2 rounded-full bg-[#EEECE7] overflow-hidden"><div className="h-full bg-[#8A9870] transition-all" style={{ width: (getAssignedEnglishQuestions().length ? Object.keys(englishAnswers).length / getAssignedEnglishQuestions().length * 100 : 0) + "%" }} /></div>
               {getAssignedEnglishQuestions().map((question, index) => (
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
+                  {question.context && question.category !== "Listening" && <p className="rounded-xl border border-[#E7E3DC] bg-white p-3 text-[12px] leading-6 text-[#45433F]">{question.context}</p>}
+                  {question.category === "Listening" && (
+                    <div className="space-y-2">
+                      <button type="button" onClick={() => playListeningAudio(question.context || question.question)} aria-label={`Reproducir audio en inglés: ${question.topic}`} className="rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3A3835]">
+                        ▶ Reproducir audio en inglés
+                      </button>
+                      {listeningStatus && <p role="status" aria-live="polite" className="text-[11px] text-[#6D6962]">{listeningStatus}</p>}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
                     <span className="text-[10px] text-[#8D887F]">{question.topic}</span>
@@ -859,12 +1015,26 @@ export default function AlumnoPage() {
                   <h3 className="text-xs font-semibold text-[#343330]">Últimos resultados guardados</h3>
                   {englishHistory.map((attempt, index) => (
                     <div key={`${attempt.completedAt}-${index}`} className="flex items-center justify-between gap-3 text-xs text-[#6D6962]">
-                      <span>{attempt.category || "Inglés A1"} · {new Date(attempt.completedAt).toLocaleDateString("es-ES")}</span>
+                      <span>{attempt.attemptType || attempt.category || "Inglés A1"} · {new Date(attempt.completedAt).toLocaleString("es-ES")}</span>
                       <span>{attempt.score}/{attempt.total} · {attempt.total ? ((attempt.score / attempt.total) * 10).toFixed(1) : "0.0"}/10</span>
                     </div>
                   ))}
                 </div>
               )}
+            </form>
+
+            <form onSubmit={saveWritingPractice} className="mt-6 rounded-3xl border border-[#E7E3DC] bg-white p-6 sm:p-8 space-y-4">
+              <div><span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B]">Writing · expresión escrita</span><h3 className="mt-2 font-serif text-xl font-bold">Escribe en inglés</h3><p className="mt-1 text-xs text-[#77736B]">Responde con tus propias palabras. El texto se guarda para que tu mentor pueda revisarlo.</p></div>
+              <label htmlFor="writing-prompt" className="block text-xs font-semibold">Actividad</label>
+              <select id="writing-prompt" value={writingPromptId} onChange={(event) => { setWritingPromptId(Number(event.target.value)); setWritingResponse(""); setWritingSaveStatus(""); }} className="w-full rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] p-3 text-xs">
+                {ENGLISH_A1_WRITING_PROMPTS.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.title}</option>)}
+              </select>
+              <div className="rounded-xl bg-[#F7F5F1] p-4 space-y-1"><p className="text-xs font-semibold">{selectedWritingPrompt.instruction}</p><p className="text-[11px] text-[#77736B]">Objetivo orientativo: al menos {selectedWritingPrompt.minimumWords} palabras · {selectedWritingPrompt.unit}</p></div>
+              <textarea value={writingResponse} onChange={(event) => { setWritingResponse(event.target.value); setWritingSaveStatus(""); }} rows={6} maxLength={3000} placeholder="Write your answer here..." className="w-full rounded-xl border border-[#E7E3DC] bg-white p-3 text-sm leading-6" />
+              <p className="text-[11px] text-[#77736B]">{writingResponse.trim() ? writingResponse.trim().split(/\s+/).filter(Boolean).length : 0} palabras</p>
+              <div className="rounded-xl border border-[#E7E3DC] p-4"><p className="text-xs font-semibold mb-2">Rúbrica de revisión</p><ul className="list-disc pl-5 space-y-1 text-xs text-[#6D6962]">{selectedWritingPrompt.rubric.map((item) => <li key={item}>{item}</li>)}</ul></div>
+              <button type="submit" className="rounded-xl bg-[#242321] px-5 py-3 text-xs font-semibold text-white">Guardar texto para revisión</button>
+              {writingSaveStatus && <p role="status" className="text-xs text-[#6D6962]">{writingSaveStatus}</p>}
             </form>
           </div>
         )}

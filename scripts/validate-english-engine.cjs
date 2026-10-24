@@ -1,0 +1,60 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const ts = require("typescript");
+
+const sourcePath = path.join(__dirname, "..", "lib", "english-engine.ts");
+const source = fs.readFileSync(sourcePath, "utf8");
+const compiled = ts.transpileModule(source, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const moduleObject = { exports: {} };
+new Function("exports", "require", "module", compiled)(moduleObject.exports, require, moduleObject);
+const questions = moduleObject.exports.ENGLISH_A1_DATABASE;
+
+assert.ok(Array.isArray(questions), "ENGLISH_A1_DATABASE must be an array");
+assert.equal(questions.length, 132, "The A1 question bank must contain 132 questions, including listening practice");
+
+const ids = questions.map((question) => question.id);
+assert.equal(new Set(ids).size, ids.length, "Question IDs must be unique");
+assert.deepEqual([...ids].sort((a, b) => a - b), Array.from({ length: 132 }, (_, index) => index + 1), "Question IDs must be consecutive from 1 to 132");
+
+const categories = new Set(["Grammar", "Vocabulary", "Everyday English", "Use of English", "Reading", "Listening"]);
+const difficulties = new Set(["facil", "medio", "desafiante"]);
+for (const question of questions) {
+  assert.equal(question.level, "A1", `Question ${question.id} must be A1`);
+  assert.ok(question.question.trim(), `Question ${question.id} needs prompt text`);
+  assert.equal(question.options.length, 4, `Question ${question.id} must have four options`);
+  assert.equal(new Set(question.options).size, 4, `Question ${question.id} must not repeat options`);
+  assert.ok(question.options.includes(question.answer), `Question ${question.id} answer must appear in options`);
+  assert.ok(categories.has(question.category), `Question ${question.id} has an unknown category`);
+  assert.ok(difficulties.has(question.difficulty), `Question ${question.id} has an unknown difficulty`);
+  assert.ok(question.unit.startsWith("Unit "), `Question ${question.id} needs a unit`);
+  if (question.category === "Reading") assert.ok(question.context && question.context.trim().length >= 40, `Reading question ${question.id} needs a passage`);
+  if (question.category === "Listening") assert.ok(question.context && question.context.trim().length >= 40, `Listening question ${question.id} needs an audio script`);
+}
+
+const writingPrompts = moduleObject.exports.ENGLISH_A1_WRITING_PROMPTS;
+assert.ok(Array.isArray(writingPrompts), "Writing prompts must be exported");
+assert.ok(writingPrompts.length >= 8, "The A1 engine should include at least eight writing prompts");
+assert.equal(new Set(writingPrompts.map((prompt) => prompt.id)).size, writingPrompts.length, "Writing prompt IDs must be unique");
+for (const prompt of writingPrompts) {
+  assert.ok(prompt.title && prompt.instruction, `Writing prompt ${prompt.id} needs a title and instruction`);
+  assert.ok(prompt.minimumWords >= 15, `Writing prompt ${prompt.id} needs a reasonable word target`);
+  assert.ok(Array.isArray(prompt.rubric) && prompt.rubric.length >= 3, `Writing prompt ${prompt.id} needs a rubric`);
+}
+
+const units = new Set(questions.map((question) => question.unit));
+assert.ok(units.size >= 5, "The A1 bank should cover at least five units");
+for (const category of categories) {
+  assert.ok(questions.some((question) => question.category === category), `Missing category: ${category}`);
+}
+
+const reviewBuilder = moduleObject.exports.getSimilarEnglishReviewQuestions;
+assert.equal(typeof reviewBuilder, "function", "The engine must export a similar-question review builder");
+const reviewQuestions = reviewBuilder([121], 2);
+assert.ok(reviewQuestions.length > 0, "Listening mistakes should produce a non-empty review when similar questions exist");
+assert.ok(reviewQuestions.every((question) => question.id !== 121), "Review exercises must not repeat the source question");
+assert.equal(new Set(reviewQuestions.map((question) => question.id)).size, reviewQuestions.length, "Review exercises must not contain duplicate questions");
+
+console.log(`English engine validation passed: ${questions.length} questions, ${units.size} units, ${categories.size} categories and ${writingPrompts.length} writing prompts.`);

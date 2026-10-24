@@ -64,7 +64,7 @@ export default function HomePage() {
         throw new Error("La cuenta está inactiva o no tiene un perfil válido. Contacta con administración.");
       }
 
-      const validRoles = ["alumno", "mentor", "padre", "admin"];
+      const validRoles = ["alumno", "mentor", "padre", "formador", "admin"];
       if (!validRoles.includes(profile.role)) {
         await supabase.auth.signOut();
         throw new Error("El perfil no tiene un rol válido. Contacta con administración.");
@@ -73,6 +73,7 @@ export default function HomePage() {
       if (profile.role === "alumno") router.push("/alumno");
       else if (profile.role === "mentor") router.push("/mentor");
       else if (profile.role === "padre") router.push("/padre");
+      else if (profile.role === "formador") router.push("/formador");
       else if (profile.role === "admin") router.push("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ha ocurrido un error. Inténtalo de nuevo.");
@@ -176,7 +177,7 @@ export default function HomePage() {
         </form>
 
         <p className="mt-7 text-center text-xs leading-5 text-slate-400">
-          Acceso privado para alumnos, familias y mentores.
+          Acceso privado para alumnos, familias, mentores y formadores.
         </p>
       </section>
 

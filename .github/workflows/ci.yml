@@ -1,0 +1,82 @@
+name: Campus Kiru CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - feature/formador-role-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Targeted lint, SQL migration test, and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: build-placeholder
+      GOOGLE_CLIENT_EMAIL: build-placeholder@example.iam.gserviceaccount.com
+      GOOGLE_PRIVATE_KEY: build-placeholder
+      GOOGLE_SHEETS_SPREADSHEET_ID: build-placeholder
+      GOOGLE_SHEETS_RANGE: Sheet1!A:AZ
+      NEXT_PUBLIC_APP_URL: https://example.com
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Validate active-admin RLS migration in disposable PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: bash scripts/test-active-admin-rls-migration.sh
+      - name: Audit dependency vulnerabilities (report-only)
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); const v=Object.entries(a.vulnerabilities||{}).map(([name,x])=>({name,severity:x.severity,range:x.range,fixAvailable:x.fixAvailable,via:(x.via||[]).map(y=>typeof y==='string'?y:y.title)})); console.log(JSON.stringify({summary:a.metadata?.vulnerabilities,packages:v},null,2))"
+      - name: Validate English A1 question bank
+        run: npm run test:english
+      - name: Lint new candidate APIs, portal, and persistence helper
+        run: >-
+          npx eslint
+          app/api/formador/candidatos/route.ts
+          'app/api/formador/candidatos/[id]/route.ts'
+          'app/api/formador/candidatos/[id]/portal-link/route.ts'
+          app/api/formador/perfil/route.ts
+          app/api/admin/users/route.ts
+          'app/api/mentores/candidatura/[token]/route.ts'
+          lib/server/kiru-candidate-auth.ts
+          lib/kiru-records.ts
+          app/formador/page.js
+          'app/formador/candidato/[id]/page.js'
+          'app/mentores/candidatura/[token]/page.js'
+      - name: Lint admin changes (existing explicit-any debt is tracked separately)
+        run: >-
+          npx eslint app/admin/page.tsx
+          --rule
+          '@typescript-eslint/no-explicit-any: off'
+      - name: Build production app
+        run: npm run build
