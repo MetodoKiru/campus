@@ -31,6 +31,22 @@ INSERT INTO public.profiles (id, role, is_active) VALUES
   ('00000000-0000-4000-8000-000000000006', 'mentor', true),
   ('00000000-0000-4000-8000-000000000007', 'padre', true);
 
+# Validate the new role and candidate table in disposable PostgreSQL before
+# exercising the active-admin RLS migration.
+psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023180000_add_formador_role.sql
+psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023181000_create_kiru_candidates.sql
+
+psql -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO public.profiles (id, role, is_active) VALUES
+  ('00000000-0000-4000-8000-000000000008', 'formador', true),
+  ('00000000-0000-4000-8000-000000000009', 'formador', false);
+
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.kiru_candidates TO authenticated;
+INSERT INTO public.kiru_candidates (source_key, name)
+VALUES ('test-candidate-key', 'Candidatura de prueba');
+SQL
+
 CREATE TABLE public.students (
   profile_id uuid PRIMARY KEY REFERENCES public.profiles(id)
 );
@@ -74,6 +90,46 @@ SQL
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261024080000_harden_active_admin_rls.sql
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
+-- Candidate RLS: active formadores and admins may read the pipeline; inactive
+-- formadores and unrelated roles must see no candidate rows.
+SET ROLE authenticated;
+SELECT set_config('test.uid', '00000000-0000-4000-8000-000000000008', false);
+DO $test$
+BEGIN
+  IF (SELECT count(*) FROM public.kiru_candidates) <> 1 THEN
+    RAISE EXCEPTION 'Active formador should read candidate records';
+  END IF;
+END;
+$test$;
+
+SELECT set_config('test.uid', '00000000-0000-4000-8000-000000000009', false);
+DO $test$
+BEGIN
+  IF (SELECT count(*) FROM public.kiru_candidates) <> 0 THEN
+    RAISE EXCEPTION 'Inactive formador must not read candidate records';
+  END IF;
+END;
+$test$;
+
+SELECT set_config('test.uid', '00000000-0000-4000-8000-000000000003', false);
+DO $test$
+BEGIN
+  IF (SELECT count(*) FROM public.kiru_candidates) <> 0 THEN
+    RAISE EXCEPTION 'Mentor must not read candidate records';
+  END IF;
+END;
+$test$;
+
+SELECT set_config('test.uid', '00000000-0000-4000-8000-000000000001', false);
+DO $test$
+BEGIN
+  IF (SELECT count(*) FROM public.kiru_candidates) <> 1 THEN
+    RAISE EXCEPTION 'Active admin should read candidate records';
+  END IF;
+END;
+$test$;
+RESET ROLE;
+
 SELECT set_config('test.uid', '00000000-0000-4000-8000-000000000001', false);
 SELECT set_config('test.jwt', '{"app_metadata":{"kiru_role":"admin"}}', false);
 DO $test$
