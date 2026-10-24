@@ -50,4 +50,11 @@ for (const category of categories) {
   assert.ok(questions.some((question) => question.category === category), `Missing category: ${category}`);
 }
 
+const reviewBuilder = moduleObject.exports.getSimilarEnglishReviewQuestions;
+assert.equal(typeof reviewBuilder, "function", "The engine must export a similar-question review builder");
+const reviewQuestions = reviewBuilder([121], 2);
+assert.ok(reviewQuestions.length > 0, "Listening mistakes should produce a non-empty review when similar questions exist");
+assert.ok(reviewQuestions.every((question) => question.id !== 121), "Review exercises must not repeat the source question");
+assert.equal(new Set(reviewQuestions.map((question) => question.id)).size, reviewQuestions.length, "Review exercises must not contain duplicate questions");
+
 console.log(`English engine validation passed: ${questions.length} questions, ${units.size} units, ${categories.size} categories and ${writingPrompts.length} writing prompts.`);

@@ -177,7 +177,7 @@ export default function MentorPage() {
             promptTitle: data.promptTitle || "Writing A1",
             instruction: data.instruction || "",
             response: data.response,
-            wordCount: Number(data.wordCount) || data.response.trim().split(/\\s+/).filter(Boolean).length,
+            wordCount: Number(data.wordCount) || data.response.trim().split(/\s+/).filter(Boolean).length,
             completedAt: data.completedAt || record.created_at,
             rubric: Array.isArray(data.rubric) ? data.rubric.filter((item: unknown): item is string => typeof item === "string") : [],
           }];

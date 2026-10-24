@@ -176,6 +176,7 @@ export default function AlumnoPage() {
   const [writingPromptId, setWritingPromptId] = useState<number>(1);
   const [writingResponse, setWritingResponse] = useState("");
   const [writingSaveStatus, setWritingSaveStatus] = useState("");
+  const [listeningStatus, setListeningStatus] = useState("");
 
   // SkillCoins Semanales
   const [scData, setScData] = useState({
@@ -441,17 +442,40 @@ export default function AlumnoPage() {
   };
 
   const playListeningAudio = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setEnglishSaveStatus("Este navegador no admite reproducción de voz. Prueba con otro navegador.");
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setListeningStatus("Este navegador no admite audio por voz. Prueba con otro navegador actualizado.");
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voice = window.speechSynthesis.getVoices().find((item) => /^en(-|_)/i.test(item.lang));
-    if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || "en-GB";
-    utterance.rate = 0.85;
-    window.speechSynthesis.speak(utterance);
+
+    const synthesis = window.speechSynthesis;
+    synthesis.cancel();
+    setListeningStatus("Preparando audio en inglés…");
+
+    let started = false;
+    const speak = () => {
+      if (started) return;
+      started = true;
+      synthesis.removeEventListener("voiceschanged", speak);
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = synthesis.getVoices();
+      const voice = voices.find((item) => /^en(-|_)/i.test(item.lang))
+        || voices.find((item) => /^en/i.test(item.lang));
+      if (voice) utterance.voice = voice;
+      utterance.lang = voice?.lang || "en-GB";
+      utterance.rate = 0.85;
+      utterance.onstart = () => setListeningStatus("Reproduciendo audio…");
+      utterance.onend = () => setListeningStatus("Audio terminado. Puedes volver a escucharlo.");
+      utterance.onerror = () => setListeningStatus("No se ha podido reproducir el audio. Comprueba el volumen o prueba otro navegador.");
+      synthesis.speak(utterance);
+    };
+
+    if (synthesis.getVoices().length > 0) {
+      speak();
+    } else {
+      synthesis.addEventListener("voiceschanged", speak);
+      // Some browsers do not fire voiceschanged when the voice list is empty.
+      window.setTimeout(speak, 700);
+    }
   };
 
   const selectedWritingPrompt = ENGLISH_A1_WRITING_PROMPTS.find((prompt) => prompt.id === writingPromptId) || ENGLISH_A1_WRITING_PROMPTS[0];
@@ -936,9 +960,12 @@ export default function AlumnoPage() {
                 <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
                   {question.context && question.category !== "Listening" && <p className="rounded-xl border border-[#E7E3DC] bg-white p-3 text-[12px] leading-6 text-[#45433F]">{question.context}</p>}
                   {question.category === "Listening" && (
-                    <button type="button" onClick={() => playListeningAudio(question.context || question.question)} className="rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3A3835]">
-                      ▶ Reproducir audio en inglés
-                    </button>
+                    <div className="space-y-2">
+                      <button type="button" onClick={() => playListeningAudio(question.context || question.question)} aria-label={`Reproducir audio en inglés: ${question.topic}`} className="rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3A3835]">
+                        ▶ Reproducir audio en inglés
+                      </button>
+                      {listeningStatus && <p role="status" aria-live="polite" className="text-[11px] text-[#6D6962]">{listeningStatus}</p>}
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
