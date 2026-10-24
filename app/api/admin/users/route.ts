@@ -205,7 +205,7 @@ export async function DELETE(request: Request) {
   if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return NextResponse.json({ error: "Identificador de usuario no válido." }, { status: 400 });
   if (userId === authData.user.id) return NextResponse.json({ error: "No puedes eliminar tu propia cuenta administradora." }, { status: 400 });
 
-  const { data: target, error: targetError } = await admin.from("profiles").select("id,username,role").eq("id", userId).maybeSingle();
+  const { data: target, error: targetError } = await admin.from("profiles").select("id,username,role,is_active").eq("id", userId).maybeSingle();
   if (targetError || !target) return NextResponse.json({ error: "No se encontró el usuario." }, { status: 404 });
   if (target.role === "admin") return NextResponse.json({ error: "No se puede eliminar otra cuenta administradora desde este panel." }, { status: 403 });
 
@@ -244,6 +244,16 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "No se pudieron comprobar las flashcards del usuario; no se ha iniciado la limpieza." }, { status: 409 });
   }
   const flashcardSetIdsToRemove = (flashcardSetsPreflight.data || []).map((set: { id: string }) => set.id);
+
+  // Disable access before multi-step cleanup. If a later step fails, the account stays
+  // inactive until an administrator reviews the partial state.
+  const { error: deactivateError } = await admin
+    .from("profiles")
+    .update({ is_active: false })
+    .eq("id", userId);
+  if (deactivateError) {
+    return NextResponse.json({ error: "No se pudo desactivar la cuenta; no se ha iniciado la limpieza." }, { status: 409 });
+  }
 
   // Preserve authored records belonging to other people by reassigning their audit owner
   // to the authenticated administrator. Delete only user-owned records and user-targeted content.
@@ -296,13 +306,17 @@ export async function DELETE(request: Request) {
   for (const [index, cleanup] of cleanupSteps.entries()) {
     const { error } = await cleanup();
     if (error) return NextResponse.json({
-      error: `La limpieza se ha detenido antes de eliminar la cuenta. Paso que falló: ${cleanupStepNames[index] || "limpieza"}. Algunas tareas anteriores podrían haberse completado; revisa el estado antes de reintentar.`,
+      error: `La cuenta se ha desactivado para evitar nuevos accesos, pero la limpieza se ha detenido. Paso que falló: ${cleanupStepNames[index] || "limpieza"}. Algunas tareas anteriores podrían haberse completado; revisa el estado antes de reintentar.`,
       failedStep: cleanupStepNames[index] || "limpieza",
       requiresReview: true,
     }, { status: 409 });
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
-  if (deleteError) return NextResponse.json({ error: "No se pudo eliminar la cuenta: " + deleteError.message }, { status: 409 });
+  if (deleteError) return NextResponse.json({
+    error: "La limpieza de datos terminó, pero no se pudo eliminar el usuario de Auth. La cuenta permanece desactivada; revisa el estado antes de reintentar.",
+    accountDeactivated: true,
+    requiresReview: true,
+  }, { status: 409 });
   return NextResponse.json({ ok: true, deletedUsername: target.username });
 }
