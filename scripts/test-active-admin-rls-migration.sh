@@ -30,6 +30,7 @@ INSERT INTO public.profiles (id, role, is_active) VALUES
   ('00000000-0000-4000-8000-000000000005', 'padre', true),
   ('00000000-0000-4000-8000-000000000006', 'mentor', true),
   ('00000000-0000-4000-8000-000000000007', 'padre', true);
+SQL
 
 # Validate the new role and candidate table in disposable PostgreSQL before
 # exercising the active-admin RLS migration.
@@ -47,6 +48,7 @@ INSERT INTO public.kiru_candidates (source_key, name)
 VALUES ('test-candidate-key', 'Candidatura de prueba');
 SQL
 
+psql -v ON_ERROR_STOP=1 <<'SQL'
 CREATE TABLE public.students (
   profile_id uuid PRIMARY KEY REFERENCES public.profiles(id)
 );
