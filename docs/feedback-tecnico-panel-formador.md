@@ -70,3 +70,13 @@ Se recomienda probar casos sin sesión, con roles no autorizados, con usuarios d
 Conservar el flujo y la experiencia visual como base, pero reconstruir la integración con una API protegida, esquema versionado, sincronización idempotente y pruebas automatizadas. La prioridad es que la funcionalidad sea fiable y segura para el equipo y las candidaturas, sin importar si los datos vienen de Sheets o de otra fuente en el futuro.
 
 **Estado:** feedback de revisión. No implica que todos los cambios recomendados se hayan implementado ni que la integración esté aprobada para producción.
+
+## Seguimiento de revisión — cambios posteriores (24 de octubre de 2026)
+
+En el commit `b71518d686eb5ab852c97fb2d1ae3dff4465c70c` se retiró el alumno de ejemplo Álvaro del panel de mentor y se ajustó el texto del generador de flashcards. Es positivo eliminar datos ficticios para reducir confusiones durante las pruebas.
+
+Como siguiente mejora, el panel debería dejar de depender de una lista fija que actualmente conserva a Carmen y de asignaturas definidas en el código. Lo recomendable es obtener alumnos, asignaturas y relaciones desde Supabase, filtrados por las asignaciones autorizadas del mentor. Así el panel reflejará las cuentas reales y no necesitará editar código cada vez que se incorpore o cambie un alumno.
+
+También conviene conservar la información de límites funcionales en la interfaz: si el generador admite un máximo concreto de tarjetas, el texto y la validación deben coincidir; si no existe ese límite, se puede retirar la cifra, como se hizo en el cambio revisado.
+
+Estas observaciones se refieren al comportamiento del producto y a su mantenibilidad, no a la persona que realizó los cambios. La retirada del dato ficticio es un paso útil; la siguiente iteración puede completar la transición hacia datos dinámicos y permisos comprobados en servidor.
