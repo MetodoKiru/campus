@@ -34,3 +34,5 @@ La prioridad no es terminar primero el rol formador. El orden de trabajo es: **s
 
 - **RLS:** se añadió una migración de revisión que sustituye las comprobaciones administrativas basadas solo en JWT por una comprobación de administrador activo en `profiles` para las políticas públicas que usan `kiru_role`. Está en la rama de trabajo; aún requiere revisión SQL y prueba en un entorno aislado antes de aplicarla.
 - **Borrado de cuentas:** la comprobación previa de pagos ahora incluye tanto al alumno como al autor del registro, y los errores de limpieza identifican el paso que falló. Sigue siendo una secuencia no transaccional: la prueba con cuenta desechable y el plan de recuperación continúan pendientes.
+
+- **Vercel:** la conexión disponible solo muestra el proyecto `metodo-kiru-14vn`, enlazado al repositorio `MetodoKiru/metodo-kiru`; no aparece un proyecto accesible enlazado a `MetodoKiru/campus-kiru`. No crear ni promover un proyecto nuevo sin confirmar el destino, las variables de entorno y el dominio previsto.
