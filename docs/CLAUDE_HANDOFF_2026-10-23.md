@@ -26,8 +26,8 @@ Aprovecha los cambios de Cristina como referencia de flujo y diseño, no como un
 - Se preparó el rol `formador` coordinando el tipo de rol, creación/edición de cuentas, metadatos de Auth, redirección de login, panel protegido y autorización de servidor.
 - Se añadieron migraciones para candidaturas, asignaciones atómicas de mentor/tutor y endurecimiento de RLS frente a administradores desactivados.
 - Se añadió una segunda migración que reemplaza las comprobaciones administrativas basadas solo en JWT por un helper que comprueba también `profiles.is_active` en las políticas públicas afectadas.
-- Se añadió un test de migración en PostgreSQL desechable a CI. **Todavía hay que confirmar el resultado del último CI en el head actual** antes de considerar validada la migración.
-- El borrado de cuentas ahora bloquea cuando pagos referencian al usuario como alumno o creador del registro e identifica el paso que falla en una limpieza parcial. Sigue siendo secuencial y no transaccional; necesita prueba con cuenta desechable y estrategia de recuperación.
+- Se añadió un test de migración en PostgreSQL desechable a CI para active-admin RLS y las asignaciones atómicas de mentor/tutor. La prueba del helper RLS ya pasó; el run más reciente debe confirmar también la prueba ampliada y el build.
+- El borrado de cuentas bloquea cuando pagos referencian al usuario como alumno o creador; prevalida documentos/flashcards, desactiva la cuenta antes de limpiar e identifica el paso que falla. Sigue siendo secuencial y no transaccional; si falla, la cuenta permanece inactiva y necesita revisión. Requiere prueba con cuenta desechable y estrategia de recuperación.
 - El temporizador y la persistencia concurrente de registros se han corregido/mejorado en la rama.
 - Se corrigió logout de Supabase en alumno, mentor, padre y admin.
 - El motor de Inglés A1 se amplió a **120 preguntas**, cinco unidades y cinco áreas: Grammar, Vocabulary, Everyday English, Use of English y Reading. Reading incluye pasajes. Listening necesita audios reales; Writing necesita respuesta libre y rúbrica.
