@@ -82,6 +82,14 @@ Aprovecha los cambios de Cristina como referencia de flujo y diseño, no como un
 21. Planificar renovación de enlaces antiguos antes de habilitar el portal nuevo.
 22. Mantener la PR #2 en draft hasta que las validaciones previas estén cerradas.
 
+## Actualización de revisión — 24 de octubre, 13:00 (hora peninsular)
+
+- El CI de GitHub había pasado en el head anterior, pero las últimas correcciones de configuración de Sheets y de normalización de predicados RLS deben volver a validarse. El último commit preparado para reactivar CI incluye una prueba de dos formatos reales de política (JWT directo y expresión envuelta en SELECT).
+- Durante la revisión de las políticas RLS reales de producción se detectó que PostgreSQL normaliza algunas comprobaciones de administrador como una expresión envuelta en `SELECT`. La migración ahora contempla ambos formatos y la prueba desechable exige que desaparezca el chequeo directo de JWT en ambas políticas de ejemplo. **No aplicar la migración a producción** hasta que CI pase y se revise el diff final.
+- La sincronización del formador ya no utiliza un ID predeterminado de Google Sheets incrustado en el código. `GOOGLE_SHEETS_SPREADSHEET_ID` debe configurarse explícitamente como variable de entorno del servidor.
+- Se revisaron los logs de PostgreSQL del proyecto en la ventana reciente: los únicos fallos de contraseña para `postgres` devueltos por la consulta fueron tres el 23-10-2026 a las 09:52:28.019, 09:52:33.516 y 09:52:33.519 UTC. No hay evidencia suficiente para atribuirlos a un job o a un tercero; correlacionarlos con los jobs y las conexiones configuradas antes de cambiar secretos.
+- Los checks externos de Vercel continúan fallando con `build-rate-limit` para `campus-kiru` y `campus-kiru-vrwu`. Esto no invalida por sí solo el build de GitHub, pero significa que no hay despliegue verificado. El proyecto Vercel conectado sigue apuntando a otro repositorio.
+
 ## Bloqueos y límites
 - No crear una rama Supabase de desarrollo si implica coste sin informarlo y obtener autorización.
 - No crear cuentas falsas ni relaciones ficticias en producción.
