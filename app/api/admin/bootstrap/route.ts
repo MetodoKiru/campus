@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export const runtime = "nodejs";
+
+/** Constant-time comparison so response timing does not leak how much of the secret matched. */
+function secretsMatch(supplied: string, expected: string): boolean {
+  const a = createHash("sha256").update(supplied).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   const suppliedSecret = request.headers.get("x-kiru-bootstrap-secret") || "";
-  if (suppliedSecret.length < 24 || suppliedSecret !== bootstrapSecret) {
+  if (suppliedSecret.length < 24 || !secretsMatch(suppliedSecret, bootstrapSecret)) {
     return NextResponse.json({ error: "Código de configuración no válido." }, { status: 401 });
   }
 

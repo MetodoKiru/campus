@@ -4,8 +4,7 @@
 - La tabla `profiles` vincula cada perfil con `auth.users`.
 - El rol privilegiado debe establecerse desde `app_metadata.kiru_role`, nunca desde `user_metadata` editable por el usuario.
 - `kiru_app_records` permite guardar registros JSON tipados bajo las políticas RLS existentes.
-- `lib/kiru-storage.ts` contiene funciones para listar, guardar y eliminar registros.
-- `lib/kiru-auth.ts` contiene funciones de inicio/cierre de sesión con Supabase Auth y validación del perfil.
+- `lib/kiru-records.ts` contiene las funciones para leer, guardar y eliminar registros (las políticas RLS deciden qué puede hacer cada rol).
 - La pantalla de acceso existente aún usa usuarios de demostración/localStorage. No se ha sustituido deliberadamente hasta crear y verificar cuentas reales para evitar bloquear el acceso al campus.
 
 ## Variables de entorno
