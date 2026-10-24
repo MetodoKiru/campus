@@ -13,13 +13,13 @@ new Function("exports", "require", "module", compiled)(moduleObject.exports, req
 const questions = moduleObject.exports.ENGLISH_A1_DATABASE;
 
 assert.ok(Array.isArray(questions), "ENGLISH_A1_DATABASE must be an array");
-assert.equal(questions.length, 100, "The A1 question bank must contain exactly 100 questions");
+assert.equal(questions.length, 120, "The A1 question bank must contain exactly 120 questions");
 
 const ids = questions.map((question) => question.id);
 assert.equal(new Set(ids).size, ids.length, "Question IDs must be unique");
-assert.deepEqual([...ids].sort((a, b) => a - b), Array.from({ length: 100 }, (_, index) => index + 1), "Question IDs must be consecutive from 1 to 100");
+assert.deepEqual([...ids].sort((a, b) => a - b), Array.from({ length: 120 }, (_, index) => index + 1), "Question IDs must be consecutive from 1 to 100");
 
-const categories = new Set(["Grammar", "Vocabulary", "Everyday English"]);
+const categories = new Set(["Grammar", "Vocabulary", "Everyday English", "Use of English", "Reading"]);
 const difficulties = new Set(["facil", "medio", "desafiante"]);
 for (const question of questions) {
   assert.equal(question.level, "A1", `Question ${question.id} must be A1`);
@@ -30,6 +30,7 @@ for (const question of questions) {
   assert.ok(categories.has(question.category), `Question ${question.id} has an unknown category`);
   assert.ok(difficulties.has(question.difficulty), `Question ${question.id} has an unknown difficulty`);
   assert.ok(question.unit.startsWith("Unit "), `Question ${question.id} needs a unit`);
+  if (question.category === "Reading") assert.ok(question.context && question.context.trim().length >= 40, `Reading question ${question.id} needs a passage`);
 }
 
 const units = new Set(questions.map((question) => question.unit));
