@@ -16,11 +16,11 @@ export interface GrammarItem {
   choiceOnly?: boolean;
 }
 
-function g(sentence: string, answer: string, distractors: string[], level: 1 | 2 | 3 = 1): GrammarItem {
+export function g(sentence: string, answer: string, distractors: string[], level: 1 | 2 | 3 = 1): GrammarItem {
   return { sentence, answer, distractors, level };
 }
 
-function pick(sentence: string, answer: string, distractors: string[], level: 1 | 2 | 3 = 2): GrammarItem {
+export function pick(sentence: string, answer: string, distractors: string[], level: 1 | 2 | 3 = 2): GrammarItem {
   return { sentence, answer, distractors, level, choiceOnly: true };
 }
 

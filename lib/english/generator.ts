@@ -1,5 +1,6 @@
-import { A1_GRAMMAR, A1_VOCABULARY, GrammarItem } from "@/lib/english/a1-content";
-import { A1_READING, ReadingText } from "@/lib/english/a1-reading";
+import { GrammarItem } from "@/lib/english/a1-content";
+import { ReadingText } from "@/lib/english/a1-reading";
+import { GRAMMAR, READING, VOCABULARY } from "@/lib/english/content";
 import { EnglishLevelId, EnglishSkill, EnglishUnit, findLevel, findTopic, findUnit, SKILL_LABELS } from "@/lib/english/curriculum";
 
 export type EnglishDifficulty = "baja" | "media" | "alta";
@@ -281,11 +282,17 @@ interface UnitSentence {
 }
 
 function completeSentence(sentence: string, fill: string): string {
-  return sentence
-    .replace("___", fill)
+  // Two-gap items ("___ you ___ (go)?") have answers like "Are, going".
+  const gaps = sentence.split("___").length - 1;
+  const parts = gaps > 1 ? fill.split(/,\s*/) : [fill];
+  let filled = sentence;
+  // "—" means no word (zero article): the gap disappears.
+  for (const part of parts) filled = part === "—" ? filled.replace(/___\s*/, "") : filled.replace("___", part);
+  return filled
     .replace(/\s*\([^)]*\)/g, "")
     .replace(/\s+([.!?,])/g, "$1")
-    .trim();
+    .trim()
+    .replace(/^[a-z]/, (letter) => letter.toUpperCase());
 }
 
 /** The vocabulary and full sentences of a unit, used by listening, writing and speaking. */
@@ -293,22 +300,26 @@ function unitMaterial(unit: EnglishUnit): { vocab: VocabEntry[]; sentences: Unit
   const vocab: VocabEntry[] = [];
   const sentences: UnitSentence[] = [];
   const seen = new Set<string>();
-  const addSentence = (sentence: string, wrong: string[]) => {
+  const addSentence = (full: string, fullWrong: string[]) => {
+    // Transformation items ("'I'm tired.' → She said she was tired.") keep only the result.
+    const result = (text: string) => text.split("→").slice(-1)[0].trim();
+    const sentence = result(full);
+    const wrong = fullWrong.map(result);
     if (seen.has(sentence)) return;
     seen.add(sentence);
     sentences.push({ sentence, wrong });
   };
   for (const topic of unit.topics) {
-    if (topic.skill === "vocabulary") {
-      for (const entry of parseVocab(A1_VOCABULARY[topic.bank] ?? [])) {
+    if (topic.skill === "vocabulary" && !topic.gapFill) {
+      for (const entry of parseVocab(VOCABULARY[topic.bank] ?? [])) {
         if (vocab.some((other) => other.english[0] === entry.english[0])) continue;
         vocab.push(entry);
         // Whole phrases from the vocabulary (e.g. at the restaurant) are good sentences too.
         if (entry.english[0].split(" ").length >= 3) addSentence(entry.english[0], []);
       }
     }
-    if (topic.skill === "grammar") {
-      for (const item of A1_GRAMMAR[topic.bank] ?? []) {
+    if (topic.skill === "grammar" || topic.gapFill) {
+      for (const item of GRAMMAR[topic.bank] ?? []) {
         if (item.choiceOnly) {
           if (/[.?!]$/.test(item.answer) && item.answer.includes(" ")) addSentence(item.answer, item.distractors);
           continue;
@@ -447,10 +458,13 @@ export function generateEnglishActivity(config: EnglishActivityConfig): EnglishA
   if (!level?.available || !unit || !topic) throw new Error("El tema seleccionado no existe en el temario.");
 
   const candidatesBySkill: Record<EnglishSkill, () => Candidate[]> = {
-    vocabulary: () => vocabularyCandidates(parseVocab(A1_VOCABULARY[topic.bank] ?? []), config.difficulty),
-    grammar: () => grammarCandidates(A1_GRAMMAR[topic.bank] ?? [], config.difficulty, topic.writeInstruction),
+    vocabulary: () =>
+      topic.gapFill
+        ? grammarCandidates(GRAMMAR[topic.bank] ?? [], config.difficulty, topic.writeInstruction)
+        : vocabularyCandidates(parseVocab(VOCABULARY[topic.bank] ?? []), config.difficulty),
+    grammar: () => grammarCandidates(GRAMMAR[topic.bank] ?? [], config.difficulty, topic.writeInstruction),
     reading: () => {
-      const text = A1_READING.find((item) => item.id === topic.bank);
+      const text = READING.find((item) => item.id === topic.bank);
       return text ? readingCandidates(text, config.difficulty) : [];
     },
     listening: () => listeningCandidates(unit, config.difficulty),

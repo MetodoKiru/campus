@@ -339,7 +339,19 @@ export default function MentorEnglishTasks({
                       key={item.id}
                       type="button"
                       disabled={!item.available}
-                      onClick={() => update({ levelId: item.id })}
+                      onClick={() => {
+                        // Units differ between levels: keep the same unit if it exists, else the first one.
+                        const unitId = item.units.some(
+                          (unit) => unit.id === config.unitId,
+                        )
+                          ? config.unitId
+                          : (item.units[0]?.id ?? "");
+                        update({
+                          levelId: item.id,
+                          unitId,
+                          topicId: firstTopicId(item.id, unitId, skill),
+                        });
+                      }}
                       title={item.available ? item.title : "Próximamente"}
                       className={`${chip(config.levelId === item.id)} disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
