@@ -27,7 +27,7 @@ DECLARE
   updated_qual text;
   updated_check text;
   admin_predicate constant text := $pred$((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text) = 'admin'::text$pred$;
-  admin_predicate_select constant text := $(( SELECT ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text)) = 'admin'::text)$;
+  admin_predicate_select constant text := $predselect$(( SELECT ((auth.jwt() -> 'app_metadata'::text) ->> 'kiru_role'::text)) = 'admin'::text)$predselect$;
 BEGIN
   FOR policy_row IN
     SELECT schemaname, tablename, policyname, qual, with_check
