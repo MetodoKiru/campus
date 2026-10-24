@@ -55,3 +55,5 @@ jobs:
         run: npm audit --audit-level=high
       - name: Build production app
         run: npm run build
+
+# The lockfile is patched and validated in this isolated branch before any merge.
