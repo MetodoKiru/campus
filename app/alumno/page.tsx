@@ -467,7 +467,7 @@ export default function AlumnoPage() {
         instruction: selectedWritingPrompt.instruction,
         unit: selectedWritingPrompt.unit,
         response: writingResponse.trim(),
-        wordCount: writingResponse.trim().split(/\\s+/).filter(Boolean).length,
+        wordCount: writingResponse.trim().split(/\s+/).filter(Boolean).length,
         rubric: selectedWritingPrompt.rubric,
         completedAt,
         status: "pending_mentor_review",
@@ -1004,7 +1004,7 @@ export default function AlumnoPage() {
               </select>
               <div className="rounded-xl bg-[#F7F5F1] p-4 space-y-1"><p className="text-xs font-semibold">{selectedWritingPrompt.instruction}</p><p className="text-[11px] text-[#77736B]">Objetivo orientativo: al menos {selectedWritingPrompt.minimumWords} palabras · {selectedWritingPrompt.unit}</p></div>
               <textarea value={writingResponse} onChange={(event) => { setWritingResponse(event.target.value); setWritingSaveStatus(""); }} rows={6} maxLength={3000} placeholder="Write your answer here..." className="w-full rounded-xl border border-[#E7E3DC] bg-white p-3 text-sm leading-6" />
-              <p className="text-[11px] text-[#77736B]">{writingResponse.trim() ? writingResponse.trim().split(/\\s+/).filter(Boolean).length : 0} palabras</p>
+              <p className="text-[11px] text-[#77736B]">{writingResponse.trim() ? writingResponse.trim().split(/\s+/).filter(Boolean).length : 0} palabras</p>
               <div className="rounded-xl border border-[#E7E3DC] p-4"><p className="text-xs font-semibold mb-2">Rúbrica de revisión</p><ul className="list-disc pl-5 space-y-1 text-xs text-[#6D6962]">{selectedWritingPrompt.rubric.map((item) => <li key={item}>{item}</li>)}</ul></div>
               <button type="submit" className="rounded-xl bg-[#242321] px-5 py-3 text-xs font-semibold text-white">Guardar texto para revisión</button>
               {writingSaveStatus && <p role="status" className="text-xs text-[#6D6962]">{writingSaveStatus}</p>}
