@@ -50,11 +50,11 @@ Se recomienda probar casos sin sesión, con roles no autorizados, con usuarios d
 
 - Se añadió un rol `formador` separado y una política de contraseña más robusta para sus cuentas.
 - La lectura y edición de candidaturas pasa por APIs de servidor que verifican sesión, rol activo y metadatos del usuario; el navegador no recibe credenciales de Google ni la clave de servicio de Supabase.
-- La sincronización guarda un hash del identificador de origen, informa cuando una fila no tiene identificador estable y evita devolver el token de la hoja.
+- La sincronización guarda un hash del identificador de origen, informa cuando una fila no tiene identificador estable y evita devolver el token de la hoja. Se ha retirado además el ID de hoja predeterminado incrustado en el código: debe configurarse explícitamente en el servidor.
 - Los enlaces públicos de candidatura se generan con un token aleatorio independiente de 256 bits. La base de datos conserva solo el hash; el enlace se muestra una vez y renovarlo invalida el anterior.
 - El modelo de candidaturas y sus políticas RLS están versionados en migraciones. Las asignaciones de mentor y tutor legal se han movido a operaciones atómicas para reducir estados parciales.
-- El banco de inglés A1 se amplió a 100 preguntas y se añadió una prueba automática de IDs, opciones, respuestas, categorías y unidades.
-- La rama tiene validación automatizada de lint dirigido y build de producción. Esto verifica la compilación, pero no sustituye las pruebas con cuentas desechables ni la validación de las migraciones en un entorno de pruebas.
+- El banco de inglés A1 se amplió a 120 preguntas y se añadió una prueba automática de IDs, opciones, respuestas, categorías y unidades.
+- La rama tiene validación automatizada de lint dirigido, build de producción y pruebas SQL en PostgreSQL desechable. Esto verifica compilación y casos de base de datos concretos, pero no sustituye las pruebas con cuentas desechables ni la validación de la integración completa en un entorno de pruebas.
 
 
 ## Otros aprendizajes de los cambios revisados
