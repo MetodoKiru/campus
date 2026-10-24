@@ -41,13 +41,12 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  DELETE FROM public.student_mentors
-  WHERE student_id = p_student_id
-    AND mentor_id <> p_mentor_id;
-
+  -- The production schema uses student_id as the primary key, enforcing one mentor per student.
+  -- Upsert on that key so both new assignments and reassignments are atomic.
   INSERT INTO public.student_mentors (student_id, mentor_id)
   VALUES (p_student_id, p_mentor_id)
-  ON CONFLICT (student_id, mentor_id) DO NOTHING;
+  ON CONFLICT (student_id)
+  DO UPDATE SET mentor_id = EXCLUDED.mentor_id, assigned_at = now();
 END;
 $$;
 
