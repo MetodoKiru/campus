@@ -13,9 +13,21 @@ permissions:
 
 jobs:
   validate:
-    name: Targeted lint and production build
+    name: Targeted lint, SQL migration test, and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
@@ -35,6 +47,12 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Validate active-admin RLS migration in disposable PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: bash scripts/test-active-admin-rls-migration.sh
       - name: Audit dependency vulnerabilities (report-only)
         run: |
           npm audit --json > npm-audit.json || true
