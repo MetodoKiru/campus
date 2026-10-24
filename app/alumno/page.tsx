@@ -929,7 +929,7 @@ export default function AlumnoPage() {
                     <option value="Reading">Comprensión lectora</option>
                     <option value="Listening">Comprensión auditiva</option>
                   </select>
-                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{englishAssignedConfig.selectedCategory}</span>}
+                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{activeEnglishReviewId ? "Repaso de errores" : englishAssignedConfig?.selectedCategory || englishCategory}</span>}
               </div>
               <div className="h-2 rounded-full bg-[#EEECE7] overflow-hidden"><div className="h-full bg-[#8A9870] transition-all" style={{ width: (getAssignedEnglishQuestions().length ? Object.keys(englishAnswers).length / getAssignedEnglishQuestions().length * 100 : 0) + "%" }} /></div>
               {getAssignedEnglishQuestions().map((question, index) => (
