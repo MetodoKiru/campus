@@ -56,6 +56,15 @@ Se recomienda probar casos sin sesión, con roles no autorizados, con usuarios d
 - El banco de inglés A1 se amplió a 100 preguntas y se añadió una prueba automática de IDs, opciones, respuestas, categorías y unidades.
 - La rama tiene validación automatizada de lint dirigido y build de producción. Esto verifica la compilación, pero no sustituye las pruebas con cuentas desechables ni la validación de las migraciones en un entorno de pruebas.
 
+
+## Otros aprendizajes de los cambios revisados
+
+- **Entrada y enrutamiento del formador:** incorporar la ruta al panel desde el login es un buen paso de integración. Para que el rol sea real y no solo visual, deben coincidir el tipo de rol en la base de datos, la creación/edición de cuentas, los metadatos de Auth, el middleware o guard del servidor y las políticas RLS. La rama actual prepara esas piezas de forma coordinada.
+- **Asignación exclusiva de mentor:** la regla de que cada alumno tenga un solo mentor es clara y útil. La implementación anterior resolvía el caso funcional, pero una estrategia de borrar todas las relaciones y volver a insertarlas puede dejar asignaciones incompletas si falla a mitad del proceso. En la nueva rama se propone una operación atómica por alumno, que no toca las asignaciones de los demás.
+- **Retirada de datos de ejemplo:** quitar un alumno ficticio reduce confusión. Como siguiente paso, conviene que el panel obtenga alumnos, asignaturas y permisos de la base de datos en lugar de mantener una lista fija; así el panel no depende de una única alumna de prueba.
+- **Validación de compilación y dependencias:** las integraciones nuevas deben pasar `npm ci`, lint y build. Conviene mantener `package.json` y `package-lock.json` sincronizados y probar el resultado con el mismo lockfile que se desplegará.
+- **Evolución gradual:** la propuesta visual y el flujo de selección pueden conservarse; las mejoras principales son de integración, seguridad, persistencia y pruebas, no una crítica al diseño ni a la persona que lo desarrolló.
+
 ## Siguiente paso recomendado
 
 Conservar el flujo y la experiencia visual como base, pero reconstruir la integración con una API protegida, esquema versionado, sincronización idempotente y pruebas automatizadas. La prioridad es que la funcionalidad sea fiable y segura para el equipo y las candidaturas, sin importar si los datos vienen de Sheets o de otra fuente en el futuro.
