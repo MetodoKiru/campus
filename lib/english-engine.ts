@@ -3,6 +3,7 @@ export interface EnglishQuestion {
   level: string;
   topic: string;
   question: string;
+  context?: string;
   options: string[];
   answer: string;
   unit: string;       
@@ -445,6 +446,237 @@ export const ENGLISH_A1_DATABASE: EnglishQuestion[] = [
     answer: "Yes, that sounds great!",
     unit: "Unit 5: Free Time & Abilities",
     category: "Everyday English",
+    difficulty: "medio"
+  }
+,
+  {
+    id: 101,
+    level: "A1",
+    topic: "Reading: Mia's Day",
+    question: "What time does Mia get up?",
+    context: "Mia is twelve. She gets up at seven o'clock and has breakfast with her brother. She walks to school at eight. After school, she plays basketball.",
+    options: ["At six o'clock","At seven o'clock","At eight o'clock","At nine o'clock"],
+    answer: "At seven o'clock",
+    unit: "Unit 2: Daily Routines & Present Simple",
+    category: "Reading",
+    difficulty: "facil"
+  },
+  {
+    id: 102,
+    level: "A1",
+    topic: "Reading: Mia's Day",
+    question: "How does Mia go to school?",
+    context: "Mia is twelve. She gets up at seven o'clock and has breakfast with her brother. She walks to school at eight. After school, she plays basketball.",
+    options: ["By bus","By car","On foot","By train"],
+    answer: "On foot",
+    unit: "Unit 2: Daily Routines & Present Simple",
+    category: "Reading",
+    difficulty: "facil"
+  },
+  {
+    id: 103,
+    level: "A1",
+    topic: "Reading: A Family",
+    question: "Where does Leo live?",
+    context: "Leo lives in a small flat in Madrid with his mother and his sister Ana. They have a cat called Snow. Leo's favourite room is the kitchen because he likes cooking.",
+    options: ["In a big house","In a small flat","In a hotel","At school"],
+    answer: "In a small flat",
+    unit: "Unit 1: Introductions & To Be",
+    category: "Reading",
+    difficulty: "facil"
+  },
+  {
+    id: 104,
+    level: "A1",
+    topic: "Reading: A Family",
+    question: "What is the cat's name?",
+    context: "Leo lives in a small flat in Madrid with his mother and his sister Ana. They have a cat called Snow. Leo's favourite room is the kitchen because he likes cooking.",
+    options: ["Leo","Ana","Snow","Madrid"],
+    answer: "Snow",
+    unit: "Unit 1: Introductions & To Be",
+    category: "Reading",
+    difficulty: "facil"
+  },
+  {
+    id: 105,
+    level: "A1",
+    topic: "Reading: Weekend Plans",
+    question: "What does Emma do on Saturday morning?",
+    context: "Emma is busy this weekend. On Saturday morning, she visits her grandparents. In the afternoon, she plays tennis with her friend. On Sunday, she does her homework and watches a film.",
+    options: ["She watches a film","She visits her grandparents","She does her homework","She goes shopping"],
+    answer: "She visits her grandparents",
+    unit: "Unit 5: Free Time & Abilities",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 106,
+    level: "A1",
+    topic: "Reading: Weekend Plans",
+    question: "When does Emma watch a film?",
+    context: "Emma is busy this weekend. On Saturday morning, she visits her grandparents. In the afternoon, she plays tennis with her friend. On Sunday, she does her homework and watches a film.",
+    options: ["On Friday","On Saturday morning","On Saturday afternoon","On Sunday"],
+    answer: "On Sunday",
+    unit: "Unit 5: Free Time & Abilities",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 107,
+    level: "A1",
+    topic: "Reading: At the Café",
+    question: "What does Tom order?",
+    context: "Tom and his dad are at a café. Tom orders a cheese sandwich and orange juice. His dad has a coffee. They sit next to the window because it is sunny outside.",
+    options: ["A burger and water","A cheese sandwich and orange juice","A cake and tea","A coffee and a salad"],
+    answer: "A cheese sandwich and orange juice",
+    unit: "Unit 3: Food & Shopping",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 108,
+    level: "A1",
+    topic: "Reading: At the Café",
+    question: "Where do Tom and his dad sit?",
+    context: "Tom and his dad are at a café. Tom orders a cheese sandwich and orange juice. His dad has a coffee. They sit next to the window because it is sunny outside.",
+    options: ["Near the door","In the garden","Next to the window","At home"],
+    answer: "Next to the window",
+    unit: "Unit 3: Food & Shopping",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 109,
+    level: "A1",
+    topic: "Reading: The Town",
+    question: "Where is the library?",
+    context: "Our town has a library, a park and a sports centre. The library is opposite the school. The park is behind the sports centre. The bus stop is next to the library.",
+    options: ["Behind the sports centre","Opposite the school","Inside the park","Next to the café"],
+    answer: "Opposite the school",
+    unit: "Unit 4: Places & Directions",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 110,
+    level: "A1",
+    topic: "Reading: The Town",
+    question: "What is next to the library?",
+    context: "Our town has a library, a park and a sports centre. The library is opposite the school. The park is behind the sports centre. The bus stop is next to the library.",
+    options: ["The bus stop","The sports centre","The cinema","The café"],
+    answer: "The bus stop",
+    unit: "Unit 4: Places & Directions",
+    category: "Reading",
+    difficulty: "medio"
+  },
+  {
+    id: 111,
+    level: "A1",
+    topic: "Use of English: Present Simple",
+    question: "Choose the correct sentence.",
+    options: ["He go to school every day.","He goes to school every day.","He going to school every day.","He gone to school every day."],
+    answer: "He goes to school every day.",
+    unit: "Unit 2: Daily Routines & Present Simple",
+    category: "Use of English",
+    difficulty: "facil"
+  },
+  {
+    id: 112,
+    level: "A1",
+    topic: "Use of English: Present Simple",
+    question: "Complete: '___ your sister like music?'",
+    options: ["Do","Does","Is","Are"],
+    answer: "Does",
+    unit: "Unit 2: Daily Routines & Present Simple",
+    category: "Use of English",
+    difficulty: "medio"
+  },
+  {
+    id: 113,
+    level: "A1",
+    topic: "Use of English: Articles",
+    question: "Choose the correct phrase.",
+    options: ["an apple","a apple","the apple an","apple a"],
+    answer: "an apple",
+    unit: "Unit 3: Food & Shopping",
+    category: "Use of English",
+    difficulty: "facil"
+  },
+  {
+    id: 114,
+    level: "A1",
+    topic: "Use of English: Prepositions",
+    question: "Complete: 'My birthday is ___ May.'",
+    options: ["at","on","in","from"],
+    answer: "in",
+    unit: "Unit 1: Introductions & To Be",
+    category: "Use of English",
+    difficulty: "medio"
+  },
+  {
+    id: 115,
+    level: "A1",
+    topic: "Use of English: Can / Can't",
+    question: "Choose the correct sentence.",
+    options: ["She can to swim.","She cans swim.","She can swim.","She can swimming."],
+    answer: "She can swim.",
+    unit: "Unit 5: Free Time & Abilities",
+    category: "Use of English",
+    difficulty: "facil"
+  },
+  {
+    id: 116,
+    level: "A1",
+    topic: "Use of English: Countable Nouns",
+    question: "Complete: 'There are three ___ on the table.'",
+    options: ["book","books","bookes","a book"],
+    answer: "books",
+    unit: "Unit 3: Food & Shopping",
+    category: "Use of English",
+    difficulty: "facil"
+  },
+  {
+    id: 117,
+    level: "A1",
+    topic: "Use of English: Past and Present Time",
+    question: "Choose the correct time expression: 'I have breakfast ___ the morning.'",
+    options: ["on","at","in","to"],
+    answer: "in",
+    unit: "Unit 2: Daily Routines & Present Simple",
+    category: "Use of English",
+    difficulty: "medio"
+  },
+  {
+    id: 118,
+    level: "A1",
+    topic: "Use of English: Questions",
+    question: "Put the question in the correct form.",
+    options: ["Where you live?","Where do you live?","Where does you live?","Where are live you?"],
+    answer: "Where do you live?",
+    unit: "Unit 1: Introductions & To Be",
+    category: "Use of English",
+    difficulty: "medio"
+  },
+  {
+    id: 119,
+    level: "A1",
+    topic: "Use of English: There Is / There Are",
+    question: "Complete: 'There ___ a supermarket near my house.'",
+    options: ["are","am","is","be"],
+    answer: "is",
+    unit: "Unit 4: Places & Directions",
+    category: "Use of English",
+    difficulty: "facil"
+  },
+  {
+    id: 120,
+    level: "A1",
+    topic: "Use of English: Some / Any",
+    question: "Complete: 'Are there ___ eggs in the fridge?'",
+    options: ["some","any","much","a"],
+    answer: "any",
+    unit: "Unit 3: Food & Shopping",
+    category: "Use of English",
     difficulty: "medio"
   }
 ];
