@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Campus Kiru
 
-## Getting Started
+Campus online de Método Kiru para alumnos, mentores, familias y administración.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16 + React 19**, desplegado en Vercel.
+- **Supabase** (región eu-west-1): Postgres con RLS, Auth y Storage (bucket privado `kiru-documents`).
+
+## Estructura
+
+| Ruta | Para qué |
+| --- | --- |
+| `app/admin`, `app/alumno`, `app/mentor`, `app/padre` | Área de cada rol |
+| `app/api/auth/login` | Login con usuario + PIN (resuelve el email en servidor) |
+| `app/api/admin/users` | Alta, edición y borrado de cuentas (solo admin, usa la service role) |
+| `app/api/admin/bootstrap` | Crea el primer admin; desactivado en cuanto existe uno |
+| `lib/` | Cliente de Supabase y acceso a datos |
+| `supabase/migrations/` | Historial completo del esquema y las políticas RLS |
+| `supabase/tests/` | Pruebas de aislamiento entre roles |
+| `docs/` | Auditorías, copias de seguridad y guías de configuración |
+
+## Seguridad
+
+- Toda la autorización vive en las políticas RLS de Supabase. El rol válido es el que coincide en `profiles.role` y en `app_metadata.kiru_role`; una cuenta con `is_active = false` pierde el acceso.
+- La clave `SUPABASE_SERVICE_ROLE_KEY` solo se usa en `app/api/*`. Nunca en variables `NEXT_PUBLIC_*`.
+- Las cabeceras de seguridad (CSP, HSTS, etc.) están en `next.config.ts`.
+
+## Desarrollo
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables necesarias: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y, para las rutas de servidor, `SUPABASE_SERVICE_ROLE_KEY`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cambios en la base de datos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Crea un archivo nuevo en `supabase/migrations/` (`AAAAMMDDHHMMSS_descripcion.sql`). No cambies la base desde el SQL Editor sin guardar la migración.
+2. Ejecuta las pruebas de RLS contra un Postgres local (nunca contra producción):
+   ```bash
+   PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres supabase/tests/run.sh
+   ```
+3. CI repite esas pruebas en cada PR.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`20261021160000_reconstructed_kiru_content_tables.sql` reconstruye tablas que se crearon fuera del historial; en producción ya existen (ver el comentario del archivo).

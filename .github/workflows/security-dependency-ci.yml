@@ -1,11 +1,10 @@
-name: Security dependency patch validation
+name: CI
 
 on:
   pull_request:
     branches: [main]
   push:
-    branches:
-      - security/patch-nextjs-16-4-3
+    branches: [main]
 
 permissions:
   contents: read
@@ -33,5 +32,36 @@ jobs:
         run: npm ci
       - name: Fail if high or critical dependency advisories remain
         run: npm audit --audit-level=high
+      - name: Type check
+        run: npx tsc --noEmit
+      # The codebase still has ~44 pre-existing lint errors (mostly `any`).
+      # Reported but not blocking until they are cleaned up.
+      - name: Lint (informative)
+        run: npm run lint
+        continue-on-error: true
       - name: Build production app
         run: npm run build
+
+  rls-policies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply all migrations and test role isolation
+        run: supabase/tests/run.sh

@@ -53,10 +53,9 @@ export async function POST(request: Request) {
   const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(profile.id);
   const email = authUserData.user?.email;
   if (authUserError || !email) {
-    return NextResponse.json(
-      { error: "La cuenta todavía no está configurada para acceder. Contacta con administración." },
-      { status: 403 }
-    );
+    // Same answer as a wrong password, so the response never confirms that a username exists.
+    console.error("Kiru login: profile without a usable Auth email", profile.id);
+    return NextResponse.json({ error: "Usuario o contraseña incorrectos." }, { status: 401 });
   }
 
   const { data, error } = await authClient.auth.signInWithPassword({ email, password });
