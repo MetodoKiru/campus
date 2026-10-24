@@ -47,6 +47,7 @@ jobs:
             echo "Lockfile already up to date."
           else
             git commit -m "chore(deps): patch Zod security advisory"
+            git pull --rebase origin security/patch-zod-4-6-7
             git push origin HEAD:security/patch-zod-4-6-7
           fi
       - name: Install exact dependency tree
