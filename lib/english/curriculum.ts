@@ -178,3 +178,15 @@ export function findUnit(levelId: string, unitId: string): EnglishUnit | undefin
 export function findTopic(levelId: string, unitId: string, topicId: string): EnglishTopic | undefined {
   return findUnit(levelId, unitId)?.topics.find((topic) => topic.id === topicId);
 }
+
+/** The next topic of the same skill in syllabus order, moving on to later units when needed. */
+export function nextTopicOfSkill(levelId: string, unitId: string, topicId: string): { unitId: string; topicId: string } | undefined {
+  const level = findLevel(levelId);
+  const current = findTopic(levelId, unitId, topicId);
+  if (!level || !current) return undefined;
+  const ordered = level.units.flatMap((unit) => unit.topics.map((topic) => ({ unitId: unit.id, topic })));
+  const start = ordered.findIndex((entry) => entry.unitId === unitId && entry.topic.id === topicId);
+  // Starter and Unit 1 share banks; skip topics that would repeat the same content.
+  const next = ordered.slice(start + 1).find((entry) => entry.topic.skill === current.skill && entry.topic.bank !== current.bank);
+  return next ? { unitId: next.unitId, topicId: next.topic.id } : undefined;
+}

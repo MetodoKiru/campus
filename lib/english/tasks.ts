@@ -17,6 +17,8 @@ export interface EnglishTask {
   config: EnglishActivityConfig;
   exercises: EnglishExercise[];
   note?: string;
+  /** Task whose results this one follows up (review of mistakes, next difficulty…). */
+  followUpOf?: string;
   assignedAt: string;
 }
 
