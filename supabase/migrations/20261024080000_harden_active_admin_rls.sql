@@ -21,7 +21,7 @@ $$;
 REVOKE ALL ON FUNCTION public.kiru_is_active_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.kiru_is_active_admin() TO authenticated;
 
-DO $$
+DO $do$
 DECLARE
   policy_row record;
   updated_qual text;
@@ -64,7 +64,7 @@ BEGIN
     END IF;
   END LOOP;
 END;
-$$;
+$do$;
 
 COMMENT ON FUNCTION public.kiru_is_active_admin() IS
   'Returns true only when the authenticated user has an admin JWT and remains active in public.profiles. Used by public-table RLS policies.';
