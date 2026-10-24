@@ -211,9 +211,13 @@ export async function DELETE(request: Request) {
 
   // Do not destroy financial history. If the user has payment records, require a deliberate
   // archival/anonymisation workflow before allowing account deletion.
-  const paymentCheck = await admin.from("kiru_payments").select("id").eq("student_id", userId).limit(1);
-  if (paymentCheck.error) return NextResponse.json({ error: "No se pudo comprobar el historial de pagos; no se ha eliminado la cuenta." }, { status: 409 });
-  if (paymentCheck.data?.length) return NextResponse.json({ error: "Esta cuenta tiene historial de pagos. Para proteger la trazabilidad económica, archiva o anonimiza esos registros antes de eliminarla." }, { status: 409 });
+  const paymentCheck = await admin
+    .from("kiru_payments")
+    .select("id")
+    .or(`student_id.eq.${userId},created_by.eq.${userId}`)
+    .limit(1);
+  if (paymentCheck.error) return NextResponse.json({ error: "No se pudo comprobar todas las referencias del historial de pagos; no se ha eliminado la cuenta." }, { status: 409 });
+  if (paymentCheck.data?.length) return NextResponse.json({ error: "Esta cuenta aparece en el historial de pagos, como alumno o como autor del registro. Para proteger la trazabilidad económica, archiva o anonimiza esos registros antes de eliminarla." }, { status: 409 });
 
   // Preserve authored records belonging to other people by reassigning their audit owner
   // to the authenticated administrator. Delete only user-owned records and user-targeted content.
@@ -255,9 +259,28 @@ export async function DELETE(request: Request) {
     },
     () => admin.from("students").delete().eq("profile_id", userId),
   ];
-  for (const cleanup of cleanupSteps) {
+  const cleanupStepNames = [
+    "relaciones_mentor_alumno",
+    "relaciones_familia_alumno",
+    "aceptaciones_como_alumno",
+    "aceptaciones_como_firmante",
+    "registros_auditados",
+    "registros_propios",
+    "avisos_auditados",
+    "avisos_dirigidos",
+    "documentos_auditados",
+    "conjuntos_flashcards_auditados",
+    "documentos_y_archivos",
+    "flashcards_y_conjuntos",
+    "perfil_de_alumno",
+  ];
+  for (const [index, cleanup] of cleanupSteps.entries()) {
     const { error } = await cleanup();
-    if (error) return NextResponse.json({ error: "No se pudo completar la limpieza de relaciones. No se ha eliminado la cuenta; revisa los datos relacionados antes de volver a intentarlo." }, { status: 409 });
+    if (error) return NextResponse.json({
+      error: "La limpieza se ha detenido antes de eliminar la cuenta. Algunas tareas anteriores podrían haberse completado; puedes reintentar la operación después de revisar el paso indicado.",
+      failedStep: cleanupStepNames[index] || "limpieza",
+      retryable: true,
+    }, { status: 409 });
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
