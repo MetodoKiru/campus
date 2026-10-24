@@ -50,8 +50,10 @@ async function getGoogleAccessToken(): Promise<string> {
 }
 
 async function readSheetRows(): Promise<string[][]> {
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "1Es3xB12WbGlXiw6Btzqbj5bPEz8U5bRf1_rEcTz25fk";
-  const range = process.env.GOOGLE_SHEETS_RANGE || "'respuestas de formulario 1'!A:AZ";
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID?.trim();
+  const range = process.env.GOOGLE_SHEETS_RANGE?.trim() || "'respuestas de formulario 1'!A:AZ";
+  if (!spreadsheetId) throw new Error("GOOGLE_CONFIG_MISSING");
+
   const accessToken = await getGoogleAccessToken();
   const url = new URL(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
