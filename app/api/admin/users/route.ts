@@ -279,7 +279,7 @@ export async function DELETE(request: Request) {
     if (error) return NextResponse.json({
       error: `La limpieza se ha detenido antes de eliminar la cuenta. Paso que falló: ${cleanupStepNames[index] || "limpieza"}. Algunas tareas anteriores podrían haberse completado; revisa el estado antes de reintentar.`,
       failedStep: cleanupStepNames[index] || "limpieza",
-      retryable: true,
+      requiresReview: true,
     }, { status: 409 });
   }
 
