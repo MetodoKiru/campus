@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
-import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
+import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
 const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
@@ -30,23 +30,6 @@ const ALL_SUBJECTS = [
   { id: "qui", name: "Química" },
   { id: "bio", name: "Biología" }
 ];
-
-interface Flashcard {
-  id: string;
-  category: string;
-  term: string;
-  definition: string;
-  targetStudents?: string[];
-}
-
-interface MentorSubjectMessage {
-  id: string;
-  studentId: string;
-  subjectId: string;
-  text: string;
-  link?: string;
-  date: string;
-}
 
 export default function MentorPage() {
   const router = useRouter();
@@ -97,15 +80,15 @@ export default function MentorPage() {
         if (!user) return;
         const { data: links, error: linkError } = await supabase.from("student_mentors").select("student_id").eq("mentor_id", user.id);
         if (linkError) throw linkError;
-        const ids = Array.from(new Set((links || []).map((link: any) => link.student_id)));
+        const ids = Array.from(new Set((links || []).map((link) => link.student_id)));
         if (!ids.length) { if (active) setStudents([]); return; }
         const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,full_name,username").in("id", ids);
         if (profileError) throw profileError;
         if (!active) return;
-        const assigned = (profiles || []).filter((p: any) => p.username).map((p: any) => ({ id: p.id, username: p.username, name: p.full_name }));
+        const assigned = (profiles || []).flatMap((p) => (p.username ? [{ id: p.id, username: p.username, name: p.full_name }] : []));
         setStudents(assigned);
-        if (assigned.length && !selectedStudent) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); }
-        const [activities, progress] = await Promise.all([getKiruRecords<any>("activity"), getKiruRecords<any>("progress")]);
+        if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); }
+        const [activities, progress] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
         if (!active) return;
         const subjects: Record<string, string[]> = {};
         activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   CheckCircle2, 
@@ -9,9 +8,7 @@ import {
   FileText, 
   Download, 
   CreditCard, 
-  Bell, 
-  AlertCircle,
-  ExternalLink 
+  AlertCircle
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
@@ -93,7 +90,7 @@ export default function PadrePage() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
   // SkillCoins automáticas
-  const [scData, setScData] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0, updatedAt: "Sin datos" });
+  const [scData] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0, updatedAt: "Sin datos" });
 
   useEffect(() => {
     let active = true;
@@ -103,12 +100,12 @@ export default function PadrePage() {
         if (!user) return;
         const { data: relations, error: relationsError } = await supabase.from("student_guardians").select("student_id").eq("guardian_id", user.id);
         if (relationsError) throw relationsError;
-        const studentIds = Array.from(new Set((relations || []).map((row: any) => row.student_id)));
+        const studentIds = Array.from(new Set((relations || []).map((row) => row.student_id)));
         if (studentIds.length) {
           const { data: profiles, error: profilesError } = await supabase.from("profiles").select("id,full_name,username").in("id", studentIds);
           if (profilesError) throw profilesError;
           if (!active) return;
-          setChildrenList((profiles || []).map((profile: any) => ({ id: profile.id, name: profile.full_name, username: profile.username, level: "Alumno/a de Método Kiru" })));
+          setChildrenList((profiles || []).map((profile) => ({ id: profile.id, name: profile.full_name, username: profile.username ?? "", level: "Alumno/a de Método Kiru" })));
         } else if (active) setChildrenList([]);
 
         const [documentsResult, noticesResult, paymentsResult, acceptanceResult] = await Promise.all([
@@ -124,9 +121,9 @@ export default function PadrePage() {
         if (!active) return;
         const profileResult = studentIds.length ? await supabase.from("profiles").select("id,username").in("id", studentIds) : { data: [], error: null };
         if (profileResult.error) throw profileResult.error;
-        const usernameById = new Map((profileResult.data || []).map((profile: any) => [profile.id, profile.username]));
+        const usernameById = new Map((profileResult.data || []).map((profile) => [profile.id, profile.username]));
         const allowedIds = new Set(studentIds);
-        const mappedDocs = await Promise.all((documentsResult.data || []).filter((doc: any) => !doc.target_student_id || allowedIds.has(doc.target_student_id)).map(async (doc: any) => {
+        const mappedDocs = await Promise.all((documentsResult.data || []).filter((doc) => !doc.target_student_id || allowedIds.has(doc.target_student_id)).map(async (doc) => {
           let fileData: string | undefined;
           if (doc.storage_path && doc.storage_path !== "no-file") {
             const { data: signed } = await supabase.storage.from("kiru-documents").createSignedUrl(doc.storage_path, 300);
@@ -135,8 +132,8 @@ export default function PadrePage() {
           return { id: doc.id, title: doc.title, targetStudent: doc.target_student_id ? usernameById.get(doc.target_student_id) : "todos", type: doc.document_type, requiresAcceptance: doc.requires_acceptance, fileName: doc.file_name, fileData, storagePath: doc.storage_path } as DocItem;
         }));
         setDocs(mappedDocs);
-        setNotices((noticesResult.data || []).filter((notice: any) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice: any) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url, linkTitle: notice.link_title })));
-        setPayments((paymentsResult.data || []).filter((payment: any) => allowedIds.has(payment.student_id)).map((payment: any) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id), concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
+        setNotices((noticesResult.data || []).filter((notice) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) ?? "" : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url ?? undefined, linkTitle: notice.link_title ?? undefined })));
+        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
         const accepted: Record<string, { user: string; date: string }> = {};
         for (const row of acceptanceResult.data || []) if (allowedIds.has(row.student_id)) accepted[row.document_id] = { user: "Familia", date: new Date(row.accepted_at).toLocaleString("es-ES") };
         setAcceptedLog(accepted);

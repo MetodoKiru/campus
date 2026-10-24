@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { Json } from "@/lib/database.types";
 
 export type KiruRecordType =
   | "settings"
@@ -9,6 +10,25 @@ export type KiruRecordType =
   | "payment"
   | "progress"
   | "message";
+
+/** JSON stored in kiru_app_records.data; each record kind uses a subset of these keys. */
+export type KiruRecordData = {
+  kind?: string;
+  module?: string;
+  studentId?: string;
+  studentUsername?: string;
+  updatedAt?: string;
+  subjects?: string[];
+  scores?: Record<string, unknown>;
+  config?: {
+    questionCount?: unknown;
+    selectedCategory?: string;
+    difficulty?: string;
+    selectedUnits?: unknown;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
 
 export interface KiruRecord<T = unknown> {
   id: string;
@@ -68,7 +88,7 @@ export async function saveKiruRecord<T>(
     owner_id: ownerId,
     record_type: recordType,
     record_key: recordKey,
-    data: value,
+    data: value as Json,
     created_by: userId,
     updated_at: new Date().toISOString(),
   };
