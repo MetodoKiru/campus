@@ -1,11 +1,26 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { FileText, ListChecks, RefreshCw, Send, Sparkles, Trash2 } from "lucide-react";
+import {
+  FileText,
+  ListChecks,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import ExerciseCard from "@/components/english/ExerciseCard";
 import MentorEnglishReport from "@/components/english/MentorEnglishReport";
 import { FollowUpSuggestion, suggestFollowUps } from "@/lib/english/followup";
-import { ENGLISH_LEVELS, EnglishLevelId, EnglishSkill, findLevel, findUnit, SKILL_LABELS } from "@/lib/english/curriculum";
+import {
+  ENGLISH_LEVELS,
+  EnglishLevelId,
+  EnglishSkill,
+  findLevel,
+  findUnit,
+  SKILL_LABELS,
+  SKILL_ORDER,
+} from "@/lib/english/curriculum";
 import {
   DIFFICULTY_LABELS,
   EXERCISE_COUNTS,
@@ -35,35 +50,63 @@ interface MentorEnglishTasksProps {
   student: StudentSummary | undefined;
 }
 
-const DEFAULT_CONFIG: EnglishActivityConfig = { levelId: "A1", unitId: "unit1", topicId: "toBe", difficulty: "media", count: 10 };
+const DEFAULT_CONFIG: EnglishActivityConfig = {
+  levelId: "A1",
+  unitId: "unit1",
+  topicId: "toBe",
+  difficulty: "media",
+  count: 10,
+};
 
-function firstTopicId(levelId: EnglishLevelId, unitId: string, skill: EnglishSkill): string {
+function firstTopicId(
+  levelId: EnglishLevelId,
+  unitId: string,
+  skill: EnglishSkill,
+): string {
   const unit = findUnit(levelId, unitId);
-  return unit?.topics.find((topic) => topic.skill === skill)?.id ?? unit?.topics[0]?.id ?? "";
+  return (
+    unit?.topics.find((topic) => topic.skill === skill)?.id ??
+    unit?.topics[0]?.id ??
+    ""
+  );
 }
 
 function newTaskId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto)
+    return crypto.randomUUID();
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 const chip = (active: boolean) =>
   `px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-    active ? "bg-[#242321] text-white border-[#242321]" : "bg-[#FAF8F5] text-[#555149] border-[#E7E3DC] hover:bg-[#F3F0EA]"
+    active
+      ? "bg-[#242321] text-white border-[#242321]"
+      : "bg-[#FAF8F5] text-[#555149] border-[#E7E3DC] hover:bg-[#F3F0EA]"
   }`;
 
-export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps) {
+export default function MentorEnglishTasks({
+  student,
+}: MentorEnglishTasksProps) {
   const [config, setConfig] = useState<EnglishActivityConfig>(DEFAULT_CONFIG);
-  const [activity, setActivity] = useState<EnglishActivity>(() => generateEnglishActivity(DEFAULT_CONFIG));
+  const [activity, setActivity] = useState<EnglishActivity>(() =>
+    generateEnglishActivity(DEFAULT_CONFIG),
+  );
   const [note, setNote] = useState("");
   const [status, setStatus] = useState("");
   const [assigning, setAssigning] = useState(false);
   // Tasks are kept with the student they were loaded for, so switching students shows "loading".
-  const [loadedTasks, setLoadedTasks] = useState<{ studentId: string; items: EnglishTaskWithProgress[] } | null>(null);
+  const [loadedTasks, setLoadedTasks] = useState<{
+    studentId: string;
+    items: EnglishTaskWithProgress[];
+  } | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [view, setView] = useState<"tasks" | "reports">("tasks");
   // Set when the builder holds a proposal made from an earlier task's results.
-  const [followUp, setFollowUp] = useState<{ taskId: string; taskTitle: string; label: string } | null>(null);
+  const [followUp, setFollowUp] = useState<{
+    taskId: string;
+    taskTitle: string;
+    label: string;
+  } | null>(null);
 
   const level = findLevel(config.levelId);
   const unit = findUnit(config.levelId, config.unitId);
@@ -83,24 +126,42 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
     setFollowUp(null);
   };
 
-  const loadFollowUp = (item: EnglishTaskWithProgress, suggestion: FollowUpSuggestion) => {
+  const loadFollowUp = (
+    item: EnglishTaskWithProgress,
+    suggestion: FollowUpSuggestion,
+  ) => {
     const proposal = suggestion.build();
-    setConfig({ ...proposal.config, count: EXERCISE_COUNTS.find((count) => count >= proposal.config.count) ?? proposal.config.count });
+    setConfig({
+      ...proposal.config,
+      count:
+        EXERCISE_COUNTS.find((count) => count >= proposal.config.count) ??
+        proposal.config.count,
+    });
     setActivity(proposal);
-    setFollowUp({ taskId: item.task.id, taskTitle: item.task.title, label: suggestion.label });
+    setFollowUp({
+      taskId: item.task.id,
+      taskTitle: item.task.title,
+      label: suggestion.label,
+    });
     setStatus("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const studentId = student?.id;
-  const tasksLoading = Boolean(studentId) && loadedTasks?.studentId !== studentId;
-  const tasks = studentId && loadedTasks?.studentId === studentId ? loadedTasks.items : [];
+  const tasksLoading =
+    Boolean(studentId) && loadedTasks?.studentId !== studentId;
+  const tasks =
+    studentId && loadedTasks?.studentId === studentId ? loadedTasks.items : [];
 
   const refreshTasks = async (id: string) => {
     try {
       setLoadedTasks({ studentId: id, items: await loadEnglishTasks(id) });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "No se pudieron cargar las tareas.");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron cargar las tareas.",
+      );
     }
   };
 
@@ -114,7 +175,11 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
       .catch((error: unknown) => {
         if (!active) return;
         setLoadedTasks({ studentId, items: [] });
-        setStatus(error instanceof Error ? error.message : "No se pudieron cargar las tareas.");
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las tareas.",
+        );
       });
     return () => {
       active = false;
@@ -152,19 +217,31 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
       setActivity(generateEnglishActivity(config));
       await refreshTasks(student.id);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "No se pudo asignar la tarea.");
+      setStatus(
+        error instanceof Error ? error.message : "No se pudo asignar la tarea.",
+      );
     } finally {
       setAssigning(false);
     }
   };
 
   const remove = async (item: EnglishTaskWithProgress) => {
-    if (!student || !window.confirm(`¿Eliminar la tarea «${item.task.title}»? También se borrará del panel del alumno.`)) return;
+    if (
+      !student ||
+      !window.confirm(
+        `¿Eliminar la tarea «${item.task.title}»? También se borrará del panel del alumno.`,
+      )
+    )
+      return;
     try {
       await deleteEnglishTask(item.recordId);
       await refreshTasks(student.id);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "No se pudo eliminar la tarea.");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar la tarea.",
+      );
     }
   };
 
@@ -182,7 +259,9 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
             type="button"
             onClick={() => setView(id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              view === id ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+              view === id
+                ? "bg-[#242321] text-white shadow-xs"
+                : "text-[#6D6962] hover:bg-[#FAF8F5]"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
@@ -194,18 +273,27 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
       {view === "reports" && (
         <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
           <div>
-            <h3 className="font-serif text-base text-[#292825] font-bold">Informe de inglés {student ? `de ${student.name}` : ""}</h3>
+            <h3 className="font-serif text-base text-[#292825] font-bold">
+              Informe de inglés {student ? `de ${student.name}` : ""}
+            </h3>
             <p className="text-xs text-[#77736B] mt-1">
-              Cada 4 semanas desde su primera tarea. El informe se calcula solo a partir de las tareas completadas; añade tu comentario y
+              Cada 4 semanas desde su primera tarea. El informe se calcula solo
+              a partir de las tareas completadas; añade tu comentario y
               guárdalo.
             </p>
           </div>
           {!student ? (
-            <p className="text-xs text-[#77736B]">Selecciona un alumno asignado.</p>
+            <p className="text-xs text-[#77736B]">
+              Selecciona un alumno asignado.
+            </p>
           ) : tasksLoading ? (
             <p className="text-xs text-[#77736B]">Cargando datos…</p>
           ) : (
-            <MentorEnglishReport key={student.id} student={student} tasks={tasks} />
+            <MentorEnglishReport
+              key={student.id}
+              student={student}
+              tasks={tasks}
+            />
           )}
         </div>
       )}
@@ -215,25 +303,36 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
               <div>
-                <h3 className="font-serif text-base text-[#292825] font-bold">Crear tarea de inglés</h3>
+                <h3 className="font-serif text-base text-[#292825] font-bold">
+                  Crear tarea de inglés
+                </h3>
                 <p className="text-xs text-[#77736B] mt-1">
-                  Elige el tema del temario y la plataforma genera los ejercicios. Cada versión es distinta.
+                  Elige el tema del temario y la plataforma genera los
+                  ejercicios. Cada versión es distinta.
                 </p>
               </div>
 
               {followUp && (
                 <div className="p-3 rounded-xl border border-[#E4D8C5] bg-[#F3EEE5] text-xs text-[#806C50] flex items-start justify-between gap-3">
                   <span>
-                    <strong>{followUp.label}</strong> a partir de «{followUp.taskTitle}». Revísala en la previsualización y asígnala.
+                    <strong>{followUp.label}</strong> a partir de «
+                    {followUp.taskTitle}». Revísala en la previsualización y
+                    asígnala.
                   </span>
-                  <button type="button" onClick={regenerate} className="shrink-0 font-semibold hover:text-[#292825]">
+                  <button
+                    type="button"
+                    onClick={regenerate}
+                    className="shrink-0 font-semibold hover:text-[#292825]"
+                  >
                     Descartar
                   </button>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Nivel</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                  Nivel
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {ENGLISH_LEVELS.map((item) => (
                     <button
@@ -251,13 +350,20 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Unidad · {level?.title}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                  Unidad · {level?.title}
+                </p>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {level?.units.map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => update({ unitId: item.id, topicId: firstTopicId(config.levelId, item.id, skill) })}
+                      onClick={() =>
+                        update({
+                          unitId: item.id,
+                          topicId: firstTopicId(config.levelId, item.id, skill),
+                        })
+                      }
                       className={`${chip(config.unitId === item.id)} whitespace-nowrap`}
                     >
                       {item.title}
@@ -267,13 +373,25 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Tipo</p>
-                <div className="flex gap-1.5">
-                  {(["vocabulary", "grammar"] as const).map((item) => (
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                  Tipo
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SKILL_ORDER.filter((item) =>
+                    unit?.topics.some((topic) => topic.skill === item),
+                  ).map((item) => (
                     <button
                       key={item}
                       type="button"
-                      onClick={() => update({ topicId: firstTopicId(config.levelId, config.unitId, item) })}
+                      onClick={() =>
+                        update({
+                          topicId: firstTopicId(
+                            config.levelId,
+                            config.unitId,
+                            item,
+                          ),
+                        })
+                      }
                       className={chip(skill === item)}
                     >
                       {SKILL_LABELS[item]}
@@ -283,7 +401,9 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Tema</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                  Tema
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {unit?.topics
                     .filter((item) => item.skill === skill)
@@ -302,9 +422,13 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Dificultad</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                    Dificultad
+                  </p>
                   <div className="flex gap-1.5">
-                    {(Object.keys(DIFFICULTY_LABELS) as EnglishDifficulty[]).map((item) => (
+                    {(
+                      Object.keys(DIFFICULTY_LABELS) as EnglishDifficulty[]
+                    ).map((item) => (
                       <button
                         key={item}
                         type="button"
@@ -317,10 +441,17 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Nº de ejercicios</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">
+                    Nº de ejercicios
+                  </p>
                   <div className="flex gap-1.5">
                     {EXERCISE_COUNTS.map((item) => (
-                      <button key={item} type="button" onClick={() => update({ count: item })} className={chip(config.count === item)}>
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => update({ count: item })}
+                        className={chip(config.count === item)}
+                      >
                         {item}
                       </button>
                     ))}
@@ -329,15 +460,21 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
               </div>
 
               <p className="text-[11px] text-[#77736B]">
-                {config.difficulty === "baja" && "Baja: el alumno elige entre 3 opciones; se priorizan los contenidos más básicos."}
-                {config.difficulty === "media" && "Media: el alumno elige entre más opciones, con contenidos de todo el tema."}
-                {config.difficulty === "alta" && "Alta: el alumno escribe la respuesta; se priorizan los contenidos más difíciles."}
+                {config.difficulty === "baja" &&
+                  "Baja: el alumno elige entre 3 opciones; se priorizan los contenidos más básicos."}
+                {config.difficulty === "media" &&
+                  "Media: el alumno elige entre más opciones, con contenidos de todo el tema."}
+                {config.difficulty === "alta" &&
+                  "Alta: el alumno escribe la respuesta; se priorizan los contenidos más difíciles."}
                 {activity.available < config.count &&
                   ` Este tema tiene ${activity.available} ejercicios distintos, así que la tarea tendrá ${activity.exercises.length}.`}
               </p>
 
               <div className="space-y-1.5">
-                <label htmlFor="english-task-note" className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
+                <label
+                  htmlFor="english-task-note"
+                  className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block"
+                >
                   Nota para el alumno (opcional)
                 </label>
                 <input
@@ -361,14 +498,24 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                 <button
                   type="button"
                   onClick={() => void assign()}
-                  disabled={!student || assigning || activity.exercises.length === 0}
+                  disabled={
+                    !student || assigning || activity.exercises.length === 0
+                  }
                   className="flex-1 py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition flex items-center justify-center gap-1.5 disabled:opacity-40"
                 >
-                  <Send className="w-4 h-4" /> {assigning ? "Asignando…" : student ? `Asignar a ${student.name}` : "Selecciona un alumno"}
+                  <Send className="w-4 h-4" />{" "}
+                  {assigning
+                    ? "Asignando…"
+                    : student
+                      ? `Asignar a ${student.name}`
+                      : "Selecciona un alumno"}
                 </button>
               </div>
               {status && (
-                <p role="status" className="text-xs font-semibold text-[#806C50]">
+                <p
+                  role="status"
+                  className="text-xs font-semibold text-[#806C50]"
+                >
                   {status}
                 </p>
               )}
@@ -376,14 +523,23 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
 
             <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
               <div>
-                <h3 className="font-serif text-base text-[#292825] font-bold">Previsualización</h3>
+                <h3 className="font-serif text-base text-[#292825] font-bold">
+                  Previsualización
+                </h3>
                 <p className="text-xs text-[#77736B] mt-1">
-                  {activity.title} · {activity.exercises.length} ejercicios. Así lo verá el alumno; la respuesta correcta aparece marcada.
+                  {activity.title} · {activity.exercises.length} ejercicios. Así
+                  lo verá el alumno; la respuesta correcta aparece marcada.
                 </p>
               </div>
               <div className="space-y-3 max-h-[640px] overflow-y-auto pr-1">
                 {activity.exercises.map((exercise, index) => (
-                  <ExerciseCard key={exercise.id} exercise={exercise} index={index} total={activity.exercises.length} showSolution />
+                  <ExerciseCard
+                    key={exercise.id}
+                    exercise={exercise}
+                    index={index}
+                    total={activity.exercises.length}
+                    showSolution
+                  />
                 ))}
               </div>
             </div>
@@ -391,7 +547,9 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
 
           <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="font-serif text-base text-[#292825] font-bold">Tareas de inglés {student ? `de ${student.name}` : ""}</h3>
+              <h3 className="font-serif text-base text-[#292825] font-bold">
+                Tareas de inglés {student ? `de ${student.name}` : ""}
+              </h3>
               {student && (
                 <button
                   type="button"
@@ -402,9 +560,13 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                 </button>
               )}
             </div>
-            {tasksLoading && <p className="text-xs text-[#77736B]">Cargando tareas…</p>}
+            {tasksLoading && (
+              <p className="text-xs text-[#77736B]">Cargando tareas…</p>
+            )}
             {!tasksLoading && tasks.length === 0 && (
-              <p className="text-xs text-[#77736B]">Este alumno todavía no tiene tareas de inglés.</p>
+              <p className="text-xs text-[#77736B]">
+                Este alumno todavía no tiene tareas de inglés.
+              </p>
             )}
             <div className="space-y-2">
               {tasks.map((item) => {
@@ -413,13 +575,30 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                 const done = item.progress?.status === "completed";
                 const expanded = expandedTaskId === item.task.id;
                 return (
-                  <div key={item.task.id} className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5]">
+                  <div
+                    key={item.task.id}
+                    className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5]"
+                  >
                     <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <button type="button" onClick={() => setExpandedTaskId(expanded ? null : item.task.id)} className="text-left">
-                        <span className="block text-sm font-semibold text-[#292825]">{item.task.title}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedTaskId(expanded ? null : item.task.id)
+                        }
+                        className="text-left"
+                      >
+                        <span className="block text-sm font-semibold text-[#292825]">
+                          {item.task.title}
+                        </span>
                         <span className="block text-[11px] text-[#77736B] mt-0.5">
-                          Asignada el {new Date(item.task.assignedAt).toLocaleDateString("es-ES")} · {item.task.exercises.length} ejercicios
-                          · Dificultad {DIFFICULTY_LABELS[item.task.config.difficulty].toLowerCase()}
+                          Asignada el{" "}
+                          {new Date(item.task.assignedAt).toLocaleDateString(
+                            "es-ES",
+                          )}{" "}
+                          · {item.task.exercises.length} ejercicios · Dificultad{" "}
+                          {DIFFICULTY_LABELS[
+                            item.task.config.difficulty
+                          ].toLowerCase()}
                           {done && item.progress?.completedAt
                             ? ` · Completada el ${new Date(item.progress.completedAt).toLocaleDateString("es-ES")}`
                             : ""}
@@ -428,7 +607,9 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                       <div className="flex items-center gap-2">
                         <span
                           className={`text-[11px] font-semibold px-3 py-1 rounded-full border ${
-                            done ? "text-[#5F6B4C] bg-[#EEF2E6] border-[#DDE3D4]" : "text-[#806C50] bg-[#F3EEE5] border-[#E4D8C5]"
+                            done
+                              ? "text-[#5F6B4C] bg-[#EEF2E6] border-[#DDE3D4]"
+                              : "text-[#806C50] bg-[#F3EEE5] border-[#E4D8C5]"
                           }`}
                         >
                           {done
@@ -452,7 +633,8 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                         {done && suggestFollowUps(item).length > 0 && (
                           <div className="pb-3 mb-1 border-b border-[#EEEAE3] space-y-2">
                             <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5" /> Siguiente tarea según el resultado
+                              <Sparkles className="w-3.5 h-3.5" /> Siguiente
+                              tarea según el resultado
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {suggestFollowUps(item).map((suggestion) => (
@@ -463,14 +645,22 @@ export default function MentorEnglishTasks({ student }: MentorEnglishTasksProps)
                                   title={suggestion.reason}
                                   className="text-left px-3 py-2 rounded-xl border border-[#E7E3DC] bg-white hover:bg-[#F3F0EA] transition"
                                 >
-                                  <span className="block text-xs font-semibold text-[#292825]">{suggestion.label}</span>
-                                  <span className="block text-[11px] text-[#77736B]">{suggestion.reason}</span>
+                                  <span className="block text-xs font-semibold text-[#292825]">
+                                    {suggestion.label}
+                                  </span>
+                                  <span className="block text-[11px] text-[#77736B]">
+                                    {suggestion.reason}
+                                  </span>
                                 </button>
                               ))}
                             </div>
                           </div>
                         )}
-                        {item.task.note && <p className="text-xs text-[#6D6962]">Nota enviada: {item.task.note}</p>}
+                        {item.task.note && (
+                          <p className="text-xs text-[#6D6962]">
+                            Nota enviada: {item.task.note}
+                          </p>
+                        )}
                         {item.task.exercises.map((exercise, index) => {
                           const given = answers[exercise.id];
                           const correct = isCorrect(exercise, given);

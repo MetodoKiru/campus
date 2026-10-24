@@ -1,5 +1,5 @@
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
-import { EnglishSkill, findTopic, findUnit, SKILL_LABELS } from "@/lib/english/curriculum";
+import { EnglishSkill, findTopic, findUnit, SKILL_LABELS, SKILL_ORDER } from "@/lib/english/curriculum";
 import { isCorrect } from "@/lib/english/generator";
 import { supabase } from "@/lib/supabase";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
@@ -39,7 +39,8 @@ export interface EnglishReportData {
   previousAverageGrade: number | null;
   accuracy: number | null;
   answered: number;
-  bySkill: Record<EnglishSkill, { correct: number; answered: number }>;
+  /** Older saved reports only have vocabulary and grammar. */
+  bySkill: Partial<Record<EnglishSkill, { correct: number; answered: number }>>;
   topics: TopicStat[];
   mistakes: { prompt: string; given: string; answer: string }[];
   summary: string[];
@@ -99,7 +100,9 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
   };
   const previousAverageGrade = period.index > 0 ? averageGrade(completedIn(items, previousPeriod)) : null;
 
-  const bySkill: EnglishReportData["bySkill"] = { vocabulary: { correct: 0, answered: 0 }, grammar: { correct: 0, answered: 0 } };
+  const bySkill: Record<EnglishSkill, { correct: number; answered: number }> = Object.fromEntries(
+    SKILL_ORDER.map((skill) => [skill, { correct: 0, answered: 0 }]),
+  ) as Record<EnglishSkill, { correct: number; answered: number }>;
   const topics = new Map<string, TopicStat>();
   const mistakes: EnglishReportData["mistakes"] = [];
   let correctTotal = 0;
@@ -159,6 +162,14 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
   return report;
 }
 
+/** Skills with at least 5 answers, best accuracy first. */
+export function skillRanking(report: EnglishReportData): { skill: EnglishSkill; ratio: number; answered: number }[] {
+  return SKILL_ORDER.flatMap((skill) => {
+    const stat = report.bySkill[skill];
+    return stat && stat.answered >= 5 ? [{ skill, ratio: stat.correct / stat.answered, answered: stat.answered }] : [];
+  }).sort((a, b) => b.ratio - a.ratio);
+}
+
 function summarize(report: EnglishReportData): string[] {
   const lines: string[] = [];
   if (!report.assigned && !report.completed) {
@@ -184,15 +195,13 @@ function summarize(report: EnglishReportData): string[] {
   const weak = report.topics.filter((topic) => topic.answered >= 5 && topic.correct / topic.answered < 0.6);
   if (strong.length) lines.push(`Domina: ${strong.map((topic) => topic.title).join(", ")}.`);
   if (weak.length) lines.push(`Necesita reforzar: ${weak.map((topic) => topic.title).join(", ")}.`);
-  const { vocabulary, grammar } = report.bySkill;
-  if (vocabulary.answered >= 5 && grammar.answered >= 5) {
-    const v = vocabulary.correct / vocabulary.answered;
-    const g = grammar.correct / grammar.answered;
-    if (Math.abs(v - g) >= 0.15) {
+  const practised = skillRanking(report);
+  if (practised.length >= 2) {
+    const best = practised[0];
+    const worst = practised[practised.length - 1];
+    if (best.ratio - worst.ratio >= 0.15) {
       lines.push(
-        `Le va mejor en ${v > g ? SKILL_LABELS.vocabulary : SKILL_LABELS.grammar} (${percent(Math.max(v, g))} % de aciertos) que en ${
-          v > g ? SKILL_LABELS.grammar : SKILL_LABELS.vocabulary
-        } (${percent(Math.min(v, g))} %).`,
+        `Le va mejor en ${SKILL_LABELS[best.skill]} (${percent(best.ratio)} % de aciertos) que en ${SKILL_LABELS[worst.skill]} (${percent(worst.ratio)} %).`,
       );
     }
   }

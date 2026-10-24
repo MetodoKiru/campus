@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Printer, Save } from "lucide-react";
-import { SKILL_LABELS } from "@/lib/english/curriculum";
+import { SKILL_LABELS, SKILL_ORDER } from "@/lib/english/curriculum";
 import {
   buildEnglishReport,
   EnglishReportData,
@@ -11,6 +11,7 @@ import {
   reportPeriods,
   SavedEnglishReport,
   saveEnglishReport,
+  skillRanking,
 } from "@/lib/english/report";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
 
@@ -31,6 +32,12 @@ function printReport(studentName: string, report: EnglishReportData, comment: st
   const rows = report.topics
     .map((topic) => `<tr><td>${escapeHtml(topic.title)}</td><td>${topic.tasks}</td><td>${pct(topic.correct, topic.answered)}</td></tr>`)
     .join("");
+  const skills = SKILL_ORDER.filter((skill) => report.bySkill[skill]?.answered)
+    .map((skill) => {
+      const stat = report.bySkill[skill] ?? { correct: 0, answered: 0 };
+      return `<tr><td>${SKILL_LABELS[skill]}</td><td>${stat.answered}</td><td>${pct(stat.correct, stat.answered)}</td></tr>`;
+    })
+    .join("");
   const mistakes = report.mistakes
     .map((m) => `<li>${escapeHtml(m.prompt)} — respondió «${escapeHtml(m.given)}», correcta: «${escapeHtml(m.answer)}»</li>`)
     .join("");
@@ -44,6 +51,7 @@ h1{font-family:"DM Serif Display",Georgia,serif;font-size:24px;margin:0}h2{font-
 <div class="tile">Aciertos<b>${report.accuracy === null ? "—" : Math.round(report.accuracy * 100) + " %"}</b></div><div class="tile">Ejercicios<b>${report.answered}</b></div></div>
 <h2>Resumen</h2><ul>${report.summary.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
 ${comment.trim() ? `<h2>Comentario del mentor</h2><p>${escapeHtml(comment.trim()).replace(/\n/g, "<br>")}</p>` : ""}
+${skills ? `<h2>Por destreza</h2><table><tr><th>Destreza</th><th>Respuestas</th><th>Aciertos</th></tr>${skills}</table>` : ""}
 ${rows ? `<h2>Por tema</h2><table><tr><th>Tema</th><th>Tareas</th><th>Aciertos</th></tr>${rows}</table>` : ""}
 ${mistakes ? `<h2>Errores para repasar</h2><ul>${mistakes}</ul>` : ""}</body></html>`);
   win.document.close();
@@ -105,6 +113,7 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
     }
   };
 
+  const ranking = skillRanking(report);
   const tiles = [
     { label: "Tareas completadas", value: `${report.completed}`, hint: `de ${report.assigned} asignadas en el periodo` },
     {
@@ -117,9 +126,12 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
     },
     { label: "Aciertos", value: report.accuracy === null ? "—" : `${Math.round(report.accuracy * 100)}\u00a0%`, hint: `${report.answered} ejercicios respondidos` },
     {
-      label: "Por tipo",
-      value: `${pct(report.bySkill.vocabulary.correct, report.bySkill.vocabulary.answered)} / ${pct(report.bySkill.grammar.correct, report.bySkill.grammar.answered)}`,
-      hint: `${SKILL_LABELS.vocabulary} / ${SKILL_LABELS.grammar}`,
+      label: "Mejor destreza",
+      value: ranking.length ? `${SKILL_LABELS[ranking[0].skill]} ${Math.round(ranking[0].ratio * 100)}\u00a0%` : "—",
+      hint:
+        ranking.length >= 2
+          ? `A reforzar: ${SKILL_LABELS[ranking[ranking.length - 1].skill]} ${Math.round(ranking[ranking.length - 1].ratio * 100)}\u00a0%`
+          : "Hacen falta 5 respuestas por destreza",
     },
   ];
 
@@ -184,6 +196,29 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
           ))}
         </ul>
       </div>
+
+      {SKILL_ORDER.some((skill) => report.bySkill[skill]?.answered) && (
+        <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Aciertos por destreza</h4>
+          <div className="space-y-2.5">
+            {SKILL_ORDER.filter((skill) => report.bySkill[skill]?.answered).map((skill) => {
+              const stat = report.bySkill[skill] ?? { correct: 0, answered: 0 };
+              const ratio = stat.correct / Math.max(1, stat.answered);
+              return (
+                <div key={skill} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,14rem)_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
+                  <span className="text-[#45433F]">{SKILL_LABELS[skill]}</span>
+                  <div className="hidden sm:block h-2 rounded-full bg-[#EEECE7] overflow-hidden" aria-hidden="true">
+                    <div className="h-full rounded-full bg-[#8A9870]" style={{ width: `${Math.round(ratio * 100)}%` }} />
+                  </div>
+                  <span className="text-[#45433F] font-semibold tabular-nums">
+                    {Math.round(ratio * 100)}&nbsp;% <span className="font-normal text-[#8D887F]">· {stat.answered} respuestas</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {report.topics.length > 0 && (
         <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-3">

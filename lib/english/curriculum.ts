@@ -1,15 +1,21 @@
+import { A1_READING } from "@/lib/english/a1-reading";
+
 // Course structure for the English engine. Units and topics follow Gateway (Macmillan)
 // A1 as described in "Motor funcionamiento inglés" (Drive › 06 Tecnología › MVP).
 // Each topic points at a content bank in a1-content.ts.
 
 export type EnglishLevelId = "A1" | "A2" | "B1" | "B2" | "C1";
-export type EnglishSkill = "vocabulary" | "grammar";
+export type EnglishSkill = "vocabulary" | "grammar" | "reading" | "listening" | "writing" | "speaking";
 
 export interface EnglishTopic {
   id: string;
   title: string;
   skill: EnglishSkill;
-  /** Key of the bank in A1_VOCABULARY or A1_GRAMMAR. */
+  /**
+   * Vocabulary/grammar: key of the bank in A1_VOCABULARY or A1_GRAMMAR.
+   * Reading: id of the text in A1_READING. Listening, writing, speaking: the unit id,
+   * since they practise that unit's vocabulary and grammar.
+   */
   bank: string;
   /** Instruction shown when the student has to type the answer. */
   writeInstruction?: string;
@@ -31,7 +37,13 @@ export interface EnglishLevel {
 export const SKILL_LABELS: Record<EnglishSkill, string> = {
   vocabulary: "Vocabulary",
   grammar: "Grammar",
+  reading: "Reading",
+  listening: "Listening",
+  writing: "Writing",
+  speaking: "Speaking",
 };
+
+export const SKILL_ORDER: EnglishSkill[] = ["vocabulary", "grammar", "reading", "listening", "writing", "speaking"];
 
 const vocab = (id: string, title: string, bank = id): EnglishTopic => ({ id, title, skill: "vocabulary", bank });
 const grammar = (id: string, title: string, bank = id, writeInstruction?: string): EnglishTopic => ({
@@ -42,7 +54,7 @@ const grammar = (id: string, title: string, bank = id, writeInstruction?: string
   writeInstruction,
 });
 
-const A1_UNITS: EnglishUnit[] = [
+const A1_UNIT_LIST: EnglishUnit[] = [
   {
     id: "starter",
     title: "Starter",
@@ -158,6 +170,23 @@ const A1_UNITS: EnglishUnit[] = [
     ],
   },
 ];
+
+// Every unit also gets Reading (one topic per text), Listening, Writing and Speaking.
+const A1_UNITS: EnglishUnit[] = A1_UNIT_LIST.map((unit) => ({
+  ...unit,
+  topics: [
+    ...unit.topics,
+    ...A1_READING.filter((text) => text.unitId === unit.id).map((text) => ({
+      id: `reading_${text.id}`,
+      title: text.title,
+      skill: "reading" as const,
+      bank: text.id,
+    })),
+    { id: `listening_${unit.id}`, title: "Listening practice", skill: "listening", bank: unit.id },
+    { id: `writing_${unit.id}`, title: "Sentence building", skill: "writing", bank: unit.id },
+    { id: `speaking_${unit.id}`, title: "Read aloud", skill: "speaking", bank: unit.id },
+  ],
+}));
 
 export const ENGLISH_LEVELS: EnglishLevel[] = [
   { id: "A1", title: "Gateway A1", available: true, units: A1_UNITS },
