@@ -90,3 +90,13 @@ Aprovecha los cambios de Cristina como referencia de flujo y diseño, no como un
 
 ## Entrega de cada sesión
 Actualizar este documento con SHA, enlaces de CI, pruebas y evidencia. Separar claramente **hecho**, **probado**, **pendiente** y **bloqueado**. Priorizar trabajo técnico de alto impacto y no repetir tareas completadas.
+
+## Actualización de trabajo — 24 de octubre de 2026, sesión posterior
+
+- Se corrigió el mensaje del validador de Inglés para que el rango consecutivo de IDs indique 1–120, no 1–100.
+- Se amplió `scripts/test-active-admin-rls-migration.sh` para aplicar también las migraciones de rol formador y candidaturas en PostgreSQL desechable y comprobar RLS de lectura: formador activo y admin activo deben ver la candidatura; formador inactivo y mentor no deben verla.
+- Esta nueva ampliación del test **todavía no está verificada por CI**. El conector no devuelve ejecuciones de GitHub Actions para el head actual; los checks visibles de Vercel fallan por `build-rate-limit`, lo cual no equivale a un fallo de build.
+- En Supabase producción, el recuento agregado de perfiles muestra 1 admin activo, 3 alumnos activos, 2 mentores activos y 2 padres activos; no hay cuentas formador. Las tablas `kiru_candidates`, `candidatos` y `formadores` no existen en producción. Esto confirma que el nuevo rol y su flujo siguen siendo solo una preparación de rama, no una funcionalidad activa.
+- La tabla `storage.objects` tiene 0 objetos en el momento de la consulta. Los tres errores de autenticación PostgreSQL siguen siendo los mismos del 23 de octubre; no se identificó su origen.
+- La revisión de Cristina se amplió con feedback sobre el último cambio visible: retirar el alumno ficticio Álvaro es positivo; el siguiente paso técnico es reemplazar la lista estática de Carmen/asignaturas por datos dinámicos de Supabase.
+- La rama continúa sin fusionar; no se aplicaron migraciones nuevas ni se hicieron cambios destructivos en producción.
