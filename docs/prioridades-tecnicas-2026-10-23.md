@@ -29,3 +29,5 @@ La prioridad no es terminar primero el rol formador. El orden de trabajo es: **s
 - Un workflow anterior informó 5 vulnerabilidades (4 altas y 1 crítica). En el CI actual, `npm ci` terminó con **0 vulnerabilidades** tras actualizar el lockfile; confirmar que el resultado se mantiene en los siguientes runs. El paquete `eslint` muestra un aviso de versión obsoleta, aunque el build pasó.
 - Las migraciones de formador, candidaturas, asignación atómica de mentor/tutor y endurecimiento de RLS están versionadas en la rama de trabajo, no aplicadas a producción.
 - No se han borrado cuentas reales, creado relaciones ficticias ni importado candidaturas reales para probar.
+
+- **Dependencias (revisión 24-10):** una nueva auditoría detectó una alerta alta de Zod (`GHSA-mrhx-c7xc-m3w5`) en la versión transitiva 4.4.3. Se actualizó el lockfile a Zod 4.6.7 mediante `npm audit fix --package-lock-only`; falta confirmar el nuevo `npm audit --audit-level=high` y build sobre el commit actualizado.
