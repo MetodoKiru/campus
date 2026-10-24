@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -16,10 +16,10 @@ import {
   Send,
   Award
 } from "lucide-react";
-import { ENGLISH_A1_DATABASE, EnglishQuestion, EnglishConfig } from "@/lib/english-engine";
+import { ENGLISH_A1_DATABASE, EnglishConfig } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
-import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
+import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 
 const ALL_SUBJECTS = [
   { id: "geo", name: "Geografía" },
@@ -30,23 +30,6 @@ const ALL_SUBJECTS = [
   { id: "qui", name: "Química" },
   { id: "bio", name: "Biología" }
 ];
-
-interface Flashcard {
-  id: string;
-  category: string;
-  term: string;
-  definition: string;
-  targetStudents?: string[];
-}
-
-interface MentorSubjectMessage {
-  id: string;
-  studentId: string;
-  subjectId: string;
-  text: string;
-  link?: string;
-  date: string;
-}
 
 export default function MentorPage() {
   const router = useRouter();
@@ -94,7 +77,6 @@ export default function MentorPage() {
     difficulty: "todas",
     questionCount: 20
   });
-  const [previewQuestions, setPreviewQuestions] = useState<EnglishQuestion[]>([]);
 
   const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
 
@@ -106,21 +88,21 @@ export default function MentorPage() {
         if (!user) return;
         const { data: links, error: linkError } = await supabase.from("student_mentors").select("student_id").eq("mentor_id", user.id);
         if (linkError) throw linkError;
-        const ids = Array.from(new Set((links || []).map((link: any) => link.student_id)));
+        const ids = Array.from(new Set((links || []).map((link) => link.student_id)));
         if (!ids.length) { if (active) setStudents([]); return; }
         const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,full_name,username").in("id", ids);
         if (profileError) throw profileError;
         if (!active) return;
-        const assigned = (profiles || []).filter((p: any) => p.username).map((p: any) => ({ id: p.id, username: p.username, name: p.full_name }));
+        const assigned = (profiles || []).flatMap((p) => (p.username ? [{ id: p.id, username: p.username, name: p.full_name }] : []));
         setStudents(assigned);
-        if (assigned.length && !selectedStudent) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); setEnglishConfig((current) => ({ ...current, studentUsername: assigned[0].username })); }
-        const [activities, settings, progress] = await Promise.all([getKiruRecords<any>("activity"), getKiruRecords<any>("activity"), getKiruRecords<any>("progress")]);
+        if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); setEnglishConfig((current) => ({ ...current, studentUsername: assigned[0].username })); }
+        const [activities, settings, progress] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
         if (!active) return;
         const subjects: Record<string, string[]> = {};
         activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
         setStudentSubjects(subjects);
         const cfg = settings.map((r) => r.data).find((d) => d?.kind === "english_config" && assigned.some((s) => s.id === d.studentId));
-        if (cfg) { const student = assigned.find((s) => s.id === cfg.studentId); setEnglishConfig({ ...cfg.config, studentUsername: student?.username || "" }); }
+        if (cfg) { const student = assigned.find((s) => s.id === cfg.studentId); setEnglishConfig({ ...(cfg.config as unknown as EnglishConfig), studentUsername: student?.username || "" }); }
         const sc = progress.map((r) => r.data).find((d) => d?.module === "skillcoins" && assigned.some((s) => s.id === d.studentId));
         if (sc?.scores) setStudentSC({ estudios: Number(sc.scores.estudios) || 0, compromiso: Number(sc.scores.compromiso) || 0, organizacion: Number(sc.scores.organizacion) || 0, bienestar: Number(sc.scores.bienestar) || 0 });
       } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
@@ -129,7 +111,7 @@ export default function MentorPage() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
+  const previewQuestions = useMemo(() => {
     let pool = ENGLISH_A1_DATABASE;
 
     if (englishConfig.selectedUnits.length > 0) {
@@ -144,7 +126,7 @@ export default function MentorPage() {
       pool = pool.filter((q) => q.difficulty === englishConfig.difficulty);
     }
 
-    setPreviewQuestions(pool.slice(0, englishConfig.questionCount));
+    return pool.slice(0, englishConfig.questionCount);
   }, [englishConfig]);
 
   const handleToggleSubject = async (subjectId: string) => {
@@ -536,7 +518,7 @@ export default function MentorPage() {
                     <button
                       type="button"
                       key={d.id}
-                      onClick={() => setEnglishConfig({ ...englishConfig, difficulty: d.id as any })}
+                      onClick={() => setEnglishConfig({ ...englishConfig, difficulty: d.id as EnglishConfig["difficulty"] })}
                       className={`py-2 rounded-xl font-bold transition border ${
                         englishConfig.difficulty === d.id
                           ? "bg-[#242321] text-white border-slate-900"
