@@ -48,6 +48,7 @@ jobs:
           'app/api/formador/candidatos/[id]/route.ts'
           'app/api/formador/candidatos/[id]/portal-link/route.ts'
           app/api/formador/perfil/route.ts
+          app/api/admin/users/route.ts
           'app/api/mentores/candidatura/[token]/route.ts'
           lib/server/kiru-candidate-auth.ts
           lib/kiru-records.ts
