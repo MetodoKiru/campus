@@ -1,62 +1,210 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Printer, Save } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Printer, RotateCcw, Save } from "lucide-react";
 import { SKILL_LABELS, SKILL_ORDER } from "@/lib/english/curriculum";
 import {
   buildEnglishReport,
+  draftAssessment,
   EnglishReportData,
   formatPeriod,
   loadEnglishReports,
   reportPeriods,
   SavedEnglishReport,
   saveEnglishReport,
-  skillRanking,
 } from "@/lib/english/report";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
+import { supabase } from "@/lib/supabase";
 
 interface MentorEnglishReportProps {
   student: { id: string; name: string; username: string };
   tasks: EnglishTaskWithProgress[];
 }
 
-const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] as string);
+const decimal = (value: number) => value.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const percentOf = (correct: number, answered: number) => Math.round((correct / Math.max(1, answered)) * 100);
 
-// Non-breaking space so "60 %" never wraps between the number and the sign.
-const pct = (correct: number, answered: number) => (answered ? `${Math.round((correct / answered) * 100)}\u00a0%` : "—");
+interface DocumentProps {
+  studentName: string;
+  mentorName: string;
+  report: EnglishReportData;
+  /** On screen the assessment is a text area; in the printed copy it is plain text. */
+  assessment: React.ReactNode;
+  issuedOn: string;
+}
 
-function printReport(studentName: string, report: EnglishReportData, comment: string) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h4 className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8D887F] mb-3">{children}</h4>;
+}
+
+function Bar({ ratio }: { ratio: number }) {
+  return (
+    <div className="h-1.5 rounded-full bg-[#EFECE6] overflow-hidden print-exact" aria-hidden="true">
+      <div className="h-full rounded-full bg-[#2D5A43] print-exact" style={{ width: `${Math.round(ratio * 100)}%` }} />
+    </div>
+  );
+}
+
+/** The report as families see it: the same layout on screen and in the PDF. */
+function ReportDocument({ studentName, mentorName, report, assessment, issuedOn }: DocumentProps) {
+  const skills = SKILL_ORDER.filter((skill) => report.bySkill[skill]?.answered);
+  const topics = [...report.topics].sort((a, b) => b.correct / Math.max(1, b.answered) - a.correct / Math.max(1, a.answered));
+  const diff = report.averageGrade !== null && report.previousAverageGrade !== null ? report.averageGrade - report.previousAverageGrade : null;
+  const figures = [
+    {
+      label: "Tareas completadas",
+      value: String(report.completed),
+      note: report.pending ? `${report.pending} sin terminar` : report.completed ? "Todas terminadas" : "",
+    },
+    {
+      label: "Nota media",
+      value: report.averageGrade === null ? "—" : decimal(report.averageGrade),
+      note: diff === null ? "sobre 10" : Math.abs(diff) < 0.05 ? "igual que el periodo anterior" : `${diff > 0 ? "+" : "−"}${decimal(Math.abs(diff))} respecto al periodo anterior`,
+    },
+    {
+      label: "Respuestas correctas",
+      value: report.accuracy === null ? "—" : `${Math.round(report.accuracy * 100)} %`,
+      note: `de ${report.answered} ejercicios`,
+    },
+  ];
+
+  return (
+    <article className="bg-white text-[#2D312E] rounded-[28px] border border-[#EAE7E1] px-6 py-8 sm:px-12 sm:py-12 print:border-0 print:rounded-none print:p-0">
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-[#EAE7E1]">
+        <div>
+          <p className="font-serif text-sm text-[#2D5A43] tracking-wide">Método Kiru</p>
+          <h3 className="font-serif text-3xl sm:text-[34px] leading-tight text-[#292825] mt-2">{studentName}</h3>
+          <p className="text-sm text-[#737873] mt-1">Informe de inglés</p>
+        </div>
+        <dl className="text-xs text-[#737873] sm:text-right space-y-0.5">
+          <div>
+            <dt className="inline">Periodo: </dt>
+            <dd className="inline text-[#45433F]">{formatPeriod(report.periodStart, report.periodEnd)}</dd>
+          </div>
+          {report.levels && report.levels.length > 0 && (
+            <div>
+              <dt className="inline">Nivel: </dt>
+              <dd className="inline text-[#45433F]">{report.levels.map((level) => `Gateway ${level}`).join(", ")}</dd>
+            </div>
+          )}
+          {mentorName && (
+            <div>
+              <dt className="inline">Mentoría: </dt>
+              <dd className="inline text-[#45433F]">{mentorName}</dd>
+            </div>
+          )}
+        </dl>
+      </header>
+
+      <section className="grid grid-cols-3 divide-x divide-[#EAE7E1] py-6 border-b border-[#EAE7E1]">
+        {figures.map((figure) => (
+          <div key={figure.label} className="px-2 sm:px-5 first:pl-0 last:pr-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8D887F]">{figure.label}</p>
+            <p className="font-serif text-2xl sm:text-4xl text-[#292825] mt-2 tabular-nums">{figure.value}</p>
+            {figure.note && <p className="text-[11px] text-[#737873] mt-1 leading-snug">{figure.note}</p>}
+          </div>
+        ))}
+      </section>
+
+      <section className="py-7 border-b border-[#EAE7E1]">
+        <SectionTitle>Valoración</SectionTitle>
+        {assessment}
+      </section>
+
+      {skills.length > 0 && (
+        <section className="py-7 border-b border-[#EAE7E1] break-inside-avoid">
+          <SectionTitle>Por destrezas</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4">
+            {skills.map((skill) => {
+              const stat = report.bySkill[skill] ?? { correct: 0, answered: 0 };
+              return (
+                <div key={skill} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="text-[#292825]">{SKILL_LABELS[skill]}</span>
+                    <span className="tabular-nums text-[#45433F]">{percentOf(stat.correct, stat.answered)}&nbsp;%</span>
+                  </div>
+                  <Bar ratio={stat.correct / Math.max(1, stat.answered)} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {topics.length > 0 && (
+        <section className="py-7 border-b border-[#EAE7E1] break-inside-avoid">
+          <SectionTitle>Temas trabajados</SectionTitle>
+          <ul className="divide-y divide-[#F1EEE8]">
+            {topics.map((topic) => (
+              <li key={topic.key} className="flex items-baseline justify-between gap-4 py-2 text-sm">
+                <span className="text-[#45433F] min-w-0">
+                  {topic.title}
+                  <span className="text-[#A39E95]"> · {SKILL_LABELS[topic.skill]}</span>
+                </span>
+                <span className="tabular-nums text-[#292825] shrink-0">{percentOf(topic.correct, topic.answered)}&nbsp;%</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {report.mistakes.length > 0 && (
+        <section className="py-7 border-b border-[#EAE7E1] break-inside-avoid">
+          <SectionTitle>Para repasar en casa</SectionTitle>
+          <ul className="space-y-2.5">
+            {report.mistakes.slice(-6).map((mistake, index) => (
+              <li key={`${mistake.prompt}-${index}`} className="text-sm leading-snug">
+                <span className="text-[#737873]">{mistake.prompt}</span>
+                <br />
+                <span className="font-semibold text-[#2D5A43]">{mistake.answer}</span>
+                <span className="text-[#A39E95]"> (respondió «{mistake.given}»)</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <footer className="pt-6 flex items-end justify-between gap-4 text-xs text-[#737873]">
+        <span>{issuedOn}</span>
+        {mentorName && <span className="font-serif text-base text-[#292825]">{mentorName}</span>}
+      </footer>
+    </article>
+  );
+}
+
+function Paragraphs({ text }: { text: string }) {
+  return (
+    <div className="space-y-3 text-[15px] leading-relaxed text-[#2D312E]">
+      {text
+        .split(/\n\s*\n/)
+        .filter((paragraph) => paragraph.trim())
+        .map((paragraph, index) => (
+          <p key={index} className="whitespace-pre-line">
+            {paragraph.trim()}
+          </p>
+        ))}
+    </div>
+  );
+}
+
+// Prints the hidden copy of the document in a new window with the app's own styles.
+function printDocument(node: HTMLElement, title: string) {
   const win = window.open("", "_blank");
   if (!win) return;
-  const rows = report.topics
-    .map((topic) => `<tr><td>${escapeHtml(topic.title)}</td><td>${topic.tasks}</td><td>${pct(topic.correct, topic.answered)}</td></tr>`)
+  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((element) => element.outerHTML)
     .join("");
-  const skills = SKILL_ORDER.filter((skill) => report.bySkill[skill]?.answered)
-    .map((skill) => {
-      const stat = report.bySkill[skill] ?? { correct: 0, answered: 0 };
-      return `<tr><td>${SKILL_LABELS[skill]}</td><td>${stat.answered}</td><td>${pct(stat.correct, stat.answered)}</td></tr>`;
-    })
-    .join("");
-  const mistakes = report.mistakes
-    .map((m) => `<li>${escapeHtml(m.prompt)} — respondió «${escapeHtml(m.given)}», correcta: «${escapeHtml(m.answer)}»</li>`)
-    .join("");
-  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe de inglés · ${escapeHtml(studentName)}</title>
-<style>body{font-family:Manrope,system-ui,sans-serif;color:#292825;max-width:720px;margin:32px auto;padding:0 16px;font-size:13px;line-height:1.5}
-h1{font-family:"DM Serif Display",Georgia,serif;font-size:24px;margin:0}h2{font-size:14px;margin:24px 0 8px}
-.muted{color:#77736B}.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}.tile{border:1px solid #E7E3DC;border-radius:12px;padding:10px}
-.tile b{display:block;font-size:18px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid #EEEAE3}</style></head><body>
-<p class="muted">Método Kiru · Informe de inglés</p><h1>${escapeHtml(studentName)}</h1><p class="muted">Periodo ${report.periodIndex + 1}: ${escapeHtml(formatPeriod(report.periodStart, report.periodEnd))}</p>
-<div class="tiles"><div class="tile">Tareas completadas<b>${report.completed}/${report.assigned}</b></div><div class="tile">Nota media<b>${report.averageGrade === null ? "—" : report.averageGrade.toFixed(1) + "/10"}</b></div>
-<div class="tile">Aciertos<b>${report.accuracy === null ? "—" : Math.round(report.accuracy * 100) + " %"}</b></div><div class="tile">Ejercicios<b>${report.answered}</b></div></div>
-<h2>Resumen</h2><ul>${report.summary.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
-${comment.trim() ? `<h2>Comentario del mentor</h2><p>${escapeHtml(comment.trim()).replace(/\n/g, "<br>")}</p>` : ""}
-${skills ? `<h2>Por destreza</h2><table><tr><th>Destreza</th><th>Respuestas</th><th>Aciertos</th></tr>${skills}</table>` : ""}
-${rows ? `<h2>Por tema</h2><table><tr><th>Tema</th><th>Tareas</th><th>Aciertos</th></tr>${rows}</table>` : ""}
-${mistakes ? `<h2>Errores para repasar</h2><ul>${mistakes}</ul>` : ""}</body></html>`);
+  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><base href="${window.location.origin}/"><title>${title.replace(/</g, "&lt;")}</title>${styles}
+<style>@page{size:A4;margin:18mm 16mm}body{background:#fff!important;margin:0}main{max-width:720px;margin:0 auto;padding:24px}
+.print-exact{-webkit-print-color-adjust:exact;print-color-adjust:exact}@media print{main{padding:0}}</style></head>
+<body><main>${node.innerHTML}</main></body></html>`);
   win.document.close();
-  win.focus();
-  win.print();
+  const links = Array.from(win.document.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+  const loaded = links.map((link) => new Promise((resolve) => (link.sheet ? resolve(null) : ((link.onload = resolve), (link.onerror = resolve)))));
+  void Promise.race([Promise.all(loaded), new Promise((resolve) => setTimeout(resolve, 2500))]).then(() => {
+    win.focus();
+    win.print();
+  });
 }
 
 export default function MentorEnglishReport({ student, tasks }: MentorEnglishReportProps) {
@@ -64,8 +212,11 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
   const [selectedStart, setSelectedStart] = useState<string | null>(null);
   const [liveStarts, setLiveStarts] = useState<string[]>([]);
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [mentorName, setMentorName] = useState("");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+  const [openedAt] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
@@ -80,6 +231,21 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
       active = false;
     };
   }, [student.id]);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth
+      .getUser()
+      .then(async ({ data }) => {
+        if (!data.user) return;
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle();
+        if (active && profile?.full_name) setMentorName(profile.full_name);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const savedReports = loadedReports?.studentId === student.id ? loadedReports.items : [];
   const periods = reportPeriods(tasks);
@@ -96,13 +262,21 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
   // A saved report shows the figures as they were when it was saved, unless the mentor asks to refresh them.
   const showLive = !saved || liveStarts.includes(period.start);
   const report = showLive ? buildEnglishReport(tasks, period) : saved.report;
-  const comment = comments[period.start] ?? saved?.comment ?? "";
+  const draft = draftAssessment(report, student.name);
+  // Reports saved before the assessment draft existed fall back to their summary lines.
+  const savedText = saved ? saved.comment || saved.report.summary.join(" ") : undefined;
+  const assessment = comments[period.start] ?? savedText ?? draft;
+  const issuedOn = new Date(saved && !showLive ? saved.updatedAt : openedAt).toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const save = async () => {
     setSaving(true);
     setStatus("");
     try {
-      const result = await saveEnglishReport(report, student.id, comment, saved);
+      const result = await saveEnglishReport(report, student.id, assessment, saved);
       setLoadedReports({ studentId: student.id, items: [...savedReports.filter((item) => item.report.periodStart !== period.start), result] });
       setLiveStarts((current) => current.filter((start) => start !== period.start));
       setStatus("Informe guardado.");
@@ -113,27 +287,7 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
     }
   };
 
-  const ranking = skillRanking(report);
-  const tiles = [
-    { label: "Tareas completadas", value: `${report.completed}`, hint: `de ${report.assigned} asignadas en el periodo` },
-    {
-      label: "Nota media",
-      value: report.averageGrade === null ? "—" : `${report.averageGrade.toFixed(1)}/10`,
-      hint:
-        report.averageGrade !== null && report.previousAverageGrade !== null
-          ? `${report.averageGrade - report.previousAverageGrade >= 0 ? "+" : ""}${(report.averageGrade - report.previousAverageGrade).toFixed(1)} vs periodo anterior`
-          : "Sin periodo anterior",
-    },
-    { label: "Aciertos", value: report.accuracy === null ? "—" : `${Math.round(report.accuracy * 100)}\u00a0%`, hint: `${report.answered} ejercicios respondidos` },
-    {
-      label: "Mejor destreza",
-      value: ranking.length ? `${SKILL_LABELS[ranking[0].skill]} ${Math.round(ranking[0].ratio * 100)}\u00a0%` : "—",
-      hint:
-        ranking.length >= 2
-          ? `A reforzar: ${SKILL_LABELS[ranking[ranking.length - 1].skill]} ${Math.round(ranking[ranking.length - 1].ratio * 100)}\u00a0%`
-          : "Hacen falta 5 respuestas por destreza",
-    },
-  ];
+  const setAssessment = (value: string) => setComments((current) => ({ ...current, [period.start]: value }));
 
   return (
     <div className="space-y-5">
@@ -165,7 +319,7 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
             ? "Periodo en curso: los datos se actualizarán hasta que termine."
             : saved
               ? `Guardado el ${new Date(saved.updatedAt).toLocaleDateString("es-ES")}${showLive ? " · mostrando datos actualizados" : ""}.`
-              : "Periodo terminado: revisa el informe, añade tu comentario y guárdalo."}
+              : "Periodo terminado: revisa la valoración, ajústala con lo que has visto en las sesiones y guarda el informe."}
         </p>
         {saved && !showLive && (
           <button
@@ -178,97 +332,40 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
         )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {tiles.map((tile) => (
-          <div key={tile.label} className="p-4 rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5]">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#77736B]">{tile.label}</p>
-            <p className="text-lg sm:text-xl font-bold text-[#292825] mt-1">{tile.value}</p>
-            <p className="text-[11px] text-[#8D887F] mt-0.5">{tile.hint}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-1.5">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Resumen</h4>
-        <ul className="list-disc pl-5 space-y-1 text-xs text-[#45433F]">
-          {report.summary.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      </div>
-
-      {SKILL_ORDER.some((skill) => report.bySkill[skill]?.answered) && (
-        <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Aciertos por destreza</h4>
-          <div className="space-y-2.5">
-            {SKILL_ORDER.filter((skill) => report.bySkill[skill]?.answered).map((skill) => {
-              const stat = report.bySkill[skill] ?? { correct: 0, answered: 0 };
-              const ratio = stat.correct / Math.max(1, stat.answered);
-              return (
-                <div key={skill} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,14rem)_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
-                  <span className="text-[#45433F]">{SKILL_LABELS[skill]}</span>
-                  <div className="hidden sm:block h-2 rounded-full bg-[#EEECE7] overflow-hidden" aria-hidden="true">
-                    <div className="h-full rounded-full bg-[#8A9870]" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                  </div>
-                  <span className="text-[#45433F] font-semibold tabular-nums">
-                    {Math.round(ratio * 100)}&nbsp;% <span className="font-normal text-[#8D887F]">· {stat.answered} respuestas</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {report.topics.length > 0 && (
-        <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Aciertos por tema</h4>
-          <div className="space-y-2.5">
-            {report.topics.map((topic) => {
-              const ratio = topic.correct / Math.max(1, topic.answered);
-              return (
-                <div key={topic.key} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,14rem)_1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
-                  <span className="text-[#45433F] truncate" title={topic.title}>
-                    {topic.title}
-                  </span>
-                  <div className="hidden sm:block h-2 rounded-full bg-[#EEECE7] overflow-hidden" aria-hidden="true">
-                    <div className="h-full rounded-full bg-[#8A9870]" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                  </div>
-                  <span className="text-[#45433F] font-semibold tabular-nums">
-                    {Math.round(ratio * 100)} % <span className="font-normal text-[#8D887F]">· {topic.tasks} tarea{topic.tasks === 1 ? "" : "s"}</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {report.mistakes.length > 0 && (
-        <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Errores recientes para repasar</h4>
-          {report.mistakes.map((mistake, index) => (
-            <div key={`${mistake.prompt}-${index}`} className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs border-b border-[#EEEAE3] last:border-0 pb-1.5">
-              <span className="text-[#45433F]">{mistake.prompt}</span>
-              <span className="text-[#8A6D62]">
-                «{mistake.given}» → <strong>{mistake.answer}</strong>
-              </span>
+      <ReportDocument
+        studentName={student.name}
+        mentorName={mentorName}
+        report={report}
+        issuedOn={issuedOn}
+        assessment={
+          <div className="space-y-2">
+            <textarea
+              aria-label="Valoración del mentor"
+              rows={8}
+              value={assessment}
+              onChange={(event) => setAssessment(event.target.value)}
+              className="w-full p-4 -mx-1 rounded-2xl bg-[#FAF9F6] border border-[#EAE7E1] text-[15px] leading-relaxed text-[#2D312E] focus:outline-none focus:border-[#2D5A43]/40 resize-y field-sizing-content min-h-40"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8D887F]">
+              <span>Texto de partida con los datos del periodo. Cámbialo con lo que has visto en las sesiones.</span>
+              {assessment !== draft && (
+                <button type="button" onClick={() => setAssessment(draft)} className="inline-flex items-center gap-1 font-semibold text-[#6D6962] hover:text-[#292825]">
+                  <RotateCcw className="w-3 h-3" /> Volver al texto de partida
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        }
+      />
 
-      <div className="space-y-1.5">
-        <label htmlFor="english-report-comment" className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
-          Comentario del mentor
-        </label>
-        <textarea
-          id="english-report-comment"
-          rows={4}
-          value={comment}
-          onChange={(event) => setComments((current) => ({ ...current, [period.start]: event.target.value }))}
-          placeholder="Actitud, avances que has visto en las sesiones y próximos objetivos."
-          className="w-full p-3 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl text-xs text-[#45433F] focus:outline-none"
+      {/* Copy used for printing: identical, with the assessment as plain text. */}
+      <div ref={printRef} className="hidden">
+        <ReportDocument
+          studentName={student.name}
+          mentorName={mentorName}
+          report={report}
+          issuedOn={issuedOn}
+          assessment={<Paragraphs text={assessment} />}
         />
       </div>
 
@@ -283,13 +380,17 @@ export default function MentorEnglishReport({ student, tasks }: MentorEnglishRep
         </button>
         <button
           type="button"
-          onClick={() => printReport(student.name, report, comment)}
+          onClick={() => printRef.current && printDocument(printRef.current, `Informe de inglés · ${student.name}`)}
           className="flex-1 py-3 bg-[#F3F0EA] text-[#45433F] rounded-xl text-xs font-semibold hover:bg-[#EAE5DC] transition flex items-center justify-center gap-1.5"
         >
           <Printer className="w-4 h-4" /> Imprimir o guardar en PDF
         </button>
       </div>
-      {status && <p role="status" className="text-xs font-semibold text-[#806C50]">{status}</p>}
+      {status && (
+        <p role="status" className="text-xs font-semibold text-[#806C50]">
+          {status}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
 import { EnglishSkill, findTopic, findUnit, SKILL_LABELS, SKILL_ORDER } from "@/lib/english/curriculum";
-import { isCorrect } from "@/lib/english/generator";
+import { EnglishExercise, isCorrect } from "@/lib/english/generator";
 import { supabase } from "@/lib/supabase";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
 
@@ -29,6 +29,8 @@ export interface TopicStat {
 }
 
 export interface EnglishReportData {
+  /** Levels worked in the period, e.g. ["A1"]. Missing in reports saved before it existed. */
+  levels?: string[];
   periodIndex: number;
   periodStart: string;
   periodEnd: string;
@@ -134,7 +136,7 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
         bySkill[item.task.skill].correct += 1;
         correctTotal += 1;
       } else {
-        mistakes.push({ prompt: exercise.prompt, given, answer: exercise.answer });
+        mistakes.push({ prompt: mistakeLabel(exercise), given, answer: exercise.answer });
       }
     }
     topics.set(key, stat);
@@ -142,6 +144,7 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
 
   const topicList = [...topics.values()].sort((a, b) => a.correct / Math.max(1, a.answered) - b.correct / Math.max(1, b.answered));
   const report: EnglishReportData = {
+    levels: [...new Set(completed.concat(assigned).map((item) => item.task.config.levelId))].sort(),
     periodIndex: period.index,
     periodStart: period.start,
     periodEnd: period.end,
@@ -160,6 +163,15 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
   };
   report.summary = summarize(report);
   return report;
+}
+
+// Some prompts are generic ("Dictado", "Toca las palabras…"), so the report names what was asked.
+function mistakeLabel(exercise: EnglishExercise): string {
+  if (exercise.type === "order") return "Ordenar la frase";
+  if (exercise.type === "speak") return "Leer en voz alta";
+  if (exercise.audio) return exercise.type === "write" ? "Dictado" : `Listening: ${exercise.prompt}`;
+  if (exercise.passage) return `${exercise.passage.title}: ${exercise.prompt}`;
+  return exercise.prompt;
 }
 
 /** Skills with at least 5 answers, best accuracy first. */
@@ -240,4 +252,103 @@ export function formatPeriod(start: string, end: string): string {
   const last = new Date(new Date(end).getTime() - DAY_MS);
   const format = (date: Date) => date.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
   return `${format(new Date(start))} – ${format(last)}`;
+}
+
+// Starting text for the mentor's assessment. It is written the way a mentor would write
+// to a family, in short paragraphs and plain words, and the mentor edits it before saving.
+
+const STRONG_SKILL: Record<EnglishSkill, string> = {
+  vocabulary: "el vocabulario: recuerda bien las palabras que hemos trabajado",
+  grammar: "la gramática: aplica bien las estructuras de cada unidad",
+  reading: "la lectura: entiende bien los textos y responde con precisión",
+  listening: "la comprensión oral: entiende bien lo que escucha",
+  writing: "la construcción de frases: ordena bien las palabras",
+  speaking: "la expresión oral: lee en voz alta con buena pronunciación",
+};
+
+const WEAK_SKILL: Record<EnglishSkill, string> = {
+  vocabulary: "fijar el vocabulario nuevo",
+  grammar: "aplicar la gramática en frases completas",
+  reading: "entender los textos con detalle",
+  listening: "entender el inglés hablado, sobre todo cuando dos frases se parecen",
+  writing: "construir frases con el orden correcto",
+  speaking: "la pronunciación al leer en voz alta",
+};
+
+const decimal = (value: number) => value.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+}
+
+function pointsDifference(diff: number): string {
+  const value = Math.abs(diff);
+  if (value >= 0.45 && value < 0.55) return "medio punto";
+  if (value >= 0.95 && value < 1.05) return "un punto";
+  return `${decimal(value)} puntos`;
+}
+
+/** Topic name without the unit, for prose ("Unit 2 · Present Simple" → "Present Simple"). */
+const topicName = (title: string) => `«${title.split(" · ").slice(-1)[0]}»`;
+const topicsPhrase = (names: string[]) => (names.length === 1 ? `el tema ${names[0]}` : `los temas ${joinList(names)}`);
+
+export function draftAssessment(report: EnglishReportData, studentName: string): string {
+  const name = studentName.trim().split(/\s+/)[0] || "este estudiante";
+  const paragraphs: string[] = [];
+
+  if (!report.completed) {
+    paragraphs.push(
+      report.assigned
+        ? `En estas cuatro semanas ${name} no ha llegado a terminar ninguna de las ${report.assigned} tareas de inglés que tenía. Vamos a retomar el ritmo en el próximo periodo: con una o dos tareas por semana es suficiente para notar el avance.`
+        : `En este periodo no ha habido tareas de inglés en la plataforma.`,
+    );
+    return paragraphs.join("\n\n");
+  }
+
+  let opening =
+    report.pending === 0
+      ? report.completed === 1
+        ? `En estas cuatro semanas ${name} ha hecho la tarea de inglés que tenía`
+        : `En estas cuatro semanas ${name} ha hecho todas sus tareas de inglés, ${report.completed} en total,`
+      : `En estas cuatro semanas ${name} ha hecho ${report.completed} tarea${report.completed === 1 ? "" : "s"} de inglés`;
+  if (report.averageGrade !== null) {
+    opening += ` con una nota media de ${decimal(report.averageGrade)}`;
+    if (report.previousAverageGrade !== null) {
+      const diff = report.averageGrade - report.previousAverageGrade;
+      opening +=
+        Math.abs(diff) < 0.3
+          ? ", muy parecida a la del periodo anterior"
+          : diff > 0
+            ? `, ${pointsDifference(diff)} más que en el periodo anterior`
+            : `, ${pointsDifference(diff)} menos que en el periodo anterior`;
+    }
+  }
+  paragraphs.push(`${opening.replace(/,$/, "")}.`);
+
+  const ranking = skillRanking(report);
+  const practised = report.topics.filter((topic) => topic.answered >= 5 && (topic.skill === "vocabulary" || topic.skill === "grammar"));
+  const strongTopics = practised.filter((topic) => topic.correct / topic.answered >= 0.8).slice(-3).map((topic) => topicName(topic.title));
+  const weakTopics = practised.filter((topic) => topic.correct / topic.answered < 0.6).slice(0, 3).map((topic) => topicName(topic.title));
+  const middle: string[] = [];
+  if (ranking.length >= 2 && ranking[0].ratio - ranking[ranking.length - 1].ratio >= 0.15) {
+    middle.push(`Donde mejor se desenvuelve es en ${STRONG_SKILL[ranking[0].skill]}.`);
+    middle.push(`Le cuesta algo más ${WEAK_SKILL[ranking[ranking.length - 1].skill]}.`);
+  } else if (ranking.length === 1 || (ranking.length >= 2 && ranking[0].ratio >= 0.8)) {
+    if (ranking[0].ratio >= 0.85) middle.push(`Destaca en ${STRONG_SKILL[ranking[0].skill]}.`);
+  }
+  if (strongTopics.length) middle.push(`Tiene bien asentado${strongTopics.length === 1 ? "" : "s"} ${topicsPhrase(strongTopics)}.`);
+  if (weakTopics.length) middle.push(`Conviene repasar ${topicsPhrase(weakTopics)}, que es donde más fallos ha tenido.`);
+  if (middle.length) paragraphs.push(middle.join(" "));
+
+  const next: string[] = [];
+  if (weakTopics.length) next.push(`En el próximo periodo vamos a volver sobre ${topicsPhrase(weakTopics.slice(0, 1))} con ejercicios de repaso.`);
+  else if (ranking.length >= 2 && ranking[0].ratio - ranking[ranking.length - 1].ratio >= 0.15)
+    next.push(`En el próximo periodo vamos a reforzar ${WEAK_SKILL[ranking[ranking.length - 1].skill]}.`);
+  else if (report.averageGrade !== null && report.averageGrade >= 8)
+    next.push("En el próximo periodo subiremos la dificultad para que siga avanzando.");
+  if (report.pending) next.push(`Le queda${report.pending === 1 ? "" : "n"} ${report.pending} tarea${report.pending === 1 ? "" : "s"} por terminar de este periodo.`);
+  if (next.length) paragraphs.push(next.join(" "));
+
+  return paragraphs.join("\n\n");
 }
