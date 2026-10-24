@@ -17,7 +17,7 @@ assert.equal(questions.length, 120, "The A1 question bank must contain exactly 1
 
 const ids = questions.map((question) => question.id);
 assert.equal(new Set(ids).size, ids.length, "Question IDs must be unique");
-assert.deepEqual([...ids].sort((a, b) => a - b), Array.from({ length: 120 }, (_, index) => index + 1), "Question IDs must be consecutive from 1 to 100");
+assert.deepEqual([...ids].sort((a, b) => a - b), Array.from({ length: 120 }, (_, index) => index + 1), "Question IDs must be consecutive from 1 to 120");
 
 const categories = new Set(["Grammar", "Vocabulary", "Everyday English", "Use of English", "Reading"]);
 const difficulties = new Set(["facil", "medio", "desafiante"]);
