@@ -37,7 +37,7 @@ Do not restore over the production database as a test.
 
 ## Account deletion safety
 
-The admin delete route now refuses deletion when payment history exists for the target student. It preserves shared app records, notices, documents, and flashcard sets authored by the user by reassigning their creator/audit field to the authenticated admin where appropriate. It deletes student-targeted data and removes document files from the actual bucket `kiru-documents`. This is not transactional; a failed cleanup can leave partial cleanup. Do not treat deletion as fully production-verified until it is tested with disposable test accounts and a recovery plan.
+The admin delete route now refuses deletion when payment history references the target either as the student or as the record creator. It preserves shared app records, notices, documents, and flashcard sets authored by the user by reassigning their creator/audit field to the authenticated admin where appropriate. It deletes student-targeted data and removes document files from the actual bucket `kiru-documents`. The route identifies the failed cleanup step and supports a controlled retry, but cleanup is still a multi-step process rather than one database transaction; a failure can leave partial cleanup. Do not treat deletion as fully production-verified until it is tested with disposable test accounts and a recovery plan.
 
 ## Security follow-up
 
