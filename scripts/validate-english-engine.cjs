@@ -30,7 +30,8 @@ for (const question of questions) {
   assert.ok(categories.has(question.category), `Question ${question.id} has an unknown category`);
   assert.ok(difficulties.has(question.difficulty), `Question ${question.id} has an unknown difficulty`);
   assert.ok(question.unit.startsWith("Unit "), `Question ${question.id} needs a unit`);
-  if (question.category === "Reading") assert.ok(question.context && question.context.trim().length >= 40, `Reading question ${question.id} needs a passage`);\n  if (question.category === "Listening") assert.ok(question.context && question.context.trim().length >= 40, `Listening question ${question.id} needs an audio script`);
+  if (question.category === "Reading") assert.ok(question.context && question.context.trim().length >= 40, `Reading question ${question.id} needs a passage`);
+  if (question.category === "Listening") assert.ok(question.context && question.context.trim().length >= 40, `Listening question ${question.id} needs an audio script`);
 }
 
 const writingPrompts = moduleObject.exports.ENGLISH_A1_WRITING_PROMPTS;
