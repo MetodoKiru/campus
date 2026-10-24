@@ -277,7 +277,7 @@ export async function DELETE(request: Request) {
   for (const [index, cleanup] of cleanupSteps.entries()) {
     const { error } = await cleanup();
     if (error) return NextResponse.json({
-      error: "La limpieza se ha detenido antes de eliminar la cuenta. Algunas tareas anteriores podrían haberse completado; puedes reintentar la operación después de revisar el paso indicado.",
+      error: `La limpieza se ha detenido antes de eliminar la cuenta. Paso que falló: ${cleanupStepNames[index] || "limpieza"}. Algunas tareas anteriores podrían haberse completado; revisa el estado antes de reintentar.`,
       failedStep: cleanupStepNames[index] || "limpieza",
       retryable: true,
     }, { status: 409 });
