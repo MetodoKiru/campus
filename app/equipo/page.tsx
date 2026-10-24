@@ -123,7 +123,7 @@ export default function EquipoPage() {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setFilter(tab.id as any)}
+                onClick={() => setFilter(tab.id as typeof filter)}
                 className={`px-4 py-2 rounded-xl transition ${
                   filter === tab.id
                     ? "bg-slate-900 text-white shadow-sm"

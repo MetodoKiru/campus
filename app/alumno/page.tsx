@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { 
   RotateCw, 
@@ -11,12 +10,11 @@ import {
   CheckCircle2, 
   ExternalLink, 
   Award, 
-  Filter,
-  Send
+  Filter
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
-import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
+import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { supabase } from "@/lib/supabase";
 
 interface Flashcard {
@@ -36,7 +34,18 @@ interface MentorMessage {
   date: string;
 }
 
-const INITIAL_CARDS: Flashcard[] = [];
+/** Picks a random card and two distractor definitions. Kept outside the component so render stays pure. */
+function pickPracticeQuestion(pool: Flashcard[]): { index: number; options: string[] } {
+  const index = Math.floor(Math.random() * pool.length);
+  const currentCard = pool[index];
+  const distractors = pool
+    .filter((c) => c.id !== currentCard.id)
+    .sort(() => 0.5 - Math.random())
+    .slice(0, 2)
+    .map((c) => c.definition);
+  const options = [...distractors, currentCard.definition].sort(() => 0.5 - Math.random());
+  return { index, options };
+}
 
 // RECURSOS OFICIALES 1.1 ASIGNATURAS SPRINT 2
 const SUBJECTS = [
@@ -108,6 +117,7 @@ export default function AlumnoPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [currentStudentName, setCurrentStudentName] = useState("");
   useEffect(() => {
     let alive = true;
     const verifyRole = async () => {
@@ -121,7 +131,6 @@ export default function AlumnoPage() {
         }
         if (alive) {
           setCurrentStudentName(profile.full_name);
-          setCurrentUsername(profile.username || "");
           setAuthorized(true);
         }
       } catch { router.replace("/"); }
@@ -133,13 +142,10 @@ export default function AlumnoPage() {
 
   const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
   
-  // Usuario dinámico
-  const [currentStudentName, setCurrentStudentName] = useState("");
-  const [currentUsername, setCurrentUsername] = useState("");
 
   // Estado de Flashcards
   const [flashcardProgressLoaded, setFlashcardProgressLoaded] = useState(false);
-  const [flashcardProgressStatus, setFlashcardProgressStatus] = useState("");
+  const [, setFlashcardProgressStatus] = useState("");
   const [allCards, setAllCards] = useState<Flashcard[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("todas");
   const [cardIndex, setCardIndex] = useState(0);
@@ -182,9 +188,9 @@ export default function AlumnoPage() {
     const loadStudentData = async () => {
       try {
         const [activityRecords, messageRecords, progressRecords] = await Promise.all([
-          getKiruRecords<any>("activity"),
-          getKiruRecords<any>("message"),
-          getKiruRecords<any>("progress"),
+          getKiruRecords<KiruRecordData>("activity"),
+          getKiruRecords<KiruRecordData>("message"),
+          getKiruRecords<KiruRecordData>("progress"),
         ]);
         if (!active) return;
         const cards = activityRecords
@@ -201,9 +207,10 @@ export default function AlumnoPage() {
             difficulty: typeof config.difficulty === "string" ? config.difficulty : "todas",
             selectedUnits: Array.isArray(config.selectedUnits) ? config.selectedUnits.filter((unit: unknown) => typeof unit === "string") : [],
           });
-          if (["Grammar", "Vocabulary", "Everyday English"].includes(config.selectedCategory)) setEnglishCategory(config.selectedCategory);
+          const category = config.selectedCategory;
+          if (category === "Grammar" || category === "Vocabulary" || category === "Everyday English") setEnglishCategory(category);
         }
-        const savedPractice = activityRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
+        const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
           setGameAnswersCount(Number(savedPractice.gameAnswersCount) || 0);
@@ -215,7 +222,7 @@ export default function AlumnoPage() {
           if (typeof savedPractice.cardIndex === "number") setCardIndex(savedPractice.cardIndex);
         }
         setFlashcardProgressLoaded(true);
-        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value: any) => ({ ...value, studentId: value.studentUsername || value.studentId, date: value.date ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
+        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value) => ({ ...value, studentId: value.studentUsername || value.studentId, date: typeof value.date === "string" ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
         const latestSkillCoins = progressRecords.map((record) => record.data).find((value) => value?.module === "skillcoins");
         if (latestSkillCoins?.scores) setScData({
           estudios: Number(latestSkillCoins.scores.estudios) || 0,
@@ -237,10 +244,17 @@ export default function AlumnoPage() {
     ? allCards 
     : allCards.filter((c) => c.category.toLowerCase() === categoryFilter.toLowerCase());
 
-  useEffect(() => {
+  const changeCategoryFilter = (value: string) => {
+    setCategoryFilter(value);
     setCardIndex(0);
     setIsFlipped(false);
-  }, [categoryFilter]);
+  };
+
+  // Último estado de la práctica, para que el guardado periódico no use valores antiguos.
+  const practiceStateRef = useRef({ gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex });
+  useEffect(() => {
+    practiceStateRef.current = { gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex };
+  });
 
   // Temporizador del juego de práctica
   // Guarda el progreso cuando cambia la sesión; el reloj se sincroniza aparte cada 5 segundos.
@@ -250,7 +264,7 @@ export default function AlumnoPage() {
       try {
         await saveKiruRecord("progress", "flashcard_practice_state", {
           kind: "flashcard_practice_state",
-          gameScore, gameAnswersCount, gameDuration, timeLeft, isGameActive, gameFinished, gameOptions, cardIndex,
+          ...practiceStateRef.current,
           updatedAt: new Date().toISOString(),
         });
         setFlashcardProgressStatus("Progreso guardado");
@@ -267,8 +281,8 @@ export default function AlumnoPage() {
     const syncTimer = window.setInterval(async () => {
       try {
         await saveKiruRecord("progress", "flashcard_practice_state", {
-          kind: "flashcard_practice_state", gameScore, gameAnswersCount, gameDuration,
-          timeLeft: Math.max(0, timeLeft - 5), isGameActive, gameFinished, gameOptions, cardIndex,
+          kind: "flashcard_practice_state",
+          ...practiceStateRef.current,
           updatedAt: new Date().toISOString(),
         });
       } catch {
@@ -298,18 +312,9 @@ export default function AlumnoPage() {
   const setupNewQuestion = () => {
     setIsFlipped(false);
     const pool = filteredCards.length >= 3 ? filteredCards : allCards;
-    const randomIdx = Math.floor(Math.random() * pool.length);
-    setCardIndex(randomIdx);
-
-    const currentCard = pool[randomIdx];
-    const distractors = pool
-      .filter((c) => c.id !== currentCard.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 2)
-      .map((c) => c.definition);
-
-    const allOptions = [...distractors, currentCard.definition].sort(() => 0.5 - Math.random());
-    setGameOptions(allOptions);
+    const { index, options } = pickPracticeQuestion(pool);
+    setCardIndex(index);
+    setGameOptions(options);
   };
 
   const startPracticeGame = (minutes: number) => {
@@ -417,7 +422,7 @@ export default function AlumnoPage() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setMainTab(tab.id as any)}
+              onClick={() => setMainTab(tab.id as typeof mainTab)}
               className={`px-4 py-2 rounded-xl transition ${
                 mainTab === tab.id
                   ? "bg-[#242321] text-white shadow-xs"
@@ -582,7 +587,7 @@ export default function AlumnoPage() {
                   <Filter className="w-3.5 h-3.5 text-[#8D887F]" />
                   <select
                     value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    onChange={(e) => changeCategoryFilter(e.target.value)}
                     className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
                   >
                     <option value="todas">Todas las asignaturas</option>

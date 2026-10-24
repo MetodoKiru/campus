@@ -94,7 +94,6 @@ export async function PATCH(request: Request) {
   if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return NextResponse.json({ error: "Identificador de usuario no válido." }, { status: 400 });
   const updates: Record<string, unknown> = {};
   if (typeof body.password === "string" && body.password.length) {
-    const { data: targetProfile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
     const isSixDigitPin = new RegExp("^[0-9]{6}$").test(body.password);
     if (!isSixDigitPin) return NextResponse.json({ error: "El PIN debe tener exactamente 6 cifras numéricas." }, { status: 400 });
     updates.password = body.password;

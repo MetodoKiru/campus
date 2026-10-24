@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import { 
   UserPlus, 
@@ -13,13 +14,11 @@ import {
   X,
   Save,
   Link2,
-  CheckCircle2,
   Bell,
   FileText,
   Plus,
   Users,
   CreditCard,
-  Upload,
   ExternalLink,
   Download
 } from "lucide-react";
@@ -33,6 +32,18 @@ interface UserAccount {
   createdAt: string;
   assignedParent?: string; // Vinculación alumno -> padre
 }
+
+// Fila que devuelve /api/admin/users
+interface AdminUserRow {
+  id: string;
+  full_name: string;
+  username: string | null;
+  role: UserAccount["role"];
+  created_at: string | null;
+}
+
+type NoticeInsert = Database["public"]["Tables"]["kiru_notices"]["Insert"];
+type DocumentInsert = Database["public"]["Tables"]["kiru_documents"]["Insert"];
 
 interface MentorStudentLink {
   studentUsername: string;
@@ -160,7 +171,7 @@ export default function AdminPage() {
     const loadAdminData = async () => {
       try {
         const [userResponse, mentorLinks, guardianLinks, noticeRows, documentRows, paymentRows] = await Promise.all([
-          (async () => { const { data: { session } } = await supabase.auth.getSession(); if (!session?.access_token) throw new Error("Sesión caducada."); const response = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios."); return result.users || []; })(),
+          (async () => { const { data: { session } } = await supabase.auth.getSession(); if (!session?.access_token) throw new Error("Sesión caducada."); const response = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios."); return (result.users || []) as AdminUserRow[]; })(),
           supabase.from("student_mentors").select("student_id,mentor_id"),
           supabase.from("student_guardians").select("student_id,guardian_id"),
           supabase.from("kiru_notices").select("*").order("published_at", { ascending: false }),
@@ -173,35 +184,33 @@ export default function AdminPage() {
         if (documentRows.error) throw documentRows.error;
         if (paymentRows.error) throw paymentRows.error;
         if (!active) return;
-        const guardianByStudent = new Map((guardianLinks.data || []).map((link: any) => [link.student_id, link.guardian_id]));
-        const mappedUsers: UserAccount[] = userResponse.map((u: any) => ({ id: u.id, name: u.full_name, username: u.username, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate: any) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
+        const guardianByStudent = new Map((guardianLinks.data || []).map((link) => [link.student_id, link.guardian_id]));
+        const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
         setUsers(mappedUsers);
         const usernameById = new Map(mappedUsers.map((u) => [u.id, u.username]));
-        setLinks((mentorLinks.data || []).map((link: any) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
-        setNotices((noticeRows.data || []).map((n: any) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? usernameById.get(n.target_student_id) || "" : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url, linkTitle: n.link_title, fileName: n.attachment_path?.split("/").pop() })));
-        setDocuments((documentRows.data || []).map((d: any) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? usernameById.get(d.target_student_id) || "" : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path !== "no-file" ? d.storage_path : undefined, accepted: false })));
-        setPayments((paymentRows.data || []).map((p: any) => ({ id: p.id, studentUsername: usernameById.get(p.student_id) || "", concept: p.concept, amount: p.amount_cents / 100, dueDate: p.due_date || "", status: p.status === "paid" ? "Pagado" : "Pendiente", payLink: p.payment_url || "" })));
+        setLinks((mentorLinks.data || []).map((link) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
+        setNotices((noticeRows.data || []).map((n) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? usernameById.get(n.target_student_id) || "" : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url ?? undefined, linkTitle: n.link_title ?? undefined, attachmentPath: n.attachment_path ?? undefined, fileName: n.attachment_path?.split("/").pop() })));
+        setDocuments((documentRows.data || []).map((d) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? usernameById.get(d.target_student_id) || "" : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path !== "no-file" ? d.storage_path : undefined, accepted: false })));
+        setPayments((paymentRows.data || []).map((p) => ({ id: p.id, studentUsername: usernameById.get(p.student_id) || "", concept: p.concept, amount: p.amount_cents / 100, dueDate: p.due_date || "", status: p.status === "paid" ? "Pagado" : "Pendiente", payLink: p.payment_url || "" })));
       } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron cargar los datos.", type: "error" }); }
     };
     void loadAdminData();
     return () => { active = false; };
   }, []);
 
-  const saveToStorage = (updatedUsers: UserAccount[]) => { setUsers(updatedUsers); };
-
   const saveLinksToStorage = async (updatedLinks: MentorStudentLink[]) => {
     setLinks(updatedLinks);
     try {
       const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,username");
       if (profileError) throw profileError;
-      const idByUsername = new Map((profiles || []).map((profile: any) => [profile.username, profile.id]));
+      const idByUsername = new Map((profiles || []).map((profile) => [profile.username, profile.id]));
       const { data: existing, error: existingError } = await supabase.from("student_mentors").select("student_id,mentor_id");
       if (existingError) throw existingError;
       for (const row of existing || []) {
         const { error } = await supabase.from("student_mentors").delete().eq("student_id", row.student_id).eq("mentor_id", row.mentor_id);
         if (error) throw error;
       }
-      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row) => row.student_id && row.mentor_id);
+      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row): row is { student_id: string; mentor_id: string } => Boolean(row.student_id && row.mentor_id));
       if (rows.length) { const { error } = await supabase.from("student_mentors").insert(rows); if (error) throw error; }
       setMsg({ text: "Asignaciones guardadas en Supabase.", type: "success" });
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
@@ -380,7 +389,7 @@ export default function AdminPage() {
       if (!user) throw new Error("Sesión no válida.");
       const targets = noticeTarget === "todos" ? alumnos : alumnos.filter((student) => student.username === noticeTarget);
       if (noticePdf && !targets.length) throw new Error("Para adjuntar un PDF, asigna el aviso al menos a un alumno.");
-      const rows: any[] = [];
+      const rows: NoticeInsert[] = [];
       if (noticePdf) {
         for (const student of targets) { const stored = await uploadKiruPdf(noticePdf, student.id, "notices"); rows.push({ title: noticeTitle.trim(), content: noticeContent.trim(), target_student_id: student.id, link_url: noticeLinkUrl.trim() || null, link_title: noticeLinkTitle.trim() || (noticeLinkUrl ? "Abrir enlace de interés" : null), attachment_path: stored.path, created_by: user.id }); }
       } else {
@@ -390,7 +399,7 @@ export default function AdminPage() {
       const { error } = await supabase.from("kiru_notices").insert(rows); if (error) throw error;
       setNoticeTitle(""); setNoticeContent(""); setNoticeLinkUrl(""); setNoticeLinkTitle(""); setNoticePdf(null);
       const { data } = await supabase.from("kiru_notices").select("*").order("published_at", { ascending: false });
-      if (data) setNotices(data.map((n: any) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? (alumnos.find((s) => s.id === n.target_student_id)?.username || "") : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url, linkTitle: n.link_title, attachmentPath: n.attachment_path, fileName: n.attachment_path?.split("/").pop() })));
+      if (data) setNotices(data.map((n) => ({ id: n.id, title: n.title, targetStudent: n.target_student_id ? (alumnos.find((s) => s.id === n.target_student_id)?.username || "") : "todos", date: new Date(n.published_at).toLocaleDateString("es-ES"), content: n.content, linkUrl: n.link_url ?? undefined, linkTitle: n.link_title ?? undefined, attachmentPath: n.attachment_path ?? undefined, fileName: n.attachment_path?.split("/").pop() })));
       setMsg({ text: "Aviso guardado en Supabase.", type: "success" });
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo publicar el aviso.", type: "error" }); }
   };
@@ -407,13 +416,13 @@ export default function AdminPage() {
       const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Sesión no válida.");
       const targets = docTarget === "todos" ? alumnos : alumnos.filter((student) => student.username === docTarget);
       if (uploadedPdf && !targets.length) throw new Error("Para subir un PDF, selecciona al menos un alumno.");
-      const rows: any[] = [];
+      const rows: DocumentInsert[] = [];
       if (uploadedPdf) { for (const student of targets) { const stored = await uploadKiruPdf(uploadedPdf, student.id, "documents"); rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student.id, storage_path: stored.path, file_name: stored.name, file_size: stored.size, requires_acceptance: requiresSign, created_by: user.id }); } }
       else { const selected = docTarget === "todos" ? targets : targets; if (!selected.length) throw new Error("No hay alumnos a los que asignar el documento."); for (const student of selected) rows.push({ title: docTitle.trim(), document_type: docType, target_student_id: student.id, storage_path: "no-file", file_name: "", file_size: null, requires_acceptance: requiresSign, created_by: user.id }); }
       const { error } = await supabase.from("kiru_documents").insert(rows); if (error) throw error;
       setDocTitle(""); setRequiresSign(false); setUploadedPdf(null);
       const { data } = await supabase.from("kiru_documents").select("*").order("created_at", { ascending: false });
-      if (data) setDocuments(data.map((d: any) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? (alumnos.find((s) => s.id === d.target_student_id)?.username || "") : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path, accepted: false })));
+      if (data) setDocuments(data.map((d) => ({ id: d.id, title: d.title, targetStudent: d.target_student_id ? (alumnos.find((s) => s.id === d.target_student_id)?.username || "") : "todos", type: d.document_type, requiresAcceptance: d.requires_acceptance, fileName: d.file_name, fileData: d.storage_path, accepted: false })));
       setMsg({ text: "Documento guardado en Supabase.", type: "success" });
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo publicar el documento.", type: "error" }); }
   };
@@ -574,7 +583,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de usuario / Rol</label>
-                    <select value={role} onChange={(e) => setRole(e.target.value as any)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
+                    <select value={role} onChange={(e) => setRole(e.target.value as UserAccount["role"])} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                       <option value="alumno">Alumno</option>
                       <option value="mentor">Mentor</option>
                       <option value="padre">Padre / Madre</option>
@@ -825,7 +834,7 @@ export default function AdminPage() {
 
                 <div>
                   <label className="block font-bold text-slate-500 uppercase tracking-wider mb-1">Estado</label>
-                  <select value={payStatus} onChange={(e) => setPayStatus(e.target.value as any)} className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl">
+                  <select value={payStatus} onChange={(e) => setPayStatus(e.target.value as PaymentRecord["status"])} className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl">
                     <option value="Pendiente">Pendiente</option>
                     <option value="Pagado">Pagado</option>
                   </select>
@@ -1004,7 +1013,7 @@ export default function AdminPage() {
               <p className="text-[11px] text-slate-500">La contraseña se gestiona por separado con el botón «Contraseña» de la lista. No se puede consultar ni editar desde este formulario.</p>
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Rol asignado</label>
-                <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
+                <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as UserAccount["role"] })} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900 focus:outline-none">
                   <option value="alumno">Alumno</option>
                   <option value="mentor">Mentor</option>
                   <option value="padre">Padre / Madre</option>
@@ -1053,7 +1062,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <label className="block font-bold text-slate-500 uppercase tracking-wider mb-1">Estado</label>
-                <select value={editingPayment.status} onChange={(e) => setEditingPayment({ ...editingPayment, status: e.target.value as any })} className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl">
+                <select value={editingPayment.status} onChange={(e) => setEditingPayment({ ...editingPayment, status: e.target.value as PaymentRecord["status"] })} className="w-full p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl">
                   <option value="Pendiente">Pendiente</option>
                   <option value="Pagado">Pagado</option>
                 </select>
