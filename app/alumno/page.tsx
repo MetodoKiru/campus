@@ -13,6 +13,7 @@ import {
   Filter
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
+import LenguaStudent from "@/components/lengua/LenguaStudent";
 import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { supabase } from "@/lib/supabase";
@@ -140,7 +141,7 @@ export default function AlumnoPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
+  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "calculalo">("inicio");
   
 
   // Estado de Flashcards
@@ -417,6 +418,7 @@ export default function AlumnoPage() {
             { id: "asignaturas", label: "1.1. Asignaturas" },
             { id: "flashcards", label: "Flashcards" },
             { id: "ingles", label: "Inglés A1" },
+            { id: "lengua", label: "Lengua" },
             { id: "progreso", label: "Mi Progreso (SC)" },
             { id: "calculalo", label: "Calcúlalo" }
           ].map((tab) => (
@@ -782,6 +784,8 @@ export default function AlumnoPage() {
             )}
           </div>
         )}
+
+        {mainTab === "lengua" && <LenguaStudent />}
 
         {/* SECCIÓN 4: INGLÉS A1 (CON CORRECCIÓN REAL Y CÁLCULO DE NOTA EXACTA) */}
         {mainTab === "ingles" && (

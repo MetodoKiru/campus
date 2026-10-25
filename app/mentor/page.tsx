@@ -14,10 +14,12 @@ import {
   Layers,
   Plus,
   Send,
-  Award
+  Award,
+  PenLine
 } from "lucide-react";
 import { ENGLISH_A1_DATABASE, EnglishConfig } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
+import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 
@@ -54,7 +56,7 @@ export default function MentorPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "skillcoins">("asignaturas");
+  const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "lengua" | "skillcoins">("asignaturas");
   const [students, setStudents] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -290,6 +292,15 @@ export default function MentorPage() {
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>Motor de Inglés A1</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("lengua")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "lengua" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+            }`}
+          >
+            <PenLine className="w-3.5 h-3.5" />
+            <span>Lengua 1º-2º</span>
           </button>
           <button
             onClick={() => setActiveTab("skillcoins")}
@@ -649,6 +660,8 @@ export default function MentorPage() {
             </div>
           </div>
         )}
+
+        {activeTab === "lengua" && <LenguaMentor student={students.find((item) => item.username === selectedStudent)} onStatus={setSavedMsg} />}
 
         {activeTab === "skillcoins" && (
           <div className="space-y-6 animate-in fade-in duration-150">
