@@ -1,4 +1,5 @@
-import { getKiruRecords, saveKiruRecord, deleteKiruRecord } from "@/lib/kiru-records";
+import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
+import { supabase } from "@/lib/supabase";
 import { EnglishActivityConfig, EnglishExercise, isCorrect } from "@/lib/english/generator";
 import { EnglishSkill } from "@/lib/english/curriculum";
 
@@ -76,8 +77,12 @@ export async function assignEnglishTask(task: EnglishTask): Promise<void> {
   await saveKiruRecord("task", recordKey(task.id), task, task.studentId);
 }
 
+// The task record belongs to the student, so deleteKiruRecord (own records only) cannot
+// remove it for the mentor; RLS lets an assigned mentor delete it directly.
 export async function deleteEnglishTask(recordId: string): Promise<void> {
-  await deleteKiruRecord(recordId);
+  const { data, error } = await supabase.from("kiru_app_records").delete().eq("id", recordId).eq("record_type", "task").select("id");
+  if (error) throw new Error(`No se pudo eliminar la tarea: ${error.message}`);
+  if (!data?.length) throw new Error("No se pudo eliminar la tarea.");
 }
 
 export function scoreAnswers(exercises: EnglishExercise[], answers: Record<string, string>): number {

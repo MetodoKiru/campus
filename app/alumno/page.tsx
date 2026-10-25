@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
-import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import { isFlashcardSet } from "@/lib/english/flashcards";
 import { supabase } from "@/lib/supabase";
 
 interface Flashcard {
@@ -35,6 +36,21 @@ interface MentorMessage {
 }
 
 /** Picks a random card and two distractor definitions. Kept outside the component so render stays pure. */
+// Single cards from the mentor's bulk generator, plus card sets (English tasks and the
+// student's own review cards from mistakes).
+function collectFlashcards(records: KiruRecord<KiruRecordData>[]): Flashcard[] {
+  return records.flatMap((record, index) => {
+    const value = record.data;
+    if (isFlashcardSet(value)) {
+      return value.cards.map((card) => ({ id: `${record.record_key}:${card.id}`, term: card.term, definition: card.definition, category: value.category }));
+    }
+    if (value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string") {
+      return [{ id: String(value.id || index), term: value.term, definition: value.definition, category: typeof value.category === "string" ? value.category : "General" }];
+    }
+    return [];
+  });
+}
+
 function pickPracticeQuestion(pool: Flashcard[]): { index: number; options: string[] } {
   const index = Math.floor(Math.random() * pool.length);
   const currentCard = pool[index];
@@ -185,11 +201,7 @@ export default function AlumnoPage() {
           getKiruRecords<KiruRecordData>("progress"),
         ]);
         if (!active) return;
-        const cards = activityRecords
-          .map((record) => record.data)
-          .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
-          .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
-        setAllCards(cards);
+        setAllCards(collectFlashcards([...activityRecords, ...progressRecords]));
         const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
@@ -219,10 +231,26 @@ export default function AlumnoPage() {
     return () => { active = false; };
   }, []);
 
-  // Lista filtrada de flashcards
+  // Lista filtrada de flashcards. "Inglés" incluye también "Inglés · repaso".
   const filteredCards = categoryFilter === "todas" 
     ? allCards 
-    : allCards.filter((c) => c.category.toLowerCase() === categoryFilter.toLowerCase());
+    : allCards.filter((c) => c.category.toLowerCase().startsWith(categoryFilter.toLowerCase()));
+
+  // Abre las flashcards de repaso de inglés recién creadas desde una tarea.
+  const openEnglishReviewCards = async () => {
+    try {
+      const [activityRecords, progressRecords] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
+      setAllCards(collectFlashcards([...activityRecords, ...progressRecords]));
+    } catch (error) {
+      console.error("No se pudieron recargar las flashcards.", error);
+    }
+    setMode("estudia");
+    setIsGameActive(false);
+    setCategoryFilter("inglés · repaso");
+    setCardIndex(0);
+    setIsFlipped(false);
+    setMainTab("flashcards");
+  };
 
   const changeCategoryFilter = (value: string) => {
     setCategoryFilter(value);
@@ -534,6 +562,7 @@ export default function AlumnoPage() {
                     <option value="historia">Historia</option>
                     <option value="física">Física y Química</option>
                     <option value="inglés">Inglés</option>
+                    <option value="inglés · repaso">Inglés: mis fallos</option>
                     <option value="lengua">Lengua</option>
                   </select>
                 </div>
@@ -732,7 +761,7 @@ export default function AlumnoPage() {
               <h2 className="text-2xl font-serif text-[#292825] font-bold mt-2">Inglés: tus tareas</h2>
               <p className="text-xs text-[#77736B]">Haz las tareas que te manda tu mentor. Puedes parar cuando quieras: se guarda cada respuesta.</p>
             </div>
-            <StudentEnglishTasks />
+            <StudentEnglishTasks onOpenFlashcards={() => void openEnglishReviewCards()} />
           </div>
         )}
 

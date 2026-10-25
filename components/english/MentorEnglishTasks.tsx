@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import {
   FileText,
+  Layers,
   ListChecks,
   RefreshCw,
   Send,
@@ -12,6 +13,11 @@ import {
 import ExerciseCard from "@/components/english/ExerciseCard";
 import MentorEnglishReport from "@/components/english/MentorEnglishReport";
 import { FollowUpSuggestion, suggestFollowUps } from "@/lib/english/followup";
+import {
+  flashcardsFor,
+  mistakesOf,
+  sendFlashcardsToStudent,
+} from "@/lib/english/flashcards";
 import {
   ENGLISH_LEVELS,
   EnglishLevelId,
@@ -92,6 +98,9 @@ export default function MentorEnglishTasks({
     generateEnglishActivity(DEFAULT_CONFIG),
   );
   const [note, setNote] = useState("");
+  // null: follow the default for the skill (on for vocabulary, off for the rest).
+  const [withFlashcards, setWithFlashcards] = useState<boolean | null>(null);
+  const [cardsSent, setCardsSent] = useState<Record<string, string>>({});
   const [status, setStatus] = useState("");
   const [assigning, setAssigning] = useState(false);
   // Tasks are kept with the student they were loaded for, so switching students shows "loading".
@@ -112,6 +121,9 @@ export default function MentorEnglishTasks({
   const unit = findUnit(config.levelId, config.unitId);
   const topic = unit?.topics.find((item) => item.id === config.topicId);
   const skill: EnglishSkill = topic?.skill ?? "vocabulary";
+  const taskCards = flashcardsFor(activity.exercises);
+  const sendCards =
+    taskCards.length > 0 && (withFlashcards ?? skill === "vocabulary");
 
   // Every change of the configuration produces a new version, like the "regenerate" button.
   const update = (changes: Partial<EnglishActivityConfig>) => {
@@ -119,6 +131,7 @@ export default function MentorEnglishTasks({
     setConfig(next);
     setActivity(generateEnglishActivity(next));
     setFollowUp(null);
+    setWithFlashcards(null);
   };
 
   const regenerate = () => {
@@ -211,7 +224,20 @@ export default function MentorEnglishTasks({
         assignedAt: new Date().toISOString(),
       };
       await assignEnglishTask(task);
-      setStatus(`Tarea asignada a ${student.name}.`);
+      if (sendCards) {
+        await sendFlashcardsToStudent(
+          student.id,
+          task.title,
+          taskCards,
+          task.id,
+          "task",
+        );
+      }
+      setStatus(
+        sendCards
+          ? `Tarea asignada a ${student.name}, con ${taskCards.length} flashcards en su sección de Flashcards.`
+          : `Tarea asignada a ${student.name}.`,
+      );
       setNote("");
       setFollowUp(null);
       setActivity(generateEnglishActivity(config));
@@ -222,6 +248,33 @@ export default function MentorEnglishTasks({
       );
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const sendMistakeCards = async (item: EnglishTaskWithProgress) => {
+    if (!student) return;
+    const cards = flashcardsFor(mistakesOf(item.task, item.progress));
+    try {
+      await sendFlashcardsToStudent(
+        student.id,
+        `Repaso: ${item.task.title}`,
+        cards,
+        item.task.id,
+        "mistakes",
+      );
+      setCardsSent((current) => ({
+        ...current,
+        [item.task.id]:
+          `${cards.length} flashcards enviadas a ${student.name}.`,
+      }));
+    } catch (error) {
+      setCardsSent((current) => ({
+        ...current,
+        [item.task.id]:
+          error instanceof Error
+            ? error.message
+            : "No se pudieron enviar las flashcards.",
+      }));
     }
   };
 
@@ -499,6 +552,29 @@ export default function MentorEnglishTasks({
                 />
               </div>
 
+              {taskCards.length > 0 && (
+                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-xs text-[#45433F] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={sendCards}
+                    onChange={(event) =>
+                      setWithFlashcards(event.target.checked)
+                    }
+                    className="mt-0.5 accent-[#242321]"
+                  />
+                  <span>
+                    <span className="font-semibold block">
+                      Enviar también {taskCards.length} flashcards
+                    </span>
+                    <span className="text-[11px] text-[#77736B]">
+                      {skill === "vocabulary" && !topic?.gapFill
+                        ? "Cada palabra de la tarea con su traducción, para estudiarla en la sección de Flashcards."
+                        : "Cada frase de la tarea con su respuesta, para repasarla en la sección de Flashcards."}
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
@@ -668,6 +744,30 @@ export default function MentorEnglishTasks({
                             </div>
                           </div>
                         )}
+                        {done &&
+                          flashcardsFor(mistakesOf(item.task, item.progress))
+                            .length > 0 && (
+                            <div className="pb-3 mb-1 border-b border-[#EEEAE3] flex flex-col sm:flex-row sm:items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void sendMistakeCards(item)}
+                                className="w-fit inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E7E3DC] bg-white text-xs font-semibold text-[#292825] hover:bg-[#F3F0EA] transition"
+                              >
+                                <Layers className="w-3.5 h-3.5" /> Enviar{" "}
+                                {
+                                  flashcardsFor(
+                                    mistakesOf(item.task, item.progress),
+                                  ).length
+                                }{" "}
+                                flashcards con sus fallos
+                              </button>
+                              {cardsSent[item.task.id] && (
+                                <span className="text-[11px] text-[#806C50] font-semibold">
+                                  {cardsSent[item.task.id]}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         {item.task.note && (
                           <p className="text-xs text-[#6D6962]">
                             Nota enviada: {item.task.note}

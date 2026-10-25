@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import ExerciseCard from "@/components/english/ExerciseCard";
 import { DIFFICULTY_LABELS, isCorrect } from "@/lib/english/generator";
+import { flashcardsFor, mistakesOf, REVIEW_THRESHOLD, saveReviewFlashcards } from "@/lib/english/flashcards";
 import { EnglishTaskWithProgress, gradeOutOfTen, loadEnglishTasks, saveEnglishProgress } from "@/lib/english/tasks";
 import { supabase } from "@/lib/supabase";
 
@@ -12,7 +13,12 @@ function statusLabel(item: EnglishTaskWithProgress): string {
   return answered ? `En curso · ${answered}/${item.task.exercises.length}` : "Pendiente";
 }
 
-export default function StudentEnglishTasks() {
+interface StudentEnglishTasksProps {
+  /** Opens the Flashcards tab on the student's review cards. */
+  onOpenFlashcards?: () => void;
+}
+
+export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglishTasksProps) {
   const [items, setItems] = useState<EnglishTaskWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -21,6 +27,8 @@ export default function StudentEnglishTasks() {
   const [draft, setDraft] = useState("");
   const [checked, setChecked] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  // Review flashcards created from each task's mistakes in this session.
+  const [reviewCards, setReviewCards] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
@@ -82,6 +90,16 @@ export default function StudentEnglishTasks() {
         const progress = await saveEnglishProgress(task, updated, openItem.progress);
         setItems((current) => current.map((item) => (item.task.id === task.id ? { ...item, progress } : item)));
         setSaveStatus("");
+        // A task finished with many mistakes turns them into flashcards to review.
+        const justFinished = progress.status === "completed" && openItem.progress?.status !== "completed";
+        if (justFinished && (progress.score ?? 0) / Math.max(1, progress.total ?? 1) < REVIEW_THRESHOLD) {
+          const cards = flashcardsFor(mistakesOf(task, progress));
+          if (cards.length) {
+            saveReviewFlashcards(task, cards)
+              .then((count) => setReviewCards((current) => ({ ...current, [task.id]: count })))
+              .catch(() => undefined);
+          }
+        }
       } catch {
         setSaveStatus("No se ha podido guardar tu respuesta. Se volverá a intentar con la siguiente.");
       }
@@ -114,6 +132,23 @@ export default function StudentEnglishTasks() {
                   : "Buen intento. Repasa los fallos de abajo con calma."}
             </p>
           </div>
+          {reviewCards[task.id] > 0 && (
+            <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-xs text-[#45433F]">
+                Hemos preparado <strong>{reviewCards[task.id]} flashcards</strong> con lo que has fallado. Repásalas unos minutos y verás cómo
+                se quedan.
+              </p>
+              {onOpenFlashcards && (
+                <button
+                  type="button"
+                  onClick={onOpenFlashcards}
+                  className="shrink-0 px-4 py-2 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition"
+                >
+                  Repasar flashcards
+                </button>
+              )}
+            </div>
+          )}
           {mistakes.length > 0 && (
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">Para repasar</h4>
