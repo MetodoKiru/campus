@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, GraduationCap, KeyRound, LogOut, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import Toast from "@/components/Toast";
 
 interface OnboardingMentor {
   id: string;
@@ -145,11 +146,7 @@ export default function FormadorPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {msg && (
-          <div role="alert" className={`rounded-xl border p-3 text-sm ${msg.type === "error" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-            {msg.text}
-          </div>
-        )}
+        {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
 
         {issuedPin && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
