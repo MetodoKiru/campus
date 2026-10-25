@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Mic, Undo2, Volume2 } from "lucide-react";
-import { EnglishExercise, isCorrect, OrderExercise, SpeakExercise } from "@/lib/english/generator";
+import { encodeMatch, EnglishExercise, isCorrect, MatchExercise, OrderExercise, parseMatch, SpeakExercise } from "@/lib/english/generator";
 import { canRecognize, canSpeak, listenOnce, speakEnglish } from "@/lib/english/speech";
 
 interface ExerciseCardProps {
@@ -41,14 +41,17 @@ function AudioControls({ text }: { text: string }) {
 function OrderInput({ exercise, locked, onChange }: { exercise: OrderExercise; locked: boolean; onChange?: (value: string) => void }) {
   // Indexes into exercise.words, so repeated words are told apart.
   const [picked, setPicked] = useState<number[]>([]);
+  const joiner = exercise.letters ? "" : " ";
   const update = (next: number[]) => {
     setPicked(next);
-    onChange?.(next.map((index) => exercise.words[index]).join(" "));
+    onChange?.(next.map((index) => exercise.words[index]).join(joiner));
   };
   return (
     <div className="space-y-3">
       <div className="min-h-12 p-3 rounded-xl border border-dashed border-[#D9D3C8] bg-white flex flex-wrap gap-1.5 items-center">
-        {picked.length === 0 && <span className="text-xs text-[#A39E95]">Tu frase aparecerá aquí</span>}
+        {picked.length === 0 && (
+          <span className="text-xs text-[#A39E95]">{exercise.letters ? "Tu palabra aparecerá aquí" : "Tu frase aparecerá aquí"}</span>
+        )}
         {picked.map((wordIndex, position) => (
           <button
             key={`${wordIndex}-${position}`}
@@ -81,6 +84,109 @@ function OrderInput({ exercise, locked, onChange }: { exercise: OrderExercise; l
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+const tile = "w-full text-left rounded-xl border px-3 py-2.5 text-xs sm:text-sm transition-colors";
+const tileIdle = "border-[#E7E3DC] bg-white text-[#45433F] hover:bg-[#F7F5F1]";
+const tileSelected = "border-[#B9A58A] bg-[#F0E9DE] text-[#343330]";
+const tileJoined = "border-[#E4D8C5] bg-[#FAF6EF] text-[#8D887F]";
+const tileRight = "border-[#9DAA84] bg-[#EEF2E6] text-[#4F5940]";
+const tileWrong = "border-[#D4B5A8] bg-[#F6ECE7] text-[#8A6D62]";
+
+/** The same number on both sides shows which words were joined. */
+function PairBadge({ number }: { number: number }) {
+  if (!number) return null;
+  return (
+    <span className="inline-flex items-center justify-center w-4 h-4 mr-1.5 rounded-full bg-[#806C50] text-white text-[9px] font-bold align-[1px]">
+      {number}
+    </span>
+  );
+}
+
+function MatchInput({ exercise, onChange }: { exercise: MatchExercise; onChange?: (value: string) => void }) {
+  const [joined, setJoined] = useState<[string, string][]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const leftOf = (right: string) => joined.find((pair) => pair[1] === right)?.[0];
+  const rightOf = (left: string) => joined.find((pair) => pair[0] === left)?.[1];
+
+  const update = (next: [string, string][]) => {
+    setJoined(next);
+    // The answer only counts once every word has its pair.
+    onChange?.(next.length === exercise.pairs.length ? encodeMatch(next) : "");
+  };
+  const pickLeft = (left: string) => {
+    if (rightOf(left)) update(joined.filter((pair) => pair[0] !== left));
+    setSelected(selected === left ? null : left);
+  };
+  const pickRight = (right: string) => {
+    const previous = leftOf(right);
+    if (previous && !selected) {
+      update(joined.filter((pair) => pair[1] !== right));
+      return;
+    }
+    if (!selected) return;
+    update([...joined.filter((pair) => pair[0] !== selected && pair[1] !== right), [selected, right]]);
+    setSelected(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
+          {exercise.pairs.map(({ left }) => {
+            const right = rightOf(left);
+            return (
+              <button
+                key={left}
+                type="button"
+                onClick={() => pickLeft(left)}
+                className={`${tile} ${selected === left ? tileSelected : right ? tileJoined : tileIdle}`}
+              >
+                <PairBadge number={right ? joined.findIndex((pair) => pair[0] === left) + 1 : 0} />
+                <span className="font-semibold">{left}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-2">
+          {exercise.options.map((right) => (
+            <button
+              key={right}
+              type="button"
+              onClick={() => pickRight(right)}
+              className={`${tile} ${leftOf(right) ? tileJoined : tileIdle}`}
+            >
+              <PairBadge number={leftOf(right) ? joined.findIndex((pair) => pair[1] === right) + 1 : 0} />
+              {right}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-[#8D887F]">
+        {joined.length}/{exercise.pairs.length} unidas · Toca una pareja ya unida para deshacerla.
+      </p>
+    </div>
+  );
+}
+
+function MatchResult({ exercise, value, reveal }: { exercise: MatchExercise; value?: string; reveal: boolean }) {
+  const given = parseMatch(value ?? "");
+  return (
+    <div className="space-y-1.5">
+      {exercise.pairs.map(({ left, right }) => {
+        const answered = given.get(left);
+        const ok = !reveal || answered === right;
+        return (
+          <div key={left} className={`${tile} ${ok ? tileRight : tileWrong} flex flex-wrap justify-between gap-2`}>
+            <span>
+              <span className="font-semibold">{left}</span> = {right}
+            </span>
+            {reveal && !ok && answered && <span className="text-[11px]">Tú: {answered}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -241,14 +347,23 @@ export default function ExerciseCard({
         />
       )}
 
+      {exercise.type === "match" &&
+        (reveal || showSolution || locked ? (
+          <MatchResult exercise={exercise} value={value} reveal={reveal} />
+        ) : (
+          <MatchInput exercise={exercise} onChange={onChange} />
+        ))}
+
       {exercise.type === "order" &&
         (reveal || showSolution ? (
           <div className="flex flex-wrap gap-1.5">
-            {(reveal ? value ?? "" : exercise.words.join(" ")).split(" ").map((word, position) => (
-              <span key={position} className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E7E3DC] text-sm text-[#45433F]">
-                {word}
-              </span>
-            ))}
+            {(reveal ? (exercise.letters ? [value ?? ""] : (value ?? "").split(" ")) : exercise.letters ? [exercise.words.join(" ")] : exercise.words).map(
+              (word, position) => (
+                <span key={position} className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E7E3DC] text-sm text-[#45433F]">
+                  {word}
+                </span>
+              ),
+            )}
           </div>
         ) : (
           <OrderInput exercise={exercise} locked={locked} onChange={onChange} />
@@ -264,7 +379,9 @@ export default function ExerciseCard({
             ? "¡Correcto!"
             : exercise.type === "speak"
               ? `Casi. Hemos oído «${value ?? ""}». Practica: ${exercise.answer}`
-              : `Respuesta correcta: ${exercise.answer}`}
+              : exercise.type === "match"
+                ? "Arriba tienes las parejas correctas; las marcadas en rojo son las que se cruzaron."
+                : `Respuesta correcta: ${exercise.answer}`}
         </p>
       )}
       {showSolution && !reveal && exercise.type === "order" && <p className="text-[11px] text-[#5F6B4C] font-semibold">Solución: {exercise.answer}</p>}

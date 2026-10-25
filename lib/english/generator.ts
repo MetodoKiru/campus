@@ -22,6 +22,10 @@ interface ExerciseBase {
   passage?: { title: string; text: string };
   /** Listening: English text read aloud by the browser; the student does not see it. */
   audio?: string;
+  /** Unit review: the skill this exercise practises, for the report. */
+  skill?: EnglishSkill;
+  /** The flashcard for this exercise when its prompt alone would not make a good one. */
+  card?: { term: string; definition: string };
 }
 
 export interface ChoiceExercise extends ExerciseBase {
@@ -39,6 +43,16 @@ export interface WriteExercise extends ExerciseBase {
 export interface OrderExercise extends ExerciseBase {
   type: "order";
   words: string[];
+  /** Spelling: the tiles are the letters of one word, joined without spaces. */
+  letters?: boolean;
+}
+
+/** Vocabulary: join each English word with its meaning. */
+export interface MatchExercise extends ExerciseBase {
+  type: "match";
+  pairs: { left: string; right: string }[];
+  /** The right-hand column, shuffled. */
+  options: string[];
 }
 
 /** Speaking: read the sentence aloud; the answer is what speech recognition heard. */
@@ -46,7 +60,7 @@ export interface SpeakExercise extends ExerciseBase {
   type: "speak";
 }
 
-export type EnglishExercise = ChoiceExercise | WriteExercise | OrderExercise | SpeakExercise;
+export type EnglishExercise = ChoiceExercise | WriteExercise | OrderExercise | SpeakExercise | MatchExercise;
 
 export interface EnglishActivityConfig {
   levelId: EnglishLevelId;
@@ -146,9 +160,50 @@ export function isCorrect(exercise: EnglishExercise, given: string | undefined):
       return exercise.accepted.some((option) => normalizeAnswer(option) === normalized);
     }
     case "order":
+      if (exercise.letters) return given.replace(/\s+/g, "").toLowerCase() === exercise.answer.replace(/\s+/g, "").toLowerCase();
       return normalizeAnswer(given) === normalizeAnswer(exercise.answer);
     case "speak":
       return speechMatches(exercise.answer, given);
+    case "match": {
+      const matched = parseMatch(given);
+      return exercise.pairs.every((pair) => matched.get(pair.left) === pair.right);
+    }
+  }
+}
+
+// A match answer is stored as "left=right|left=right", in the order the student joined them.
+export function encodeMatch(pairs: [string, string][]): string {
+  return pairs.map(([left, right]) => `${left}=${right}`).join("|");
+}
+
+export function parseMatch(value: string): Map<string, string> {
+  return new Map(
+    value
+      .split("|")
+      .map((pair) => pair.split("="))
+      .filter((pair) => pair.length === 2)
+      .map(([left, right]) => [left, right] as [string, string]),
+  );
+}
+
+/** The student's answer as a person reads it (match answers are stored encoded). */
+export function describeAnswer(exercise: EnglishExercise, given: string): string {
+  if (exercise.type !== "match") return given;
+  return [...parseMatch(given)].map(([left, right]) => `${left} = ${right}`).join(" · ");
+}
+
+/** The same exercise with a new id and its options, words or letters in a new order. */
+export function reshuffled(exercise: EnglishExercise): EnglishExercise {
+  const id = newId();
+  switch (exercise.type) {
+    case "choice":
+      return { ...exercise, id, options: shuffle(exercise.options) };
+    case "order":
+      return { ...exercise, id, words: shuffle(exercise.words) };
+    case "match":
+      return { ...exercise, id, pairs: shuffle(exercise.pairs), options: shuffle(exercise.options) };
+    default:
+      return { ...exercise, id };
   }
 }
 
@@ -180,7 +235,7 @@ function vocabularyCandidates(entries: VocabEntry[], difficulty: EnglishDifficul
       .filter((text, index, all) => all.indexOf(text) === index && text !== (side === "english" ? entry.english[0] : entry.spanish))
       .slice(0, optionCount - 1);
 
-  return entries.flatMap((entry): Candidate[] => {
+  const singles = entries.flatMap((entry): Candidate[] => {
     const toEnglishChoice: Candidate = {
       key: `${entry.spanish}>en`,
       rank: difficulty === "alta" ? 1 : 0,
@@ -205,7 +260,32 @@ function vocabularyCandidates(entries: VocabEntry[], difficulty: EnglishDifficul
         answer: entry.spanish,
       }),
     };
-    if (difficulty !== "alta") return [toEnglishChoice, toSpanishChoice];
+    // From "media" up, single words can also be spelt from their shuffled letters.
+    const word = entry.english[0];
+    const spellable = difficulty !== "baja" && /^[a-z]{4,10}$/.test(word) && word.toLowerCase() !== entry.spanish.toLowerCase();
+    const spell: Candidate[] = spellable
+      ? [
+          {
+            key: `${entry.spanish}>en`,
+            rank: difficulty === "alta" ? 1 : 0,
+            build: () => {
+              const letters = word.toLowerCase().split("");
+              let shuffled = shuffle(letters);
+              for (let tries = 0; tries < 5 && shuffled.join("") === letters.join(""); tries++) shuffled = shuffle(letters);
+              return {
+                id: newId(),
+                type: "order",
+                letters: true,
+                instruction: "Ordena las letras para escribir la palabra en inglés.",
+                prompt: `«${entry.spanish}»`,
+                words: shuffled,
+                answer: word.toLowerCase(),
+              };
+            },
+          },
+        ]
+      : [];
+    if (difficulty !== "alta") return [toEnglishChoice, toSpanishChoice, ...spell];
     // High difficulty: the student writes the English word; recognition questions only fill gaps.
     const toEnglishWrite: Candidate = {
       key: `${entry.spanish}>en`,
@@ -219,8 +299,41 @@ function vocabularyCandidates(entries: VocabEntry[], difficulty: EnglishDifficul
         answer: entry.english[0],
       }),
     };
-    return [toEnglishWrite, toSpanishChoice];
+    return [toEnglishWrite, toSpanishChoice, ...spell];
   });
+  return [...singles, ...matchCandidates(entries, difficulty)];
+}
+
+/** "Join the pairs" exercises: the topic's words split into groups, at most two per task. */
+function matchCandidates(entries: VocabEntry[], difficulty: EnglishDifficulty): Candidate[] {
+  const size = { baja: 4, media: 5, alta: 6 }[difficulty];
+  // Words spelt the same in both languages would match themselves.
+  const usable = shuffle(
+    entries.filter(
+      (entry, index) =>
+        entry.english[0].toLowerCase() !== entry.spanish.toLowerCase() &&
+        // Two words with the same meaning could be joined either way.
+        entries.findIndex((other) => other.spanish === entry.spanish || other.english[0] === entry.english[0]) === index,
+    ),
+  );
+  const groups: VocabEntry[][] = [];
+  for (let start = 0; start + size <= usable.length && groups.length < 2; start += size) groups.push(usable.slice(start, start + size));
+  return groups.map((group, index) => ({
+    key: `match:${index}`,
+    rank: 0,
+    build: () => {
+      const pairs = shuffle(group).map((entry) => ({ left: entry.english[0], right: entry.spanish }));
+      return {
+        id: newId(),
+        type: "match",
+        instruction: "Une cada palabra con su significado.",
+        prompt: "Toca una palabra en inglés y después su traducción.",
+        pairs,
+        options: shuffle(pairs.map((pair) => pair.right)),
+        answer: pairs.map((pair) => `${pair.left} = ${pair.right}`).join(" · "),
+      };
+    },
+  }));
 }
 
 function grammarCandidates(items: GrammarItem[], difficulty: EnglishDifficulty, writeInstruction?: string): Candidate[] {
@@ -228,11 +341,29 @@ function grammarCandidates(items: GrammarItem[], difficulty: EnglishDifficulty, 
     const accepted = item.answer.split("/").map((answer) => answer.trim());
     const rank = LEVEL_PREFERENCE[difficulty].indexOf(item.level);
     const asWrite = difficulty === "alta" && !item.choiceOnly;
+    // At "media", about a third of the gap items become "which sentence is right?".
+    const asSentence = difficulty === "media" && !item.choiceOnly && !item.sentence.includes("→") && item.distractors.length >= 2;
     return {
       key: item.sentence + item.answer,
       // At "media" levels 1 and 2 are equally welcome.
       rank: difficulty === "media" ? (item.level === 3 ? 1 : 0) : rank,
       build: (): EnglishExercise => {
+        if (asSentence && Math.random() < 0.35) {
+          const correct = completeSentence(item.sentence, accepted[0]);
+          const wrong = shuffle(item.distractors)
+            .map((distractor) => completeSentence(item.sentence, distractor))
+            .filter((sentence, index, all) => sentence !== correct && all.indexOf(sentence) === index)
+            .slice(0, 2);
+          return {
+            id: newId(),
+            type: "choice",
+            instruction: "Elige la frase correcta.",
+            prompt: "¿Cuál de estas frases está bien escrita?",
+            options: shuffle([correct, ...wrong]),
+            answer: correct,
+            card: { term: item.sentence, definition: accepted[0].replace(/,\s*/g, " … ") },
+          };
+        }
         if (asWrite) {
           return {
             id: newId(),
@@ -372,7 +503,20 @@ function listeningCandidates(unit: EnglishUnit, difficulty: EnglishDifficulty): 
         answer: item.sentence,
       }),
     }));
-  if (difficulty !== "alta") return [...meaning, ...heard];
+  const complete: Candidate[] = difficulty === "baja" ? [] : gapItems(unit).map((item) => ({
+    key: `complete:${item.sentence}`,
+    rank: { baja: 1, media: 1, alta: 0 }[difficulty],
+    build: () => ({
+      id: newId(),
+      type: "write",
+      instruction: "Escucha y escribe la palabra que falta.",
+      prompt: item.prompt,
+      audio: item.sentence,
+      accepted: item.accepted,
+      answer: item.accepted[0],
+    }),
+  }));
+  if (difficulty !== "alta") return [...meaning, ...heard, ...complete];
   const dictation: Candidate[] = sentences
     .filter((item) => wordCount(item.sentence) <= 9)
     .map((item) => ({
@@ -388,7 +532,24 @@ function listeningCandidates(unit: EnglishUnit, difficulty: EnglishDifficulty): 
         answer: item.sentence,
       }),
     }));
-  return [...dictation, ...heard, ...meaning];
+  return [...dictation, ...complete, ...heard, ...meaning];
+}
+
+/** One-gap grammar items of a unit, as a full sentence to hear and the same sentence with the gap. */
+function gapItems(unit: EnglishUnit): { sentence: string; prompt: string; accepted: string[] }[] {
+  return unit.topics
+    .filter((topic) => topic.skill === "grammar" || topic.gapFill)
+    .flatMap((topic) => GRAMMAR[topic.bank] ?? [])
+    .filter((item) => !item.choiceOnly && !item.sentence.includes("→") && item.sentence.split("___").length === 2)
+    .map((item) => {
+      const accepted = item.answer.split("/").map((answer) => answer.trim());
+      return {
+        sentence: completeSentence(item.sentence, accepted[0]),
+        // The hint in brackets would give the answer away: the student hears it instead.
+        prompt: completeSentence(item.sentence, "___"),
+        accepted,
+      };
+    });
 }
 
 /** Prefers short sentences at "baja" and long ones at "alta". */
@@ -450,6 +611,53 @@ function speakingCandidates(unit: EnglishUnit, difficulty: EnglishDifficulty): C
   return [...phrases, ...reading];
 }
 
+/** The best-ranked candidates, one per key. Shuffled first so equal ranks vary on every call. */
+function pickCandidates(candidates: Candidate[], count: number): Candidate[] {
+  const ordered = shuffle(candidates).sort((a, b) => a.rank - b.rank);
+  const chosen: Candidate[] = [];
+  const usedKeys = new Set<string>();
+  for (const candidate of ordered) {
+    if (chosen.length >= count) break;
+    if (usedKeys.has(candidate.key)) continue;
+    usedKeys.add(candidate.key);
+    chosen.push(candidate);
+  }
+  return chosen;
+}
+
+/**
+ * Unit review: vocabulary, grammar, listening and sentence building from the whole unit,
+ * taken in turns so every skill gets a similar share. Speaking is left out because it
+ * needs a microphone, and each exercise keeps its skill for the report.
+ */
+function reviewSelection(unit: EnglishUnit, difficulty: EnglishDifficulty, count: number): Candidate[] {
+  const tagged = (skill: EnglishSkill, candidates: Candidate[]): Candidate[] =>
+    candidates.map((candidate) => ({
+      key: `${skill}:${candidate.key}`,
+      rank: candidate.rank,
+      build: () => ({ ...candidate.build(), skill }),
+    }));
+  const vocabulary = unit.topics
+    .filter((topic) => topic.skill === "vocabulary" && !topic.gapFill)
+    .flatMap((topic) => vocabularyCandidates(parseVocab(VOCABULARY[topic.bank] ?? []), difficulty).filter((candidate) => !candidate.key.startsWith("match:")));
+  const grammar = unit.topics
+    .filter((topic) => topic.skill === "grammar" || topic.gapFill)
+    .flatMap((topic) => grammarCandidates(GRAMMAR[topic.bank] ?? [], difficulty, topic.writeInstruction));
+  const pools = [
+    tagged("vocabulary", vocabulary),
+    tagged("grammar", grammar),
+    tagged("listening", listeningCandidates(unit, difficulty)),
+    tagged("writing", writingCandidates(unit, difficulty)),
+  ]
+    .filter((pool) => pool.length > 0)
+    .map((pool) => pickCandidates(pool, count));
+  const chosen: Candidate[] = [];
+  for (let round = 0; chosen.length < count && pools.some((pool) => pool.length > round); round++) {
+    for (const pool of pools) if (pool[round] && chosen.length < count) chosen.push(pool[round]);
+  }
+  return chosen;
+}
+
 /** Builds a fresh activity: a new selection and order of exercises on every call. */
 export function generateEnglishActivity(config: EnglishActivityConfig): EnglishActivity {
   const level = findLevel(config.levelId);
@@ -470,19 +678,13 @@ export function generateEnglishActivity(config: EnglishActivityConfig): EnglishA
     listening: () => listeningCandidates(unit, config.difficulty),
     writing: () => writingCandidates(unit, config.difficulty),
     speaking: () => speakingCandidates(unit, config.difficulty),
+    review: () => [],
   };
-  const candidates = candidatesBySkill[topic.skill]();
-
-  // Shuffle first so equal-rank candidates come out in a different order each time.
-  const ordered = shuffle(candidates).sort((a, b) => a.rank - b.rank);
-  const chosen: Candidate[] = [];
-  const usedKeys = new Set<string>();
-  for (const candidate of ordered) {
-    if (chosen.length >= config.count) break;
-    if (usedKeys.has(candidate.key)) continue;
-    usedKeys.add(candidate.key);
-    chosen.push(candidate);
-  }
+  const chosen =
+    topic.skill === "review"
+      ? reviewSelection(unit, config.difficulty, config.count)
+      : pickCandidates(candidatesBySkill[topic.skill](), config.count);
+  const candidates = topic.skill === "review" ? chosen : candidatesBySkill[topic.skill]();
 
   return {
     config,

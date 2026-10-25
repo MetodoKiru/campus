@@ -67,32 +67,35 @@ const cardId = (term: string) =>
     .slice(0, 60);
 
 /**
- * The card that helps remember an exercise: the word and its meaning for vocabulary,
- * the sentence and its missing words for grammar. Exercises that train the ear or word
- * order (dictation, ordering, speaking) have no useful card and give null.
+ * The cards that help remember an exercise: the word and its meaning for vocabulary,
+ * the sentence and its missing words for grammar, every pair of a "join the pairs".
+ * Exercises that train the ear or word order (dictation, ordering, speaking) give none.
  */
-export function flashcardFor(exercise: EnglishExercise): EnglishFlashcard | null {
-  if (exercise.type === "order" || exercise.type === "speak" || exercise.passage) return null;
+export function flashcardsOf(exercise: EnglishExercise): EnglishFlashcard[] {
+  if (exercise.card) return [{ id: cardId(exercise.card.term), ...exercise.card }];
+  if (exercise.type === "match") {
+    return exercise.pairs.map((pair) => ({ id: cardId(pair.left), term: pair.left, definition: pair.right }));
+  }
+  if ((exercise.type === "order" && !exercise.letters) || exercise.type === "speak" || exercise.passage) return [];
   if (exercise.prompt.includes("___")) {
     // Two-gap answers ("Are, having") read better as "Are … having".
     const answer = exercise.answer.split("/")[0].trim().replace(/,\s*/g, " … ");
-    return { id: cardId(exercise.prompt), term: exercise.prompt, definition: answer };
+    return [{ id: cardId(exercise.prompt), term: exercise.prompt, definition: answer }];
   }
-  // Vocabulary questions and listening "what does it mean" questions.
+  // Vocabulary questions, spelling and listening "what does it mean" questions.
   // Words spelt the same in both languages (hotel, taxi) make no card.
   const word = vocabularyLookup().get(exercise.answer.trim().toLowerCase());
   if (word && word.english.toLowerCase() !== word.spanish.toLowerCase()) {
-    return { id: cardId(word.english), term: word.english, definition: word.spanish };
+    return [{ id: cardId(word.english), term: word.english, definition: word.spanish }];
   }
-  // "Elige la frase correcta" items share one generic prompt, so they make no card either.
-  return null;
+  // "Elige la frase correcta" items without a card share one generic prompt, so they make none.
+  return [];
 }
 
 export function flashcardsFor(exercises: EnglishExercise[]): EnglishFlashcard[] {
   const cards = new Map<string, EnglishFlashcard>();
-  for (const exercise of exercises) {
-    const card = flashcardFor(exercise);
-    if (card && !cards.has(card.id)) cards.set(card.id, card);
+  for (const card of exercises.flatMap(flashcardsOf)) {
+    if (!cards.has(card.id)) cards.set(card.id, card);
   }
   return [...cards.values()];
 }

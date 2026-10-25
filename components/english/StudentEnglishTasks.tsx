@@ -4,7 +4,16 @@ import React, { useEffect, useState } from "react";
 import ExerciseCard from "@/components/english/ExerciseCard";
 import { DIFFICULTY_LABELS, isCorrect } from "@/lib/english/generator";
 import { flashcardsFor, mistakesOf, REVIEW_THRESHOLD, saveReviewFlashcards } from "@/lib/english/flashcards";
-import { EnglishTaskWithProgress, gradeOutOfTen, loadEnglishTasks, saveEnglishProgress } from "@/lib/english/tasks";
+import {
+  answersWithBackup,
+  backupAnswers,
+  clearAnswersBackup,
+  EnglishTask,
+  EnglishTaskWithProgress,
+  gradeOutOfTen,
+  loadEnglishTasks,
+  saveEnglishProgress,
+} from "@/lib/english/tasks";
 import { supabase } from "@/lib/supabase";
 
 function statusLabel(item: EnglishTaskWithProgress): string {
@@ -27,6 +36,8 @@ export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglish
   const [draft, setDraft] = useState("");
   const [checked, setChecked] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  // Answers that are only in this browser because the last save failed.
+  const [unsaved, setUnsaved] = useState(false);
   // Review flashcards created from each task's mistakes in this session.
   const [reviewCards, setReviewCards] = useState<Record<string, number>>({});
 
@@ -52,12 +63,45 @@ export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglish
 
   const openItem = items.find((item) => item.task.id === openTaskId) ?? null;
 
+  /** Saves the answers to the server; on failure they stay in this browser to retry. */
+  const persist = async (task: EnglishTask, updated: Record<string, string>) => {
+    backupAnswers(task.id, updated);
+    setSaveStatus("Guardando…");
+    const previous = items.find((item) => item.task.id === task.id)?.progress ?? null;
+    try {
+      const progress = await saveEnglishProgress(task, updated, previous);
+      clearAnswersBackup(task.id);
+      setItems((current) => current.map((item) => (item.task.id === task.id ? { ...item, progress } : item)));
+      setUnsaved(false);
+      setSaveStatus("Guardado");
+      // A task finished with many mistakes turns them into flashcards to review.
+      const justFinished = progress.status === "completed" && previous?.status !== "completed";
+      if (justFinished && (progress.score ?? 0) / Math.max(1, progress.total ?? 1) < REVIEW_THRESHOLD) {
+        const cards = flashcardsFor(mistakesOf(task, progress));
+        if (cards.length) {
+          // One retry: the cards are a bonus, but worth a second attempt.
+          saveReviewFlashcards(task, cards)
+            .catch(() => saveReviewFlashcards(task, cards))
+            .then((count) => setReviewCards((current) => ({ ...current, [task.id]: count })))
+            .catch(() => undefined);
+        }
+      }
+    } catch {
+      setUnsaved(true);
+      setSaveStatus("Sin conexión: tus respuestas están a salvo en este dispositivo.");
+    }
+  };
+
   const openTask = (item: EnglishTaskWithProgress) => {
+    const { answers: restored, unsynced } = answersWithBackup(item.task, item.progress?.answers ?? {});
     setOpenTaskId(item.task.id);
-    setAnswers(item.progress?.answers ?? {});
+    setAnswers(restored);
     setDraft("");
     setChecked(false);
     setSaveStatus("");
+    setUnsaved(false);
+    // Answers from a session that could not reach the server are sent now.
+    if (unsynced) void persist(item.task, restored);
   };
 
   const closeTask = () => {
@@ -85,25 +129,18 @@ export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglish
       const updated = { ...answers, [exercise.id]: draft };
       setAnswers(updated);
       setChecked(true);
-      setSaveStatus("Guardando…");
-      try {
-        const progress = await saveEnglishProgress(task, updated, openItem.progress);
-        setItems((current) => current.map((item) => (item.task.id === task.id ? { ...item, progress } : item)));
-        setSaveStatus("");
-        // A task finished with many mistakes turns them into flashcards to review.
-        const justFinished = progress.status === "completed" && openItem.progress?.status !== "completed";
-        if (justFinished && (progress.score ?? 0) / Math.max(1, progress.total ?? 1) < REVIEW_THRESHOLD) {
-          const cards = flashcardsFor(mistakesOf(task, progress));
-          if (cards.length) {
-            saveReviewFlashcards(task, cards)
-              .then((count) => setReviewCards((current) => ({ ...current, [task.id]: count })))
-              .catch(() => undefined);
-          }
-        }
-      } catch {
-        setSaveStatus("No se ha podido guardar tu respuesta. Se volverá a intentar con la siguiente.");
-      }
+      await persist(task, updated);
     };
+
+    const retryButton = unsaved && (
+      <button
+        type="button"
+        onClick={() => void persist(task, answers)}
+        className="text-xs font-semibold text-[#806C50] underline underline-offset-2"
+      >
+        Reintentar ahora
+      </button>
+    );
 
     const next = () => {
       setDraft("");
@@ -164,7 +201,14 @@ export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglish
               ))}
             </div>
           )}
-          {saveStatus && <p role="status" className="text-xs text-[#8A6D62]">{saveStatus}</p>}
+          {saveStatus && (
+            <div className="flex items-center gap-3">
+              <p role="status" className="text-xs text-[#8A6D62]">
+                {saveStatus}
+              </p>
+              {retryButton}
+            </div>
+          )}
         </div>
       );
     }
@@ -215,7 +259,12 @@ export default function StudentEnglishTasks({ onOpenFlashcards }: StudentEnglish
               Comprobar
             </button>
           )}
-          {saveStatus && <p role="status" className="text-xs text-[#6D6962]">{saveStatus}</p>}
+          {saveStatus && (
+            <p role="status" className="text-xs text-[#6D6962]">
+              {saveStatus}
+            </p>
+          )}
+          {retryButton}
         </div>
       </div>
     );

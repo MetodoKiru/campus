@@ -29,6 +29,7 @@ import {
 } from "@/lib/english/curriculum";
 import {
   DIFFICULTY_LABELS,
+  describeAnswer,
   EXERCISE_COUNTS,
   EnglishActivity,
   EnglishActivityConfig,
@@ -796,8 +797,8 @@ export default function MentorEnglishTasks({
                                 {given === undefined
                                   ? "Sin responder"
                                   : correct
-                                    ? `✓ ${given}`
-                                    : `✗ ${given} (correcta: ${exercise.answer})`}
+                                    ? `✓ ${describeAnswer(exercise, given)}`
+                                    : `✗ ${describeAnswer(exercise, given)} (correcta: ${exercise.answer})`}
                               </span>
                             </div>
                           );

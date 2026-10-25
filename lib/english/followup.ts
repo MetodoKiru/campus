@@ -1,5 +1,5 @@
 import { findTopic, nextTopicOfSkill } from "@/lib/english/curriculum";
-import { EnglishActivity, EnglishDifficulty, EnglishExercise, generateEnglishActivity, isCorrect } from "@/lib/english/generator";
+import { EnglishActivity, EnglishDifficulty, EnglishExercise, generateEnglishActivity, isCorrect, reshuffled } from "@/lib/english/generator";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
 
 // Proposes the next task from a completed one's results. Proposals are only loaded into
@@ -15,11 +15,6 @@ export interface FollowUpSuggestion {
 const HARDER: Record<EnglishDifficulty, EnglishDifficulty | null> = { baja: "media", media: "alta", alta: null };
 const EASIER: Record<EnglishDifficulty, EnglishDifficulty | null> = { baja: null, media: "baja", alta: "media" };
 
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -31,9 +26,7 @@ function shuffle<T>(items: T[]): T[] {
 
 /** The same exercises the student failed, in a new order and with the options reshuffled. */
 function reviewOf(item: EnglishTaskWithProgress, mistakes: EnglishExercise[]): EnglishActivity {
-  const exercises = shuffle(mistakes).map((exercise): EnglishExercise =>
-    exercise.type === "choice" ? { ...exercise, id: newId(), options: shuffle(exercise.options) } : { ...exercise, id: newId() },
-  );
+  const exercises = shuffle(mistakes).map(reshuffled);
   const title = item.task.title.startsWith("Repaso · ") ? item.task.title : `Repaso · ${item.task.title}`;
   return { config: { ...item.task.config, count: exercises.length }, skill: item.task.skill, title, exercises, available: exercises.length };
 }

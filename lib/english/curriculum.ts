@@ -8,7 +8,7 @@ import { B1_READING } from "@/lib/english/b1-reading";
 // Each topic points at a content bank in lib/english/content.ts.
 
 export type EnglishLevelId = "A1" | "A2" | "B1" | "B2" | "C1";
-export type EnglishSkill = "vocabulary" | "grammar" | "reading" | "listening" | "writing" | "speaking";
+export type EnglishSkill = "vocabulary" | "grammar" | "reading" | "listening" | "writing" | "speaking" | "review";
 
 export interface EnglishTopic {
   id: string;
@@ -16,8 +16,8 @@ export interface EnglishTopic {
   skill: EnglishSkill;
   /**
    * Vocabulary/grammar: key of the bank in VOCABULARY or GRAMMAR (lib/english/content.ts).
-   * Reading: id of the text in READING. Listening, writing, speaking: the unit id,
-   * since they practise that unit's vocabulary and grammar.
+   * Reading: id of the text in READING. Listening, writing, speaking and review: the
+   * unit id, since they practise that unit's vocabulary and grammar.
    */
   bank: string;
   /** Instruction shown when the student has to type the answer. */
@@ -46,9 +46,10 @@ export const SKILL_LABELS: Record<EnglishSkill, string> = {
   listening: "Listening",
   writing: "Writing",
   speaking: "Speaking",
+  review: "Repaso",
 };
 
-export const SKILL_ORDER: EnglishSkill[] = ["vocabulary", "grammar", "reading", "listening", "writing", "speaking"];
+export const SKILL_ORDER: EnglishSkill[] = ["vocabulary", "grammar", "reading", "listening", "writing", "speaking", "review"];
 
 const vocab = (id: string, title: string, bank = id): EnglishTopic => ({ id, title, skill: "vocabulary", bank });
 const wordFormation = (id: string, title: string, writeInstruction = "Escribe la palabra que falta, formada a partir de la que está entre paréntesis."): EnglishTopic => ({
@@ -441,6 +442,7 @@ function withSkills(units: EnglishUnit[], texts: ReadingText[]): EnglishUnit[] {
       { id: `listening_${unit.id}`, title: "Listening practice", skill: "listening", bank: unit.id },
       { id: `writing_${unit.id}`, title: "Sentence building", skill: "writing", bank: unit.id },
       { id: `speaking_${unit.id}`, title: "Read aloud", skill: "speaking", bank: unit.id },
+      { id: `review_${unit.id}`, title: "Repaso de la unidad", skill: "review", bank: unit.id },
     ],
   }));
 }

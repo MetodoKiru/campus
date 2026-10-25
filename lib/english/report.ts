@@ -1,6 +1,6 @@
 import { getKiruRecords, saveKiruRecord } from "@/lib/kiru-records";
 import { EnglishSkill, findTopic, findUnit, SKILL_LABELS, SKILL_ORDER } from "@/lib/english/curriculum";
-import { EnglishExercise, isCorrect } from "@/lib/english/generator";
+import { describeAnswer, EnglishExercise, isCorrect } from "@/lib/english/generator";
 import { supabase } from "@/lib/supabase";
 import { EnglishTaskWithProgress } from "@/lib/english/tasks";
 
@@ -128,15 +128,17 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
       const given = item.progress?.answers[exercise.id];
       if (given === undefined) continue;
       const correct = isCorrect(exercise, given);
+      // A unit review mixes skills: each exercise counts towards its own.
+      const skill = exercise.skill ?? item.task.skill;
       stat.answered += 1;
-      bySkill[item.task.skill].answered += 1;
+      bySkill[skill].answered += 1;
       answeredTotal += 1;
       if (correct) {
         stat.correct += 1;
-        bySkill[item.task.skill].correct += 1;
+        bySkill[skill].correct += 1;
         correctTotal += 1;
       } else {
-        mistakes.push({ prompt: mistakeLabel(exercise), given, answer: exercise.answer });
+        mistakes.push({ prompt: mistakeLabel(exercise), given: describeAnswer(exercise, given), answer: exercise.answer });
       }
     }
     topics.set(key, stat);
@@ -167,9 +169,11 @@ export function buildEnglishReport(items: EnglishTaskWithProgress[], period: Rep
 
 // Some prompts are generic ("Dictado", "Toca las palabras…"), so the report names what was asked.
 function mistakeLabel(exercise: EnglishExercise): string {
-  if (exercise.type === "order") return "Ordenar la frase";
+  if (exercise.type === "match") return "Unir palabras con su significado";
+  if (exercise.type === "order") return exercise.letters ? `Deletrear ${exercise.prompt}` : "Ordenar la frase";
+  if (exercise.card && !exercise.audio) return exercise.card.term;
   if (exercise.type === "speak") return "Leer en voz alta";
-  if (exercise.audio) return exercise.type === "write" ? "Dictado" : `Listening: ${exercise.prompt}`;
+  if (exercise.audio) return exercise.type === "write" && !exercise.prompt.includes("___") ? "Dictado" : `Listening: ${exercise.prompt}`;
   if (exercise.passage) return `${exercise.passage.title}: ${exercise.prompt}`;
   return exercise.prompt;
 }
@@ -264,6 +268,7 @@ const STRONG_SKILL: Record<EnglishSkill, string> = {
   listening: "la comprensión oral: entiende bien lo que escucha",
   writing: "la construcción de frases: ordena bien las palabras",
   speaking: "la expresión oral: lee en voz alta con buena pronunciación",
+  review: "los repasos de unidad: mantiene lo aprendido en las unidades anteriores",
 };
 
 const WEAK_SKILL: Record<EnglishSkill, string> = {
@@ -273,6 +278,7 @@ const WEAK_SKILL: Record<EnglishSkill, string> = {
   listening: "entender el inglés hablado, sobre todo cuando dos frases se parecen",
   writing: "construir frases con el orden correcto",
   speaking: "la pronunciación al leer en voz alta",
+  review: "mantener lo aprendido cuando se mezclan los temas de una unidad",
 };
 
 const decimal = (value: number) => value.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });

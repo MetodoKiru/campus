@@ -115,3 +115,36 @@ export async function saveEnglishProgress(
 export function gradeOutOfTen(score: number, total: number): string {
   return total ? ((score / total) * 10).toFixed(1) : "0.0";
 }
+
+// Answers are also kept in the browser until the server has them, so a dropped
+// connection or a closed tab never loses work. The server copy is still the one that counts.
+const backupKey = (taskId: string) => `kiru_english_answers_${taskId}`;
+
+export function backupAnswers(taskId: string, answers: Record<string, string>): void {
+  try {
+    window.localStorage.setItem(backupKey(taskId), JSON.stringify(answers));
+  } catch {
+    // Private mode or full storage: the server save still happens.
+  }
+}
+
+export function clearAnswersBackup(taskId: string): void {
+  try {
+    window.localStorage.removeItem(backupKey(taskId));
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+/** Answers saved in this browser that the server does not have yet, merged over the server's. */
+export function answersWithBackup(task: EnglishTask, saved: Record<string, string>): { answers: Record<string, string>; unsynced: boolean } {
+  let local: Record<string, string> = {};
+  try {
+    local = JSON.parse(window.localStorage.getItem(backupKey(task.id)) ?? "{}") as Record<string, string>;
+  } catch {
+    local = {};
+  }
+  const known = new Set(task.exercises.map((exercise) => exercise.id));
+  const missing = Object.entries(local).filter(([id, value]) => known.has(id) && typeof value === "string" && saved[id] === undefined);
+  return { answers: { ...saved, ...Object.fromEntries(missing) }, unsynced: missing.length > 0 };
+}
