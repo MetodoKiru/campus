@@ -219,6 +219,8 @@ export interface LenguaAnswer {
   skill: LenguaSkill;
   difficulty: LenguaDifficulty;
   correct: boolean;
+  /** Lo que respondió el alumno, para el repaso final. */
+  given?: string;
 }
 
 export interface LenguaAttempt {

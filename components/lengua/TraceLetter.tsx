@@ -58,11 +58,11 @@ function drawGuide(context: CanvasRenderingContext2D, target: string, width: num
   context.restore();
 }
 
-export default function TraceLetter({ target, onResult }: { target: string; onResult: (ok: boolean) => void }) {
+export default function TraceLetter({ target, onResult }: { target: string; onResult: (ok: boolean | null) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<Point[][]>([]);
   const drawingRef = useRef(false);
-  const [feedback, setFeedback] = useState<"" | "ok" | "fail" | "empty">("");
+  const [feedback, setFeedback] = useState<"" | "done" | "empty">("");
   const width = canvasWidthFor(target);
 
   const redraw = useCallback(() => {
@@ -108,6 +108,8 @@ export default function TraceLetter({ target, onResult }: { target: string; onRe
     event.currentTarget.setPointerCapture(event.pointerId);
     drawingRef.current = true;
     strokesRef.current.push([toCanvasPoint(event)]);
+    // Un trazo nuevo invalida la comprobación anterior hasta pulsar «¡Ya está!» otra vez.
+    if (feedback === "done") onResult(null);
     setFeedback("");
     redraw();
   };
@@ -125,6 +127,7 @@ export default function TraceLetter({ target, onResult }: { target: string; onRe
   const clear = () => {
     strokesRef.current = [];
     setFeedback("");
+    onResult(null);
     redraw();
   };
 
@@ -160,7 +163,8 @@ export default function TraceLetter({ target, onResult }: { target: string; onRe
     const coverage = corePixels ? coveredPixels / corePixels : 0;
     const precision = inkPixels ? insidePixels / inkPixels : 0;
     const ok = coverage >= MIN_COVERAGE && precision >= MIN_PRECISION;
-    setFeedback(ok ? "ok" : "fail");
+    // El resultado no se enseña aquí: el alumno lo ve en el repaso final.
+    setFeedback("done");
     onResult(ok);
   };
 
@@ -181,8 +185,7 @@ export default function TraceLetter({ target, onResult }: { target: string; onRe
         <button type="button" onClick={clear} className="px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-white text-sm font-semibold text-[#555149] hover:bg-[#FAF8F5]">Borrar</button>
         <button type="button" onClick={check} className="px-5 py-2.5 rounded-xl bg-[#242321] text-white text-sm font-semibold hover:bg-[#3A3835]">¡Ya está!</button>
       </div>
-      {feedback === "ok" && <p className="text-center text-base font-semibold text-[#5E7A3A]">¡Muy bien trazado!</p>}
-      {feedback === "fail" && <p className="text-center text-base font-semibold text-[#9A5B3C]">Casi… intenta seguir mejor la letra. Pulsa «Borrar» y prueba otra vez.</p>}
+      {feedback === "done" && <p className="text-center text-base text-[#555149]">Trazo guardado. Si quieres repetirlo, pulsa «Borrar».</p>}
       {feedback === "empty" && <p className="text-center text-sm text-[#77736B]">Primero repasa la letra con el dedo.</p>}
     </div>
   );

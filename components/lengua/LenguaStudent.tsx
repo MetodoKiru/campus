@@ -77,7 +77,6 @@ export default function LenguaStudent() {
     if (!session) return;
     const score = answers.filter((answer) => answer.correct).length;
     const attempt: LenguaAttempt = { module: "lengua", kind: "lengua_attempt", studentId: userId, taskId: session.taskId, course, score, total: answers.length, completedAt: new Date().toISOString(), answers };
-    setSession(null);
     setResult({ score, total: answers.length, status: "Guardando…" });
     setAttempts((previous) => [attempt, ...previous]);
     try {
@@ -95,7 +94,7 @@ export default function LenguaStudent() {
           <p className="text-xs font-bold uppercase tracking-wider text-[#77736B]">{session.title}</p>
           <button type="button" onClick={() => setSession(null)} className="text-xs font-semibold text-[#77736B] hover:text-[#292825]">Salir</button>
         </div>
-        <ExercisePlayer exercises={session.exercises} onFinish={finish} />
+        <ExercisePlayer exercises={session.exercises} onFinish={finish} onClose={() => setSession(null)} />
       </div>
     );
   }
@@ -116,11 +115,9 @@ export default function LenguaStudent() {
         </div>
 
         {result && (
-          <div className="rounded-2xl bg-[#F7F5F1] p-4 text-center space-y-1">
-            <p className="text-4xl font-bold text-[#292825]">{result.score} / {result.total}</p>
-            <p className="text-lg font-semibold text-[#292825]">{result.score === result.total ? "¡Todo bien!" : "¡Buen trabajo!"}</p>
-            <p className="text-xs text-[#77736B]">{result.status}</p>
-          </div>
+          <p className="rounded-2xl bg-[#F7F5F1] px-4 py-3 text-sm text-[#45433F]">
+            Última sesión: <strong>{result.score} / {result.total}</strong> · {result.status}
+          </p>
         )}
 
         {next && (

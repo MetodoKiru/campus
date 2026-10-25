@@ -15,9 +15,6 @@ export function speak(text: string) {
   window.speechSynthesis.speak(utterance);
 }
 
-/** Un trazo cuenta como acierto si sale bien en uno de los dos primeros intentos. */
-const TRACE_TRIES_THAT_COUNT = 2;
-
 function ListenButton({ text, label = "Escuchar" }: { text: string; label?: string }) {
   return (
     <button type="button" onClick={() => speak(text)} className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#E7E3DC] text-sm font-semibold text-[#555149] hover:bg-[#FAF8F5]">
@@ -27,66 +24,101 @@ function ListenButton({ text, label = "Escuchar" }: { text: string; label?: stri
   );
 }
 
-function BuildWord({ exercise, locked, onCheck }: { exercise: BuildExercise; locked: boolean; onCheck: (answer: string) => void }) {
-  const [chosen, setChosen] = useState<number[]>([]);
-  const remaining = exercise.pieces.map((piece, index) => ({ piece, index })).filter(({ index }) => !chosen.includes(index));
-  const built = joinPieces(exercise, chosen.map((index) => exercise.pieces[index]));
+function BuildWord({ exercise, value, onChange }: { exercise: BuildExercise; value: number[]; onChange: (chosen: number[]) => void }) {
+  const remaining = exercise.pieces.map((piece, index) => ({ piece, index })).filter(({ index }) => !value.includes(index));
   return (
     <div className="space-y-4">
       <div className="min-h-16 rounded-2xl border-2 border-dashed border-[#D9CFBF] bg-white p-3 flex flex-wrap items-center justify-center gap-2">
-        {chosen.length === 0 && <span className="text-sm text-[#A39E95]">Toca las piezas en orden</span>}
-        {chosen.map((index) => (
-          <button key={index} type="button" disabled={locked} onClick={() => setChosen((previous) => previous.filter((item) => item !== index))} className="px-4 py-2.5 rounded-xl bg-[#F0E9DE] border border-[#B9A58A] text-xl font-bold text-[#292825]">
+        {value.length === 0 && <span className="text-base text-[#A39E95]">Toca las piezas en orden</span>}
+        {value.map((index) => (
+          <button key={index} type="button" onClick={() => onChange(value.filter((item) => item !== index))} className="px-4 py-2.5 rounded-xl bg-[#F0E9DE] border border-[#B9A58A] text-xl font-bold text-[#292825]">
             {exercise.pieces[index]}
           </button>
         ))}
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {remaining.map(({ piece, index }) => (
-          <button key={index} type="button" disabled={locked} onClick={() => setChosen((previous) => [...previous, index])} className="px-4 py-2.5 rounded-xl bg-white border border-[#E7E3DC] text-lg font-bold text-[#343330] hover:bg-[#FAF8F5] shadow-xs">
+          <button key={index} type="button" onClick={() => onChange([...value, index])} className="px-4 py-2.5 rounded-xl bg-white border-2 border-[#E7E3DC] text-xl font-bold text-[#343330] hover:bg-[#FAF8F5]">
             {piece}
           </button>
         ))}
       </div>
-      {!locked && (
-        <div className="flex justify-center">
-          <button type="button" disabled={remaining.length > 0} onClick={() => onCheck(built)} className="px-5 py-2.5 rounded-xl bg-[#242321] text-white text-sm font-semibold disabled:opacity-40">Comprobar</button>
-        </div>
-      )}
     </div>
   );
 }
 
-export default function ExercisePlayer({ exercises, onFinish }: { exercises: LenguaExercise[]; onFinish: (answers: LenguaAnswer[]) => void }) {
+type Given = { text?: string; pieces?: number[] };
+
+function givenText(exercise: LenguaExercise, given: Given | undefined): string {
+  if (!given) return "";
+  if (exercise.type === "build") return given.pieces && given.pieces.length === exercise.pieces.length ? joinPieces(exercise, given.pieces.map((index) => exercise.pieces[index])) : "";
+  return given.text ?? "";
+}
+
+function Review({ exercises, answers, onClose }: { exercises: LenguaExercise[]; answers: LenguaAnswer[]; onClose: () => void }) {
+  const score = answers.filter((answer) => answer.correct).length;
+  return (
+    <div className="space-y-5">
+      <div className="text-center space-y-1">
+        <p className="text-sm font-semibold text-[#77736B]">Has terminado</p>
+        <p className="text-5xl font-bold text-[#292825]">{score} / {answers.length}</p>
+        <p className="text-lg text-[#45433F]">{score === answers.length ? "¡Todo bien!" : "Mira abajo qué hay que repasar."}</p>
+      </div>
+      <ol className="space-y-2.5">
+        {exercises.map((exercise, index) => {
+          const answer = answers[index];
+          if (!answer) return null;
+          const isTrace = exercise.type === "trace";
+          const expected = isTrace ? exercise.target : exercise.answer;
+          return (
+            <li key={exercise.id} className={`rounded-2xl border-2 p-4 space-y-1 ${answer.correct ? "border-[#D5DEC4] bg-[#F7F9F2]" : "border-[#EBCFC0] bg-[#FCF5F1]"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-base font-semibold text-[#292825]">{index + 1}. {exercise.prompt}</p>
+                <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${answer.correct ? "bg-[#E3EBD5] text-[#4F6A30]" : "bg-[#F5DED2] text-[#8A4626]"}`}>{answer.correct ? "Bien" : "Repasar"}</span>
+              </div>
+              {isTrace ? (
+                <p className="text-base text-[#45433F]">{answer.correct ? `Has trazado bien «${expected}».` : `Hay que practicar más el trazo de «${expected}».`}</p>
+              ) : (
+                <>
+                  <p className="text-base text-[#45433F]">Tu respuesta: <strong>{answer.given || "sin responder"}</strong></p>
+                  {!answer.correct && <p className="text-base text-[#45433F]">La respuesta correcta: <strong>{expected}</strong></p>}
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="flex justify-center">
+        <button type="button" onClick={onClose} className="px-6 py-3 rounded-2xl bg-[#242321] text-white text-base font-bold hover:bg-[#3A3835]">Volver</button>
+      </div>
+    </div>
+  );
+}
+
+/** Tanda de ejercicios sin corrección inmediata: el alumno ve el resultado de todo en el repaso final. */
+export default function ExercisePlayer({ exercises, onFinish, onClose }: { exercises: LenguaExercise[]; onFinish: (answers: LenguaAnswer[]) => void; onClose: () => void }) {
   const [position, setPosition] = useState(0);
-  const [answers, setAnswers] = useState<LenguaAnswer[]>([]);
-  const [current, setCurrent] = useState<{ given: string; correct: boolean } | null>(null);
-  const [traceTries, setTraceTries] = useState(0);
+  const [givens, setGivens] = useState<Record<number, Given>>({});
+  const [finished, setFinished] = useState<LenguaAnswer[] | null>(null);
+
+  if (finished) return <Review exercises={exercises} answers={finished} onClose={onClose} />;
   const exercise = exercises[position];
   if (!exercise) return null;
 
-  const answer = (given: string) => {
-    if (current && exercise.type !== "trace") return;
-    const correct = checkAnswer(exercise, given);
-    if (exercise.type === "trace") {
-      const tries = traceTries + 1;
-      setTraceTries(tries);
-      // Se guarda el mejor resultado: si ya acertó, un intento posterior peor no lo borra.
-      if (current?.correct) return;
-      setCurrent({ given, correct: correct && tries <= TRACE_TRIES_THAT_COUNT });
-      return;
-    }
-    setCurrent({ given, correct });
-  };
+  const given = givens[position];
+  const setGiven = (value: Given) => setGivens((previous) => ({ ...previous, [position]: value }));
+  const ready = exercise.type === "build" ? givenText(exercise, given) !== "" : Boolean(given?.text);
+  const isLast = position + 1 >= exercises.length;
 
   const next = () => {
-    if (!current) return;
-    const recorded = [...answers, { exerciseId: exercise.id, unit: exercise.unit, skill: exercise.skill, difficulty: exercise.difficulty, correct: current.correct }];
-    setAnswers(recorded);
-    setCurrent(null);
-    setTraceTries(0);
-    if (position + 1 >= exercises.length) onFinish(recorded);
-    else setPosition(position + 1);
+    if (!ready) return;
+    if (!isLast) { setPosition(position + 1); return; }
+    const answers: LenguaAnswer[] = exercises.map((item, index) => {
+      const text = givenText(item, givens[index]);
+      return { exerciseId: item.id, unit: item.unit, skill: item.skill, difficulty: item.difficulty, correct: checkAnswer(item, text), given: text };
+    });
+    setFinished(answers);
+    onFinish(answers);
   };
 
   return (
@@ -95,13 +127,13 @@ export default function ExercisePlayer({ exercises, onFinish }: { exercises: Len
         <div className="h-3 flex-1 rounded-full bg-[#EEECE7] overflow-hidden">
           <div className="h-full bg-[#8A9870] transition-all" style={{ width: `${(position / exercises.length) * 100}%` }} />
         </div>
-        <span className="text-xs font-semibold text-[#77736B]">{position + 1} / {exercises.length}</span>
+        <span className="text-sm font-semibold text-[#77736B]">{position + 1} / {exercises.length}</span>
       </div>
 
       {exercise.type === "choice" && exercise.reading && (
-        <div className="rounded-2xl bg-[#F7F5F1] border border-[#EEEAE3] p-4 flex gap-3 items-start">
-          <p className="text-xl leading-relaxed text-[#292825] flex-1">{exercise.reading}</p>
-          <ListenButton text={exercise.reading} />
+        <div className="rounded-2xl bg-[#F7F5F1] border border-[#EEEAE3] p-4 space-y-3">
+          <p className="text-xl leading-relaxed text-[#292825]">{exercise.reading}</p>
+          <ListenButton text={exercise.reading} label="Escuchar el texto" />
         </div>
       )}
 
@@ -111,43 +143,31 @@ export default function ExercisePlayer({ exercises, onFinish }: { exercises: Len
         {exercise.speak && <ListenButton text={exercise.speak} />}
       </div>
 
-      {exercise.type === "trace" && <TraceLetter key={exercise.id} target={exercise.target} onResult={(ok) => answer(ok ? "ok" : "fail")} />}
+      {exercise.type === "trace" && <TraceLetter key={exercise.id} target={exercise.target} onResult={(ok) => setGiven({ text: ok === null ? undefined : ok ? "ok" : "fail" })} />}
 
       {exercise.type === "choice" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {exercise.options.map((option) => {
-            const picked = current?.given === option;
-            const isAnswer = current && option === exercise.answer;
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => answer(option)}
-                disabled={Boolean(current)}
-                className={`px-4 py-3.5 rounded-2xl border text-lg font-semibold transition ${isAnswer ? "border-[#8A9870] bg-[#EEF2E6] text-[#3F5228]" : picked ? "border-[#C99A82] bg-[#F8ECE5] text-[#7A3F25]" : "border-[#E7E3DC] bg-white text-[#343330] hover:bg-[#FAF8F5]"}`}
-              >
-                {option}
-              </button>
-            );
-          })}
+          {exercise.options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setGiven({ text: option })}
+              className={`px-4 py-4 rounded-2xl border-2 text-xl font-semibold transition ${given?.text === option ? "border-[#242321] bg-[#F0E9DE] text-[#292825]" : "border-[#E7E3DC] bg-white text-[#343330] hover:bg-[#FAF8F5]"}`}
+            >
+              {option}
+            </button>
+          ))}
         </div>
       )}
 
-      {exercise.type === "build" && <BuildWord key={exercise.id} exercise={exercise} locked={Boolean(current)} onCheck={answer} />}
+      {exercise.type === "build" && <BuildWord key={exercise.id} exercise={exercise} value={given?.pieces ?? []} onChange={(pieces) => setGiven({ pieces })} />}
 
-      {current && exercise.type !== "trace" && (
-        <p className={`text-center text-lg font-semibold ${current.correct ? "text-[#5E7A3A]" : "text-[#9A5B3C]"}`}>
-          {current.correct ? "¡Muy bien!" : `La respuesta era «${exercise.answer}».`}
-        </p>
-      )}
-
-      {current && (
-        <div className="flex justify-center">
-          <button type="button" onClick={next} className="px-6 py-3 rounded-2xl bg-[#8A9870] text-white text-base font-bold hover:bg-[#76845E]">
-            {position + 1 >= exercises.length ? "Terminar" : "Siguiente →"}
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <button type="button" onClick={() => setPosition(position - 1)} disabled={position === 0} className="px-4 py-3 rounded-2xl border border-[#E7E3DC] bg-white text-base font-semibold text-[#555149] disabled:invisible">← Anterior</button>
+        <button type="button" onClick={next} disabled={!ready} className="px-6 py-3 rounded-2xl bg-[#8A9870] text-white text-base font-bold hover:bg-[#76845E] disabled:opacity-40">
+          {isLast ? "Terminar" : "Siguiente →"}
+        </button>
+      </div>
     </div>
   );
 }
