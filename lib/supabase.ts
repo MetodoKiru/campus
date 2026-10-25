@@ -10,4 +10,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const clientUrl = supabaseUrl || "http://127.0.0.1:54321";
 const clientKey = supabaseAnonKey || "build-placeholder-anon-key";
 
-export const supabase = createClient<Database>(clientUrl, clientKey);
+// La sesión se guarda por pestaña (sessionStorage), no en todo el navegador:
+// así se puede tener abierta una cuenta distinta en cada pestaña (admin en una,
+// mentor en otra) sin que una pise a la otra. Al cerrar la pestaña se cierra la sesión.
+const tabStorage = typeof window !== "undefined" ? window.sessionStorage : undefined;
+
+export const supabase = createClient<Database>(clientUrl, clientKey, {
+  auth: { storage: tabStorage, persistSession: true },
+});
