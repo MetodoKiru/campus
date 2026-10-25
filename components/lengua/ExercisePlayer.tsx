@@ -107,7 +107,7 @@ export default function ExercisePlayer({ exercises, onFinish, onClose }: { exerc
 
   const given = givens[position];
   const setGiven = (value: Given) => setGivens((previous) => ({ ...previous, [position]: value }));
-  const ready = exercise.type === "build" ? givenText(exercise, given) !== "" : Boolean(given?.text);
+  const ready = exercise.type === "build" ? givenText(exercise, given) !== "" : Boolean(given?.text?.trim());
   const isLast = position + 1 >= exercises.length;
 
   const next = () => {
@@ -158,6 +158,21 @@ export default function ExercisePlayer({ exercises, onFinish, onClose }: { exerc
             </button>
           ))}
         </div>
+      )}
+
+      {exercise.type === "write" && (
+        <input
+          key={exercise.id}
+          value={given?.text ?? ""}
+          onChange={(event) => setGiven({ text: event.target.value })}
+          placeholder="Escribe aquí"
+          aria-label="Tu respuesta"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="w-full px-4 py-4 rounded-2xl border-2 border-[#E7E3DC] bg-white text-2xl text-center font-semibold text-[#292825] focus:border-[#242321] outline-none"
+        />
       )}
 
       {exercise.type === "build" && <BuildWord key={exercise.id} exercise={exercise} value={given?.pieces ?? []} onChange={(pieces) => setGiven({ pieces })} />}

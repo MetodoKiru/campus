@@ -6,6 +6,7 @@ import { LEVEL_STYLES } from "@/components/lengua/LenguaStudent";
 import {
   buildReport,
   DIFFICULTY_LABELS,
+  isLenguaCourse,
   LENGUA_COURSES,
   LENGUA_DATABASE,
   LENGUA_UNITS,
@@ -72,7 +73,7 @@ export default function LenguaMentor({ student, onStatus }: { student: Student |
         setAttempts(ownedByStudent(progress).map(parseLenguaAttempt).filter((attempt): attempt is LenguaAttempt => Boolean(attempt)).sort((a, b) => b.completedAt.localeCompare(a.completedAt)));
         const profile = ownedByStudent(activity).map((data) => data as { kind?: string; course?: string }).find((data) => data?.kind === "lengua_profile");
         const assignedCourse = profile?.course ?? loadedTasks[0]?.course;
-        setCourse(assignedCourse === "2EP" ? "2EP" : "1EP");
+        setCourse(isLenguaCourse(assignedCourse) ? assignedCourse : "1EP");
       } catch (error) {
         console.error("No se pudo cargar el progreso de Lengua.", error);
       }
@@ -145,7 +146,7 @@ export default function LenguaMentor({ student, onStatus }: { student: Student |
           <h3 className="font-serif text-lg font-bold text-[#292825]">Lengua de @{student.username}</h3>
           <p className="text-xs text-[#77736B]">El curso decide el temario que ve el alumno.</p>
         </div>
-        <div className="flex gap-1.5 text-xs font-semibold">
+        <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
           {(Object.keys(LENGUA_COURSES) as LenguaCourse[]).map((item) => (
             <button key={item} type="button" onClick={() => void changeCourse(item)} className={`px-3 py-2 rounded-xl ${course === item ? "bg-[#242321] text-white" : "bg-[#FAF8F5] border border-[#E7E3DC] text-[#555149]"}`}>{LENGUA_COURSES[item]}</button>
           ))}
@@ -183,7 +184,7 @@ export default function LenguaMentor({ student, onStatus }: { student: Student |
           </label>
           <label className="flex items-center gap-2 text-sm text-[#45433F]">
             <input type="checkbox" checked={form.includeTrace} onChange={(event) => setForm({ ...form, includeTrace: event.target.checked })} />
-            Incluir trazado de letras con el dedo
+            Incluir trazado de letras con el dedo (1º y 2º)
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[#555149]">Fecha de entrega</span><input type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} className="w-full p-2.5 rounded-xl border border-[#E7E3DC] text-sm" /></label>

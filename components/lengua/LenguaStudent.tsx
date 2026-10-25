@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import {
   buildSession,
   computeMastery,
+  isLenguaCourse,
   LENGUA_COURSES,
   LENGUA_UNITS,
   LEVEL_LABELS,
@@ -52,7 +53,7 @@ export default function LenguaStudent() {
         // El curso lo fija el mentor; si no lo ha hecho, se usa el de la última tarea.
         const profile = activity.map((record) => record.data as { kind?: string; course?: string }).find((data) => data?.kind === "lengua_profile");
         const assignedCourse = profile?.course ?? loadedTasks[0]?.course;
-        if (assignedCourse === "1EP" || assignedCourse === "2EP") setCourse(assignedCourse);
+        if (isLenguaCourse(assignedCourse)) setCourse(assignedCourse);
       } catch (error) {
         console.error("No se pudieron cargar los datos de Lengua.", error);
       }
@@ -107,7 +108,7 @@ export default function LenguaStudent() {
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Lengua · {LENGUA_COURSES[course]}</p>
             <h2 className="text-2xl font-serif text-[#292825] font-bold mt-1">Leo, escribo y juego</h2>
           </div>
-          <div className="flex gap-1.5 text-xs font-semibold">
+          <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
             {(Object.keys(LENGUA_COURSES) as LenguaCourse[]).map((item) => (
               <button key={item} type="button" onClick={() => setCourse(item)} className={`px-3 py-2 rounded-xl ${course === item ? "bg-[#242321] text-white" : "bg-[#FAF8F5] border border-[#E7E3DC] text-[#555149]"}`}>{LENGUA_COURSES[item]}</button>
             ))}
