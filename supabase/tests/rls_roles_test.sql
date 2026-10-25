@@ -4,9 +4,9 @@
 begin;
 -- ids
 create temp table ids(k text primary key, id uuid);
-insert into ids values ('A',gen_random_uuid()),('M',gen_random_uuid()),('M2',gen_random_uuid()),('P',gen_random_uuid()),('S1',gen_random_uuid()),('S2',gen_random_uuid()),('S3',gen_random_uuid()),('X',gen_random_uuid());
+insert into ids values ('A',gen_random_uuid()),('M',gen_random_uuid()),('M2',gen_random_uuid()),('P',gen_random_uuid()),('S1',gen_random_uuid()),('S2',gen_random_uuid()),('S3',gen_random_uuid()),('X',gen_random_uuid()),('F',gen_random_uuid()),('MN',gen_random_uuid());
 grant select on ids to authenticated;
-insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_build_object('kiru_role', case k when 'A' then 'admin' when 'X' then 'admin' when 'M' then 'mentor' when 'M2' then 'mentor' when 'P' then 'padre' else 'alumno' end) from ids;
+insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_build_object('kiru_role', case k when 'A' then 'admin' when 'X' then 'admin' when 'M' then 'mentor' when 'M2' then 'mentor' when 'P' then 'padre' when 'F' then 'formador' when 'MN' then 'mentor' else 'alumno' end) from ids;
 update profiles set is_active=false where id=(select id from ids where k='S3');
 insert into student_mentors values ((select id from ids where k='S1'),(select id from ids where k='M')),((select id from ids where k='S2'),(select id from ids where k='M2'));
 insert into student_guardians(student_id,guardian_id) values ((select id from ids where k='S1'),(select id from ids where k='P'));
@@ -15,6 +15,8 @@ insert into kiru_notices(title,content,created_by,target_student_id) values ('gl
 insert into kiru_app_records(owner_id,record_type,record_key,created_by) select id,'progress','p_'||k,id from ids where k in ('S1','S2','S3');
 insert into kiru_flashcard_sets(student_id,created_by,title) select id,(select id from ids where k='A'),'set' from ids where k in ('S1','S2');
 insert into kiru_flashcards(set_id,term,definition) select id,'t','d' from kiru_flashcard_sets;
+
+insert into kiru_mentor_onboarding(full_name,email,profile_id) values ('Mentor nuevo','mn@t.es',(select id from ids where k='MN'));
 
 create function pg_temp.as_user(k text, claim_role text default null) returns void language plpgsql as $$
 declare u uuid; r text;
@@ -39,7 +41,7 @@ begin execute stmt; raise notice 'ok  % (allowed)', label; end $$;
 grant execute on all functions in schema pg_temp to authenticated;
 -- admin
 select pg_temp.as_user('A');
-select pg_temp.expect('admin ve 8 perfiles', (select count(*) from profiles), 8);
+select pg_temp.expect('admin ve 10 perfiles', (select count(*) from profiles), 10);
 select pg_temp.expect('admin ve 3 pagos', (select count(*) from kiru_payments), 3);
 select pg_temp.expect('admin ve 3 avisos', (select count(*) from kiru_notices), 3);
 reset role;
@@ -86,8 +88,49 @@ reset role;
 select pg_temp.as_user('S2', 'admin');
 select pg_temp.expect('JWT admin con perfil alumno no ve todo', (select count(*) from kiru_payments), 1);
 reset role;
+-- asignaciones desde el panel de administración (antes: recursión infinita)
+select pg_temp.as_user('A');
+select pg_temp.expect_allowed('admin asigna familia', format($q$insert into student_guardians(student_id,guardian_id) values (%L,%L)$q$, (select id from ids where k='S2'), (select id from ids where k='P')));
+select pg_temp.expect_denied('admin no asigna alumno como familia', format($q$insert into student_guardians(student_id,guardian_id) values (%L,%L)$q$, (select id from ids where k='S2'), (select id from ids where k='S1')));
+select pg_temp.expect_denied('admin no asigna padre como mentor', format($q$insert into student_mentors values (%L,%L)$q$, (select id from ids where k='S3'), (select id from ids where k='P')));
+reset role;
+-- formador F
+select pg_temp.as_user('F');
+select pg_temp.expect('formador nace como formador', (select count(*) from profiles where role='formador'), 1);
+select pg_temp.expect('formador solo ve su perfil', (select count(*) from profiles), 1);
+select pg_temp.expect('formador no ve alumnos', (select count(*) from students), 0);
+select pg_temp.expect('formador no ve pagos', (select count(*) from kiru_payments), 0);
+select pg_temp.expect('formador no ve registros', (select count(*) from kiru_app_records), 0);
+select pg_temp.expect('formador no ve asignaciones', (select count(*) from student_mentors), 0);
+select pg_temp.expect('formador ve fichas de incorporación', (select count(*) from kiru_mentor_onboarding), 1);
+select pg_temp.expect_allowed('formador crea ficha', $q$insert into kiru_mentor_onboarding(full_name,email) values ('Otra','otra@t.es')$q$);
+select pg_temp.expect_allowed('formador marca confidencialidad', $q$update kiru_mentor_onboarding set confidentiality_signed_at=now() where email='otra@t.es'$q$);
+select pg_temp.expect_denied('formador asigna alumno', format($q$insert into student_mentors values (%L,%L)$q$, (select id from ids where k='S3'), (select id from ids where k='MN')));
+select pg_temp.expect_denied('formador crea pago', format($q$insert into kiru_payments(student_id,concept,amount_cents,created_by) values (%L,'x',1,%L)$q$, (select id from ids where k='S1'), (select id from ids where k='F')));
+do $$ begin delete from kiru_mentor_onboarding; end $$;
+select pg_temp.expect('formador no borra fichas', (select count(*) from kiru_mentor_onboarding), 2);
+reset role;
+-- otros roles no ven fichas
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor no ve fichas', (select count(*) from kiru_mentor_onboarding), 0);
+reset role;
+select pg_temp.as_user('S1');
+select pg_temp.expect('alumno no ve fichas', (select count(*) from kiru_mentor_onboarding), 0);
+reset role;
+select pg_temp.as_user('F', 'admin');
+select pg_temp.expect('JWT admin con perfil formador no ve pagos', (select count(*) from kiru_payments), 0);
+reset role;
+-- bloqueo de asignación sin certificado
+select pg_temp.as_user('A');
+select pg_temp.expect_denied('admin asigna mentor sin certificado', format($q$insert into student_mentors values (%L,%L)$q$, (select id from ids where k='S3'), (select id from ids where k='MN')));
+select pg_temp.expect_denied('admin cambia a mentor sin certificado', format($q$update student_mentors set mentor_id=%L where student_id=%L$q$, (select id from ids where k='MN'), (select id from ids where k='S1')));
+select pg_temp.expect_allowed('admin marca certificado', $q$update kiru_mentor_onboarding set certificate_checked_at=now() where email='mn@t.es'$q$);
+select pg_temp.expect_allowed('admin asigna mentor con certificado', format($q$insert into student_mentors values (%L,%L)$q$, (select id from ids where k='S3'), (select id from ids where k='MN')));
+select pg_temp.expect_allowed('mentor antiguo sin ficha sigue asignable', format($q$update student_mentors set mentor_id=%L where student_id=%L$q$, (select id from ids where k='M2'), (select id from ids where k='S1')));
+reset role;
 -- anon
 set local role anon;
 select pg_temp.expect('anon no ve perfiles', (select count(*) from profiles), 0);
+select pg_temp.expect('anon no ve fichas', (select count(*) from kiru_mentor_onboarding), 0);
 reset role;
 rollback;
