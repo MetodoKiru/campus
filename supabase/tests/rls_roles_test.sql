@@ -4,9 +4,9 @@
 begin;
 -- ids
 create temp table ids(k text primary key, id uuid);
-insert into ids values ('A',gen_random_uuid()),('M',gen_random_uuid()),('M2',gen_random_uuid()),('P',gen_random_uuid()),('S1',gen_random_uuid()),('S2',gen_random_uuid()),('S3',gen_random_uuid()),('X',gen_random_uuid()),('F',gen_random_uuid()),('MN',gen_random_uuid());
+insert into ids values ('A',gen_random_uuid()),('M',gen_random_uuid()),('M2',gen_random_uuid()),('P',gen_random_uuid()),('S1',gen_random_uuid()),('S2',gen_random_uuid()),('S3',gen_random_uuid()),('X',gen_random_uuid()),('F',gen_random_uuid()),('MN',gen_random_uuid()),('C',gen_random_uuid()),('C2',gen_random_uuid()),('M3',gen_random_uuid()),('M4',gen_random_uuid()),('M5',gen_random_uuid()),('M6',gen_random_uuid()),('M7',gen_random_uuid());
 grant select on ids to authenticated;
-insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_build_object('kiru_role', case k when 'A' then 'admin' when 'X' then 'admin' when 'M' then 'mentor' when 'M2' then 'mentor' when 'P' then 'padre' when 'F' then 'formador' when 'MN' then 'mentor' else 'alumno' end) from ids;
+insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_build_object('kiru_role', case k when 'A' then 'admin' when 'X' then 'admin' when 'M' then 'mentor' when 'M2' then 'mentor' when 'P' then 'padre' when 'F' then 'formador' when 'MN' then 'mentor' when 'C' then 'coordinador' when 'C2' then 'coordinador' when 'M3' then 'mentor' when 'M4' then 'mentor' when 'M5' then 'mentor' when 'M6' then 'mentor' when 'M7' then 'mentor' else 'alumno' end) from ids;
 update profiles set is_active=false where id=(select id from ids where k='S3');
 insert into student_mentors values ((select id from ids where k='S1'),(select id from ids where k='M')),((select id from ids where k='S2'),(select id from ids where k='M2'));
 insert into student_guardians(student_id,guardian_id) values ((select id from ids where k='S1'),(select id from ids where k='P'));
@@ -17,6 +17,12 @@ insert into kiru_flashcard_sets(student_id,created_by,title) select id,(select i
 insert into kiru_flashcards(set_id,term,definition) select id,'t','d' from kiru_flashcard_sets;
 
 insert into kiru_mentor_onboarding(full_name,email,profile_id) values ('Mentor nuevo','mn@t.es',(select id from ids where k='MN'));
+insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values ((select id from ids where k='M'),(select id from ids where k='C')),((select id from ids where k='M2'),(select id from ids where k='C2'));
+insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident) values
+  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae'),
+  ('log-m2',now(),current_date,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'');
+create temp table log_ids as select source_key, id from kiru_session_logs;
+grant select on log_ids to authenticated;
 
 create function pg_temp.as_user(k text, claim_role text default null) returns void language plpgsql as $$
 declare u uuid; r text;
@@ -41,7 +47,7 @@ begin execute stmt; raise notice 'ok  % (allowed)', label; end $$;
 grant execute on all functions in schema pg_temp to authenticated;
 -- admin
 select pg_temp.as_user('A');
-select pg_temp.expect('admin ve 10 perfiles', (select count(*) from profiles), 10);
+select pg_temp.expect('admin ve 17 perfiles', (select count(*) from profiles), 17);
 select pg_temp.expect('admin ve 3 pagos', (select count(*) from kiru_payments), 3);
 select pg_temp.expect('admin ve 3 avisos', (select count(*) from kiru_notices), 3);
 reset role;
@@ -61,6 +67,49 @@ select pg_temp.as_user('P');
 select pg_temp.expect('padre ve su perfil + S1', (select count(*) from profiles), 2);
 select pg_temp.expect('padre ve pago de S1', (select count(*) from kiru_payments), 1);
 select pg_temp.expect('padre ve tarjetas de S1', (select count(*) from kiru_flashcards), 1);
+reset role;
+-- coordinador C (lleva a M, que tiene a S1, cuya familia es P)
+select pg_temp.as_user('C');
+select pg_temp.expect('coordinador nace como coordinador', (select count(*) from profiles where role='coordinador'), 1);
+select pg_temp.expect('coordinador ve su perfil + M + S1 + P', (select count(*) from profiles), 4);
+select pg_temp.expect('coordinador ve el alumno de su mentor', (select count(*) from students), 1);
+select pg_temp.expect('coordinador ve la asignación de su mentor', (select count(*) from student_mentors), 1);
+select pg_temp.expect('coordinador ve la familia del alumno', (select count(*) from student_guardians), 1);
+select pg_temp.expect('coordinador ve progreso y SkillCoins de S1', (select count(*) from kiru_app_records), 2);
+select pg_temp.expect('coordinador no ve pagos', (select count(*) from kiru_payments), 0);
+select pg_temp.expect('coordinador ve su enlace', (select count(*) from kiru_coordinator_mentors), 1);
+select pg_temp.expect('coordinador ve registros de sesión de su mentor', (select count(*) from kiru_session_logs), 1);
+select pg_temp.expect_allowed('coordinador revisa incidencia de su mentor', format($q$insert into kiru_incident_reviews(log_id,note,reviewed_by) select id,'hablado',%L from kiru_session_logs where source_key='log-m'$q$, (select id from ids where k='C')));
+select pg_temp.expect_denied('coordinador asigna alumno', format($q$insert into student_mentors values (%L,%L)$q$, (select id from ids where k='S3'), (select id from ids where k='M')));
+select pg_temp.expect_denied('coordinador se asigna mentores', format($q$insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values (%L,%L)$q$, (select id from ids where k='M3'), (select id from ids where k='C')));
+select pg_temp.expect_denied('coordinador crea registro de sesión', format($q$insert into kiru_session_logs(source_key,submitted_at) values ('falso',now())$q$));
+select pg_temp.expect_denied('coordinador escribe en registros del alumno', format($q$insert into kiru_app_records(owner_id,record_type,record_key,created_by) values (%L,'activity','x',%L)$q$, (select id from ids where k='S1'), (select id from ids where k='C')));
+select pg_temp.expect_denied('coordinador revisa registro de otro mentor', format($q$insert into kiru_incident_reviews(log_id,note,reviewed_by) select id,'x',%L from log_ids where source_key='log-m2'$q$, (select id from ids where k='C')));
+reset role;
+select pg_temp.as_user('C2');
+select pg_temp.expect('otro coordinador solo ve su mentor', (select count(*) from profiles where role='mentor'), 1);
+select pg_temp.expect('otro coordinador no ve la revisión ajena', (select count(*) from kiru_incident_reviews), 0);
+select pg_temp.expect('otro coordinador ve su registro de sesión', (select count(*) from kiru_session_logs), 1);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve sus registros de sesión', (select count(*) from kiru_session_logs), 1);
+select pg_temp.expect('mentor no ve notas del coordinador', (select count(*) from kiru_incident_reviews), 0);
+select pg_temp.expect('mentor no ve enlaces de coordinación', (select count(*) from kiru_coordinator_mentors), 0);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('padre no ve registros de sesión', (select count(*) from kiru_session_logs), 0);
+reset role;
+select pg_temp.as_user('C', 'admin');
+select pg_temp.expect('JWT admin con perfil coordinador no ve pagos', (select count(*) from kiru_payments), 0);
+reset role;
+-- administración enlaza; máximo 5 mentores por coordinador
+select pg_temp.as_user('A');
+select pg_temp.expect_allowed('admin enlaza 4 mentores más a C2', format($q$insert into kiru_coordinator_mentors(mentor_id,coordinator_id) select id,%L from ids where k in ('M3','M4','M5','M6')$q$, (select id from ids where k='C2')));
+select pg_temp.expect_denied('admin no pasa de 5 mentores', format($q$insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values (%L,%L)$q$, (select id from ids where k='M7'), (select id from ids where k='C2')));
+select pg_temp.expect_allowed('admin cambia un mentor de coordinador', format($q$update kiru_coordinator_mentors set coordinator_id=%L where mentor_id=%L$q$, (select id from ids where k='C'), (select id from ids where k='M6')));
+select pg_temp.expect_allowed('con hueco libre ya se puede', format($q$insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values (%L,%L)$q$, (select id from ids where k='M7'), (select id from ids where k='C2')));
+select pg_temp.expect_denied('admin no pone a un mentor de coordinador', format($q$update kiru_coordinator_mentors set coordinator_id=%L where mentor_id=%L$q$, (select id from ids where k='M'), (select id from ids where k='M7')));
+select pg_temp.expect('admin ve todos los registros de sesión', (select count(*) from kiru_session_logs), 2);
 reset role;
 -- alumno S1
 select pg_temp.as_user('S1');

@@ -147,6 +147,26 @@ export type MentorOnboardingRow = {
   updated_at: string;
 };
 
+export type CoordinatorMentorRow = { mentor_id: string; coordinator_id: string; assigned_at: string };
+
+export type SessionLogRow = {
+  id: string;
+  source_key: string;
+  submitted_at: string;
+  session_date: string | null;
+  mentor_name: string;
+  student_name: string;
+  respondent_email: string | null;
+  mentor_id: string | null;
+  student_id: string | null;
+  incident: string;
+  answers: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IncidentReviewRow = { log_id: string; note: string; reviewed_by: string | null; reviewed_at: string };
+
 type Timestamps = "created_at" | "updated_at";
 
 export type Database = {
@@ -163,6 +183,9 @@ export type Database = {
       kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes">;
       kiru_flashcard_sets: Table<FlashcardSetRow, Timestamps | "id" | "subject" | "source_file_name" | "source_storage_path" | "source_mime_type" | "source_size_bytes" | "generation_method" | "status">;
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
+      kiru_coordinator_mentors: Table<CoordinatorMentorRow, "assigned_at">;
+      kiru_session_logs: Table<SessionLogRow, Timestamps | "id" | "session_date" | "mentor_name" | "student_name" | "respondent_email" | "mentor_id" | "student_id" | "incident" | "answers">;
+      kiru_incident_reviews: Table<IncidentReviewRow, "note" | "reviewed_by" | "reviewed_at">;
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
     };
     Views: { [_ in never]: never };
