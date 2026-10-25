@@ -1,27 +1,27 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { 
   Users, 
   BookOpen, 
   CheckCircle2, 
   ExternalLink,
-  Save,
-  Eye,
-  Sliders,
   Layers,
   Plus,
   Send,
   Award,
   PenLine
 } from "lucide-react";
-import { ENGLISH_A1_DATABASE, EnglishConfig } from "@/lib/english-engine";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+
+// Client-only: every visit generates a different random activity, which must not be prerendered.
+const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
 
 const ALL_SUBJECTS = [
   { id: "geo", name: "Geografía" },
@@ -72,14 +72,6 @@ export default function MentorPage() {
   const [bulkText, setBulkText] = useState("");
   const [bulkTarget, setBulkTarget] = useState("");
 
-  const [englishConfig, setEnglishConfig] = useState<EnglishConfig>({
-    studentUsername: "",
-    selectedUnits: [],
-    selectedCategory: "Todas",
-    difficulty: "todas",
-    questionCount: 20
-  });
-
   const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
 
   useEffect(() => {
@@ -97,14 +89,12 @@ export default function MentorPage() {
         if (!active) return;
         const assigned = (profiles || []).flatMap((p) => (p.username ? [{ id: p.id, username: p.username, name: p.full_name }] : []));
         setStudents(assigned);
-        if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); setEnglishConfig((current) => ({ ...current, studentUsername: assigned[0].username })); }
-        const [activities, settings, progress] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
+        if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); }
+        const [activities, progress] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
         if (!active) return;
         const subjects: Record<string, string[]> = {};
         activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
         setStudentSubjects(subjects);
-        const cfg = settings.map((r) => r.data).find((d) => d?.kind === "english_config" && assigned.some((s) => s.id === d.studentId));
-        if (cfg) { const student = assigned.find((s) => s.id === cfg.studentId); setEnglishConfig({ ...(cfg.config as unknown as EnglishConfig), studentUsername: student?.username || "" }); }
         const sc = progress.map((r) => r.data).find((d) => d?.module === "skillcoins" && assigned.some((s) => s.id === d.studentId));
         if (sc?.scores) setStudentSC({ estudios: Number(sc.scores.estudios) || 0, compromiso: Number(sc.scores.compromiso) || 0, organizacion: Number(sc.scores.organizacion) || 0, bienestar: Number(sc.scores.bienestar) || 0 });
       } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
@@ -113,23 +103,6 @@ export default function MentorPage() {
     return () => { active = false; };
   }, []);
 
-  const previewQuestions = useMemo(() => {
-    let pool = ENGLISH_A1_DATABASE;
-
-    if (englishConfig.selectedUnits.length > 0) {
-      pool = pool.filter((q) => englishConfig.selectedUnits.includes(q.unit));
-    }
-
-    if (englishConfig.selectedCategory !== "Todas") {
-      pool = pool.filter((q) => q.category === englishConfig.selectedCategory);
-    }
-
-    if (englishConfig.difficulty !== "todas") {
-      pool = pool.filter((q) => q.difficulty === englishConfig.difficulty);
-    }
-
-    return pool.slice(0, englishConfig.questionCount);
-  }, [englishConfig]);
 
   const handleToggleSubject = async (subjectId: string) => {
     const student = students.find((item) => item.username === selectedStudent);
@@ -166,14 +139,6 @@ export default function MentorPage() {
     } catch { setSavedMsg("No se pudieron guardar las flashcards."); }
   };
 
-  const handleSaveEnglishConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const student = students.find((item) => item.username === selectedStudent);
-    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
-    try { await saveKiruRecord("activity", `english_config_${student.id}`, { kind: "english_config", studentId: student.id, config: englishConfig }, student.id); setSavedMsg("Configuración de Inglés A1 guardada en Supabase."); }
-    catch { setSavedMsg("No se pudo guardar la configuración de Inglés A1."); }
-  };
-
   const handleUpdateSC = async (field: "estudios" | "compromiso" | "organizacion" | "bienestar", val: number) => {
     const student = students.find((item) => item.username === selectedStudent);
     if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
@@ -182,8 +147,6 @@ export default function MentorPage() {
     try { await saveKiruRecord("progress", `skillcoins_${student.id}`, { module: "skillcoins", studentId: student.id, scores: updated, updatedAt: new Date().toISOString() }, student.id); setSavedMsg("SkillCoins guardadas en Supabase."); }
     catch { setSavedMsg("No se pudieron guardar las SkillCoins."); }
   };
-
-  const availableUnits = Array.from(new Set(ENGLISH_A1_DATABASE.map((q) => q.unit)));
 
   if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -291,7 +254,7 @@ export default function MentorPage() {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Motor de Inglés A1</span>
+            <span>Inglés</span>
           </button>
           <button
             onClick={() => setActiveTab("lengua")}
@@ -508,157 +471,7 @@ export default function MentorPage() {
         )}
 
         {activeTab === "ingles" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <form onSubmit={handleSaveEnglishConfig} className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-[#555149]" />
-                <h3 className="font-serif text-base text-[#292825] font-bold">Configuración de Ejercicios A1</h3>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
-                  Nivel de Dificultad
-                </label>
-                <div className="grid grid-cols-4 gap-1.5 text-xs">
-                  {[
-                    { id: "facil", label: "Fácil" },
-                    { id: "medio", label: "Medio" },
-                    { id: "desafiante", label: "Desafío" },
-                    { id: "todas", label: "Mixto" }
-                  ].map((d) => (
-                    <button
-                      type="button"
-                      key={d.id}
-                      onClick={() => setEnglishConfig({ ...englishConfig, difficulty: d.id as EnglishConfig["difficulty"] })}
-                      className={`py-2 rounded-xl font-bold transition border ${
-                        englishConfig.difficulty === d.id
-                          ? "bg-[#242321] text-white border-slate-900"
-                          : "bg-[#FAF8F5] text-[#555149] border-[#E7E3DC] hover:bg-[#F3F0EA]"
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-bold uppercase tracking-wider text-[#77736B] text-[11px]">
-                    Cantidad de Ejercicios
-                  </label>
-                  <span className="font-bold text-[#292825]">{englishConfig.questionCount} ejercicios · máximo {ENGLISH_A1_DATABASE.length}</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={ENGLISH_A1_DATABASE.length}
-                  value={Math.min(ENGLISH_A1_DATABASE.length, englishConfig.questionCount)}
-                  onChange={(e) => setEnglishConfig({ ...englishConfig, questionCount: Math.max(1, Math.min(ENGLISH_A1_DATABASE.length, Number(e.target.value))) })}
-                  className="w-full accent-slate-900 cursor-pointer"
-                />
-              </div>
-
-              <div className="rounded-xl border border-[#E7E3DC] bg-[#F7F5F1] p-3">
-                <p className="text-xs font-semibold text-[#343330]">Vista previa de la tanda</p>
-                <p className="text-[11px] text-[#77736B] mt-1">Con estos filtros hay {previewQuestions.length} ejercicios disponibles de los {englishConfig.questionCount} solicitados. Solo se enviarán los que existan en el banco.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
-                  Área de Ejercicios
-                </label>
-                <select
-                  value={englishConfig.selectedCategory}
-                  onChange={(e) => setEnglishConfig({ ...englishConfig, selectedCategory: e.target.value })}
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F]"
-                >
-                  <option value="Todas">Todas las áreas</option>
-                  <option value="Grammar">Gramática</option>
-                  <option value="Vocabulary">Vocabulario temático</option>
-                  <option value="Everyday English">Inglés funcional y cotidiano</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#77736B] block">
-                  Unidades Curriculares A1
-                </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {availableUnits.map((unit) => {
-                    const isChecked = englishConfig.selectedUnits.includes(unit);
-                    return (
-                      <label
-                        key={unit}
-                        className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-xs font-medium cursor-pointer hover:bg-[#F3F0EA] transition"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            const updated = isChecked
-                              ? englishConfig.selectedUnits.filter((u) => u !== unit)
-                              : [...englishConfig.selectedUnits, unit];
-                            setEnglishConfig({ ...englishConfig, selectedUnits: updated });
-                          }}
-                          className="rounded text-[#292825] focus:ring-0"
-                        />
-                        <span className="text-[#45433F]">{unit}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition flex items-center justify-center gap-1.5 shadow-xs"
-              >
-                <Save className="w-4 h-4" /> Asignar Tanda de Ejercicios al Alumno
-              </button>
-            </form>
-
-            <div className="bg-white p-6 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
-              <div className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-[#806C50]" />
-                <h3 className="font-serif text-base text-[#292825] font-bold">
-                  Previsualización ({previewQuestions.length} ejercicios)
-                </h3>
-              </div>
-              <p className="text-xs text-[#77736B]">
-                Así verá los ejercicios el alumno en su panel:
-              </p>
-
-              <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
-                {previewQuestions.map((q, idx) => (
-                  <div key={q.id} className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#E7E3DC] space-y-1.5 text-xs">
-                    <div className="flex justify-between items-center text-[10px] text-[#8D887F] font-bold uppercase">
-                      <span>{q.category} · {q.difficulty}</span>
-                      <span className="text-[#806C50] bg-[#F3EEE5] px-2 py-0.5 rounded-full border border-[#E4D8C5]">
-                        {q.unit.split(":")[0]}
-                      </span>
-                    </div>
-
-                    <p className="font-semibold text-[#45433F]">
-                      {idx + 1}. {q.question}
-                    </p>
-
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {q.options?.map((opt: string, i: number) => (
-                        <span key={i} className="px-2.5 py-1 rounded-lg bg-white border border-[#E7E3DC] text-[11px] text-[#6D6962]">
-                          {opt}
-                        </span>
-                      ))}
-                    </div>
-
-                    <span className="text-[10px] text-[#8D887F] block pt-1">
-                      Respuesta esperada: <strong className="text-[#6D6962]">{q.answer}</strong>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <MentorEnglishTasks student={students.find((s) => s.username === selectedStudent)} />
         )}
 
         {activeTab === "lengua" && <LenguaMentor student={students.find((item) => item.username === selectedStudent)} onStatus={setSavedMsg} />}

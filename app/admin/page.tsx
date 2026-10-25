@@ -20,7 +20,8 @@ import {
   Users,
   CreditCard,
   ExternalLink,
-  Download
+  Download,
+  GraduationCap
 } from "lucide-react";
 
 interface UserAccount {
@@ -28,7 +29,7 @@ interface UserAccount {
   name: string;
   username: string;
   password?: string;
-  role: "alumno" | "mentor" | "padre" | "admin";
+  role: "alumno" | "mentor" | "padre" | "formador" | "admin";
   createdAt: string;
   assignedParent?: string; // Vinculación alumno -> padre
 }
@@ -126,7 +127,7 @@ export default function AdminPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"alumno" | "mentor" | "padre" | "admin">("alumno");
+  const [role, setRole] = useState<UserAccount["role"]>("alumno");
   
   // Mentor <-> Alumno
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -197,24 +198,6 @@ export default function AdminPage() {
     void loadAdminData();
     return () => { active = false; };
   }, []);
-
-  const saveLinksToStorage = async (updatedLinks: MentorStudentLink[]) => {
-    setLinks(updatedLinks);
-    try {
-      const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,username");
-      if (profileError) throw profileError;
-      const idByUsername = new Map((profiles || []).map((profile) => [profile.username, profile.id]));
-      const { data: existing, error: existingError } = await supabase.from("student_mentors").select("student_id,mentor_id");
-      if (existingError) throw existingError;
-      for (const row of existing || []) {
-        const { error } = await supabase.from("student_mentors").delete().eq("student_id", row.student_id).eq("mentor_id", row.mentor_id);
-        if (error) throw error;
-      }
-      const rows = updatedLinks.map((link) => ({ student_id: idByUsername.get(link.studentUsername), mentor_id: idByUsername.get(link.mentorUsername) })).filter((row): row is { student_id: string; mentor_id: string } => Boolean(row.student_id && row.mentor_id));
-      if (rows.length) { const { error } = await supabase.from("student_mentors").insert(rows); if (error) throw error; }
-      setMsg({ text: "Asignaciones guardadas en Supabase.", type: "success" });
-    } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudieron guardar las asignaciones.", type: "error" }); }
-  };
 
   // Los PDF se suben al almacenamiento privado; no se convierten a base64 ni se guardan en el navegador.
   const handleNoticePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => setNoticePdf(e.target.files?.[0] || null);
@@ -307,7 +290,8 @@ export default function AdminPage() {
       const updated = users.map((u) => u.id === editingUser.id ? { ...editingUser, username: cleanUsername } : u);
       if (oldUsername && oldUsername !== cleanUsername) {
         const updatedLinks = links.map((l) => l.studentUsername === oldUsername ? { ...l, studentUsername: cleanUsername } : l.mentorUsername === oldUsername ? { ...l, mentorUsername: cleanUsername } : l);
-        saveLinksToStorage(updatedLinks);
+        // En la base las asignaciones van por id, así que basta con actualizar la vista.
+        setLinks(updatedLinks);
       }
       setUsers(updated);
       setEditingUser(null);
@@ -344,23 +328,31 @@ export default function AdminPage() {
   };
 
   // Mentor <-> Alumno (CORREGIDO PARA EVITAR QUE UN ALUMNO TENGA MÚLTIPLES MENTORES)
-  const handleAssignMentor = (e: React.FormEvent) => {
+  const handleAssignMentor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent || !selectedMentor) {
       setMsg({ text: "Selecciona tanto un alumno como un mentor.", type: "error" });
       return;
     }
+    const student = users.find((u) => u.username === selectedStudent && u.role === "alumno");
+    const mentor = users.find((u) => u.username === selectedMentor && u.role === "mentor");
+    if (!student || !mentor) {
+      setMsg({ text: "No se encontró el alumno o el mentor seleccionado.", type: "error" });
+      return;
+    }
 
-    // Eliminamos cualquier asignación previa de este alumno específico para que solo tenga UN mentor exclusivo
-    const filtered = links.filter(l => l.studentUsername !== selectedStudent);
-    const updatedLinks = [...filtered, { studentUsername: selectedStudent, mentorUsername: selectedMentor }];
-    saveLinksToStorage(updatedLinks);
-
-    setMsg({ 
-      text: `Vinculación exclusiva guardada: @${selectedStudent} asignado/a únicamente a @${selectedMentor}.`, 
-      type: "success" 
-    });
-    setTimeout(() => setMsg(null), 4000);
+    // Un alumno tiene un único mentor (student_id es la clave): se guarda solo esta fila,
+    // sin tocar las demás asignaciones. Si el mentor aún no tiene el certificado
+    // comprobado, la base de datos lo rechaza y no cambia nada.
+    try {
+      const { error } = await supabase.from("student_mentors").upsert({ student_id: student.id, mentor_id: mentor.id, assigned_at: new Date().toISOString() }, { onConflict: "student_id" });
+      if (error) throw error;
+      setLinks((current) => [...current.filter((l) => l.studentUsername !== selectedStudent), { studentUsername: selectedStudent, mentorUsername: selectedMentor }]);
+      setMsg({ text: `Vinculación exclusiva guardada: @${selectedStudent} asignado/a únicamente a @${selectedMentor}.`, type: "success" });
+      setTimeout(() => setMsg(null), 4000);
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la asignación.", type: "error" });
+    }
   };
 
   // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
@@ -478,6 +470,14 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href="/formador"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <GraduationCap className="h-4 w-4" />
+            <span className="hidden sm:inline">Incorporación de mentores</span>
+            <span className="sm:hidden">Mentores nuevos</span>
+          </Link>
+          <Link
             href="/previsualizacion"
             className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
           >
@@ -587,6 +587,7 @@ export default function AdminPage() {
                       <option value="alumno">Alumno</option>
                       <option value="mentor">Mentor</option>
                       <option value="padre">Padre / Madre</option>
+                      <option value="formador">Formador/a</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </div>
@@ -678,7 +679,8 @@ export default function AdminPage() {
                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                               user.role === "admin" ? "bg-purple-100 text-purple-700" :
                               user.role === "mentor" ? "bg-blue-100 text-blue-700" :
-                              user.role === "padre" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                              user.role === "padre" ? "bg-amber-100 text-amber-700" :
+                              user.role === "formador" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
                             }`}>
                               {user.role}
                             </span>
@@ -1017,6 +1019,7 @@ export default function AdminPage() {
                   <option value="alumno">Alumno</option>
                   <option value="mentor">Mentor</option>
                   <option value="padre">Padre / Madre</option>
+                  <option value="formador">Formador/a</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>

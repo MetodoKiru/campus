@@ -130,6 +130,23 @@ export type FlashcardRow = {
   updated_at: string;
 };
 
+export type MentorOnboardingRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  confidentiality_signed_at: string | null;
+  confidentiality_checked_by: string | null;
+  certificate_checked_at: string | null;
+  certificate_checked_by: string | null;
+  profile_id: string | null;
+  notes: string;
+  archived_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type Timestamps = "created_at" | "updated_at";
 
 export type Database = {
@@ -146,6 +163,7 @@ export type Database = {
       kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes">;
       kiru_flashcard_sets: Table<FlashcardSetRow, Timestamps | "id" | "subject" | "source_file_name" | "source_storage_path" | "source_mime_type" | "source_size_bytes" | "generation_method" | "status">;
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
+      kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
