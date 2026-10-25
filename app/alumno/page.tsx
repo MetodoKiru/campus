@@ -13,8 +13,9 @@ import {
   Filter
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
-import { ENGLISH_A1_DATABASE } from "@/lib/english-engine";
-import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
+import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import { isFlashcardSet } from "@/lib/english/flashcards";
 import { supabase } from "@/lib/supabase";
 
 interface Flashcard {
@@ -35,6 +36,21 @@ interface MentorMessage {
 }
 
 /** Picks a random card and two distractor definitions. Kept outside the component so render stays pure. */
+// Single cards from the mentor's bulk generator, plus card sets (English tasks and the
+// student's own review cards from mistakes).
+function collectFlashcards(records: KiruRecord<KiruRecordData>[]): Flashcard[] {
+  return records.flatMap((record, index) => {
+    const value = record.data;
+    if (isFlashcardSet(value)) {
+      return value.cards.map((card) => ({ id: `${record.record_key}:${card.id}`, term: card.term, definition: card.definition, category: value.category }));
+    }
+    if (value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string") {
+      return [{ id: String(value.id || index), term: value.term, definition: value.definition, category: typeof value.category === "string" ? value.category : "General" }];
+    }
+    return [];
+  });
+}
+
 function pickPracticeQuestion(pool: Flashcard[]): { index: number; options: string[] } {
   const index = Math.floor(Math.random() * pool.length);
   const currentCard = pool[index];
@@ -165,14 +181,6 @@ export default function AlumnoPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
   const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
 
-  // Inglés A1 Motor de ejercicios corregido y real
-  const [englishCategory, setEnglishCategory] = useState<"Grammar" | "Vocabulary" | "Everyday English">("Grammar");
-  const [englishAssignedConfig, setEnglishAssignedConfig] = useState<{ questionCount: number; selectedCategory: string; difficulty: string; selectedUnits: string[] } | null>(null);
-  const [englishAnswers, setEnglishAnswers] = useState<Record<number, string>>({});
-  const [englishFeedback, setEnglishFeedback] = useState<{ score: number; total: number; checked: boolean }>({ score: 0, total: 0, checked: false });
-  const [englishSaveStatus, setEnglishSaveStatus] = useState<string>("");
-  const [englishHistory, setEnglishHistory] = useState<Array<{ score: number; total: number; completedAt: string; category?: string }>>([]);
-
   // SkillCoins Semanales
   const [scData, setScData] = useState({
     estudios: 0,
@@ -193,23 +201,7 @@ export default function AlumnoPage() {
           getKiruRecords<KiruRecordData>("progress"),
         ]);
         if (!active) return;
-        const cards = activityRecords
-          .map((record) => record.data)
-          .filter((value) => value && value.kind === "flashcard" && typeof value.term === "string" && typeof value.definition === "string")
-          .map((value, index) => ({ id: String(value.id || index), term: value.term, definition: value.definition, category: value.category || "General" } as Flashcard));
-        setAllCards(cards);
-        const englishAssignment = activityRecords.map((record) => record.data).find((value) => value?.kind === "english_config" && value?.config);
-        if (englishAssignment?.config) {
-          const config = englishAssignment.config;
-          setEnglishAssignedConfig({
-            questionCount: Math.max(1, Math.min(ENGLISH_A1_DATABASE.length, Number(config.questionCount) || 20)),
-            selectedCategory: typeof config.selectedCategory === "string" ? config.selectedCategory : "Todas",
-            difficulty: typeof config.difficulty === "string" ? config.difficulty : "todas",
-            selectedUnits: Array.isArray(config.selectedUnits) ? config.selectedUnits.filter((unit: unknown) => typeof unit === "string") : [],
-          });
-          const category = config.selectedCategory;
-          if (category === "Grammar" || category === "Vocabulary" || category === "Everyday English") setEnglishCategory(category);
-        }
+        setAllCards(collectFlashcards([...activityRecords, ...progressRecords]));
         const savedPractice = progressRecords.map((record) => record.data).find((value) => value?.kind === "flashcard_practice_state");
         if (savedPractice) {
           setGameScore(Number(savedPractice.gameScore) || 0);
@@ -239,10 +231,26 @@ export default function AlumnoPage() {
     return () => { active = false; };
   }, []);
 
-  // Lista filtrada de flashcards
+  // Lista filtrada de flashcards. "Inglés" incluye también "Inglés · repaso".
   const filteredCards = categoryFilter === "todas" 
     ? allCards 
-    : allCards.filter((c) => c.category.toLowerCase() === categoryFilter.toLowerCase());
+    : allCards.filter((c) => c.category.toLowerCase().startsWith(categoryFilter.toLowerCase()));
+
+  // Abre las flashcards de repaso de inglés recién creadas desde una tarea.
+  const openEnglishReviewCards = async () => {
+    try {
+      const [activityRecords, progressRecords] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
+      setAllCards(collectFlashcards([...activityRecords, ...progressRecords]));
+    } catch (error) {
+      console.error("No se pudieron recargar las flashcards.", error);
+    }
+    setMode("estudia");
+    setIsGameActive(false);
+    setCategoryFilter("inglés · repaso");
+    setCardIndex(0);
+    setIsFlipped(false);
+    setMainTab("flashcards");
+  };
 
   const changeCategoryFilter = (value: string) => {
     setCategoryFilter(value);
@@ -339,47 +347,6 @@ export default function AlumnoPage() {
     setupNewQuestion();
   };
 
-  const getAssignedEnglishQuestions = () => {
-    let pool = ENGLISH_A1_DATABASE;
-    if (englishAssignedConfig) {
-      if (englishAssignedConfig.selectedCategory !== "Todas") pool = pool.filter((question) => question.category === englishAssignedConfig.selectedCategory);
-      else pool = pool.filter((question) => question.category === englishCategory);
-      if (englishAssignedConfig.difficulty !== "todas") pool = pool.filter((question) => question.difficulty === englishAssignedConfig.difficulty);
-      if (englishAssignedConfig.selectedUnits.length) pool = pool.filter((question) => englishAssignedConfig.selectedUnits.includes(question.unit));
-      return pool.slice(0, englishAssignedConfig.questionCount);
-    }
-    return pool.filter((question) => question.category === englishCategory);
-  };
-
-  // Corrección basada en el banco central de preguntas de Inglés A1.
-  const checkEnglishExercises = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const questions = getAssignedEnglishQuestions();
-    const hits = questions.reduce((count, question, index) => {
-      const given = (englishAnswers[index] || "").trim().toLocaleLowerCase();
-      const expected = question.answer.trim().toLocaleLowerCase();
-      return count + (given === expected ? 1 : 0);
-    }, 0);
-    setEnglishFeedback({ score: hits, total: questions.length, checked: true });
-    setEnglishSaveStatus("Guardando resultado…");
-    try {
-      const completedAt = new Date().toISOString();
-      await saveKiruRecord("progress", `english_a1_attempt_${Date.now()}`, {
-        module: "english_a1",
-        category: englishCategory,
-        score: hits,
-        total: questions.length,
-        percentage: Math.round((hits / questions.length) * 100),
-        answers: questions.map((question, index) => ({ questionId: question.id, answer: englishAnswers[index] ?? "", correct: (englishAnswers[index] ?? "").trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase() })),
-        completedAt,
-      });
-      setEnglishHistory(previous => [{ score: hits, total: questions.length, completedAt, category: englishCategory }, ...previous].slice(0, 5));
-      setEnglishSaveStatus("Resultado guardado.");
-    } catch {
-      setEnglishSaveStatus("No se ha podido guardar el historial. Comprueba que has iniciado sesión.");
-    }
-  };
-
   const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId) || SUBJECTS[0];
   const activeSubjectMessages = mentorMessages.filter((m) => m.subjectId === selectedSubjectId);
 
@@ -416,7 +383,7 @@ export default function AlumnoPage() {
             { id: "inicio", label: "Mi Panel" },
             { id: "asignaturas", label: "1.1. Asignaturas" },
             { id: "flashcards", label: "Flashcards" },
-            { id: "ingles", label: "Inglés A1" },
+            { id: "ingles", label: "Inglés" },
             { id: "progreso", label: "Mi Progreso (SC)" },
             { id: "calculalo", label: "Calcúlalo" }
           ].map((tab) => (
@@ -595,6 +562,7 @@ export default function AlumnoPage() {
                     <option value="historia">Historia</option>
                     <option value="física">Física y Química</option>
                     <option value="inglés">Inglés</option>
+                    <option value="inglés · repaso">Inglés: mis fallos</option>
                     <option value="lengua">Lengua</option>
                   </select>
                 </div>
@@ -783,94 +751,17 @@ export default function AlumnoPage() {
           </div>
         )}
 
-        {/* SECCIÓN 4: INGLÉS A1 (CON CORRECCIÓN REAL Y CÁLCULO DE NOTA EXACTA) */}
+        {/* SECCIÓN 4: INGLÉS · TAREAS ASIGNADAS POR EL MENTOR */}
         {mainTab === "ingles" && (
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-6 animate-in fade-in duration-150">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B] bg-[#F3EEE5] px-2.5 py-1 rounded-full border border-[#E4D8C5]">
-                A1 Beginner · Macmillan Curriculum
+                Gateway A1 · Macmillan
               </span>
-              <h2 className="text-2xl font-serif text-[#292825] font-bold mt-2">Inglés: tu práctica de hoy</h2>
-              <p className="text-xs text-[#77736B]">Completa la tanda asignada, revisa los errores y mejora poco a poco.</p>
-              {englishAssignedConfig && (
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Ejercicios</p><p className="text-sm font-bold">{getAssignedEnglishQuestions().length}</p></div>
-                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Dificultad</p><p className="text-sm font-bold">{({facil:"Fácil",medio:"Media",desafiante:"Desafiante",todas:"Todas"} as Record<string,string>)[englishAssignedConfig.difficulty] || "Todas"}</p></div>
-                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Sección</p><p className="text-sm font-bold">{englishAssignedConfig.selectedCategory}</p></div>
-                  <div className="rounded-xl bg-[#F7F5F1] p-3"><p className="text-[10px] text-[#77736B]">Objetivo</p><p className="text-sm font-bold">Completar la tanda</p></div>
-                </div>
-              )}
+              <h2 className="text-2xl font-serif text-[#292825] font-bold mt-2">Inglés: tus tareas</h2>
+              <p className="text-xs text-[#77736B]">Haz las tareas que te manda tu mentor. Puedes parar cuando quieras: se guarda cada respuesta.</p>
             </div>
-
-            <form onSubmit={checkEnglishExercises} className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <label htmlFor="english-category" className="text-xs font-semibold text-[#45433F]">{getAssignedEnglishQuestions().length} ejercicios en esta tanda</label>
-                {!englishAssignedConfig || englishAssignedConfig.selectedCategory === "Todas" ? (
-                  <select id="english-category" value={englishCategory} onChange={(event) => { setEnglishCategory(event.target.value as typeof englishCategory); setEnglishAnswers({}); setEnglishFeedback({ score: 0, total: 0, checked: false }); setEnglishSaveStatus(""); }} className="p-2.5 rounded-xl border border-[#E7E3DC] bg-white text-xs text-[#343330]">
-                    <option value="Grammar">Gramática</option>
-                    <option value="Vocabulary">Vocabulario</option>
-                    <option value="Everyday English">Inglés cotidiano</option>
-                  </select>
-                ) : <span className="rounded-full bg-[#F3EEE5] px-3 py-2 text-xs font-semibold">{englishAssignedConfig.selectedCategory}</span>}
-              </div>
-              <div className="h-2 rounded-full bg-[#EEECE7] overflow-hidden"><div className="h-full bg-[#8A9870] transition-all" style={{ width: (getAssignedEnglishQuestions().length ? Object.keys(englishAnswers).length / getAssignedEnglishQuestions().length * 100 : 0) + "%" }} /></div>
-              {getAssignedEnglishQuestions().map((question, index) => (
-                <div key={question.id} className="p-4 bg-[#F7F5F1] rounded-2xl border border-[#E7E3DC] space-y-3 text-xs">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-[#45433F]">{index + 1}. {question.question}</span>
-                    <span className="text-[10px] text-[#8D887F]">{question.topic}</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {question.options.map((option) => (
-                      <label key={option} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${englishAnswers[index] === option ? "border-[#B9A58A] bg-[#F0E9DE]" : "border-[#E7E3DC] bg-white hover:bg-[#FAF8F5]"}`}>
-                        <input
-                          type="radio"
-                          name={`english-question-${question.id}`}
-                          value={option}
-                          checked={englishAnswers[index] === option}
-                          onChange={() => {
-                            setEnglishAnswers(previous => ({ ...previous, [index]: option }));
-                            setEnglishFeedback(previous => ({ ...previous, checked: false }));
-                          }}
-                          required
-                          className="accent-[#8A775B]"
-                        />
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {englishFeedback.checked && (
-                    <p className={`text-[11px] font-medium ${englishAnswers[index]?.trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase() ? "text-[#6F765D]" : "text-[#8A6D62]"}`}>
-                      {englishAnswers[index]?.trim().toLocaleLowerCase() === question.answer.trim().toLocaleLowerCase()
-                        ? "Correcto"
-                        : `Respuesta correcta: ${question.answer}`}
-                    </p>
-                  )}
-                </div>
-              ))}
-              <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-[#242321] text-white rounded-xl text-xs font-semibold hover:bg-[#3A3835] transition">
-                Corregir respuestas
-              </button>
-              {englishFeedback.checked && (
-                <div className="p-5 rounded-2xl border border-[#DDE3D4] bg-[#F5F7F1]">
-                  <p className="text-sm font-semibold text-[#343330]">{englishFeedback.score === englishFeedback.total ? "¡Perfecto! Tanda completada." : englishFeedback.score / Math.max(1, englishFeedback.total) >= 0.7 ? "¡Buen trabajo! Vas avanzando." : "Buen intento. Revisa los errores y vuelve a practicar."}</p>
-                  <p className="text-sm font-semibold text-[#343330] mt-2">Resultado: {englishFeedback.score} de {englishFeedback.total}</p>
-                  <p className="text-xs text-[#6D6962] mt-1">Precisión: {englishFeedback.total ? Math.round(englishFeedback.score / englishFeedback.total * 100) : 0}% · Nota: {englishFeedback.total ? ((englishFeedback.score / englishFeedback.total) * 10).toFixed(1) : "0.0"} / 10</p>
-                </div>
-              )}
-              {englishFeedback.checked && englishSaveStatus && <p role="status" className="text-xs text-[#6D6962]">{englishSaveStatus}</p>}
-              {englishHistory.length > 0 && (
-                <div className="p-4 rounded-2xl border border-[#E7E3DC] bg-white space-y-2">
-                  <h3 className="text-xs font-semibold text-[#343330]">Últimos resultados guardados</h3>
-                  {englishHistory.map((attempt, index) => (
-                    <div key={`${attempt.completedAt}-${index}`} className="flex items-center justify-between gap-3 text-xs text-[#6D6962]">
-                      <span>{attempt.category || "Inglés A1"} · {new Date(attempt.completedAt).toLocaleDateString("es-ES")}</span>
-                      <span>{attempt.score}/{attempt.total} · {attempt.total ? ((attempt.score / attempt.total) * 10).toFixed(1) : "0.0"}/10</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </form>
+            <StudentEnglishTasks onOpenFlashcards={() => void openEnglishReviewCards()} />
           </div>
         )}
 
