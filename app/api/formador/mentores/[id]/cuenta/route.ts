@@ -9,7 +9,7 @@ export const runtime = "nodejs";
  * el acuerdo de confidencialidad y el certificado están comprobados. El PIN se
  * genera aquí y se devuelve una única vez para que el formador se lo entregue.
  */
-export async function POST(request: Request, ctx: RouteContext<"/api/formador/mentores/[id]/cuenta">) {
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireStaff(request, ["formador", "admin"]);
   if (!auth.ok) return auth.response;
   const { admin } = auth;
