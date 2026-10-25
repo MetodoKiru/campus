@@ -462,6 +462,7 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("She ___ (belong) to a big family.", "belongs", ["is belonging", "belong", "belonging"], 3),
     g("My cousin ___ (look after) her baby brother today.", "is looking after/'s looking after", ["looks after", "look after", "are looking after"], 2),
     g("Teenagers often ___ (argue) with their parents.", "argue", ["are arguing", "argues", "arguing"], 1),
+    g("Listen! The baby ___ (cry) again.", "is crying/'s crying", ["cries", "cry", "are crying"], 1),
   ],
   b1_articles: [
     g("My aunt is ___ engineer.", "an", ["a", "the", "—"]),
@@ -475,6 +476,8 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("We have ___ lunch at two o'clock.", "—", ["the", "a", "an"], 3),
     g("She lives in ___ Netherlands.", "the", ["a", "an", "—"], 3),
     g("He plays ___ violin in an orchestra.", "the", ["a", "an", "—"], 2),
+    g("Can you pass me ___ salt, please?", "the", ["a", "an", "—"], 1),
+    pick("___ music is my favourite subject.", "—", ["The", "A", "An"], 2),
   ],
   // Unit 2
   b1_pastSimple: [
@@ -488,6 +491,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("She ___ (catch) the pickpocket on the train.", "caught", ["catched", "catch", "cought"], 3),
     g("Where ___ you at nine o'clock last night?", "were", ["was", "did", "are"], 3),
     g("The thieves ___ (hide) the jewels in the garden.", "hid", ["hided", "hidden", "hide"], 3),
+    g("The thief ___ (climb) through the window.", "climbed", ["climb", "clamb", "climbled"]),
+    g("Who ___ (call) the police?", "called", ["did call", "call", "did called"], 2),
+    g("We ___ (hear) a strange noise at midnight.", "heard", ["heared", "hear", "hearded"], 2),
+    pick("Elige la frase correcta.", "Did you lock the door?", ["Did you locked the door?", "Locked you the door?"], 3),
   ],
   b1_pastContinuous: [
     g("I ___ (walk) past the bank when I heard the alarm.", "was walking", ["were walking", "walked", "am walking"]),
@@ -499,6 +506,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("It ___ (rain) heavily when the police arrived.", "was raining", ["rained", "were raining", "is raining"], 3),
     pick("Elige la frase correcta.", "When I got home, someone was waiting at the door.", ["When I was getting home, someone waited at the door yesterday when.", "When I got home, someone waiting at the door."], 3),
     pick("Elige la frase correcta.", "He was running when he fell over.", ["He ran when he was falling over.", "He was run when he fell over."], 3),
+    g("Two men ___ (stand) outside the shop when the alarm went off.", "were standing", ["was standing", "stood", "are standing"]),
+    g("I ___ (not / look) when the car hit the wall.", "wasn't looking/was not looking", ["weren't looking", "didn't looking", "wasn't look"], 2),
+    g("___ she ___ (drive) when the police stopped her?", "Was, driving", ["Were, driving", "Did, drive", "Was, drive"], 2),
+    g("The phone rang while I ___ (have) a shower.", "was having", ["had", "were having", "am having"], 3),
   ],
   // Unit 3
   b1_negativePrefixes: [
@@ -527,6 +538,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("There were very ___ people at the language exchange. It was almost empty.", "few", ["little", "much", "a lot"], 3),
     g("He makes very ___ progress because he never practises.", "little", ["few", "many", "a few"], 3),
     g("I don't know ___ people who can speak Japanese.", "many", ["much", "a little", "a lot"], 3),
+    g("I've got ___ friends in London, so I'm not alone there.", "a few", ["a little", "much", "little"]),
+    g("Can you speak ___ French? Just a little.", "any", ["many", "a few", "few"], 2),
+    g("There's very ___ sugar left. We need to buy some.", "little", ["few", "many", "a few"], 3),
   ],
   b1_relativePronouns: [
     g("A translator is a person ___ translates texts.", "who/that", ["which", "where", "whose"]),
@@ -539,6 +553,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("I've got a friend ___ parents are from Brazil.", "whose", ["who", "which", "where"], 3),
     g("The app ___ I use every day is free.", "which/that", ["who", "where", "whose"], 3),
     pick("Elige la frase correcta.", "The man who lives next door speaks Arabic.", ["The man which lives next door speaks Arabic.", "The man who he lives next door speaks Arabic."], 3),
+    g("That's the man ___ car was stolen.", "whose", ["who", "which", "where"], 2),
+    g("Paris is the city ___ I learnt French.", "where", ["which", "who", "whose"], 2),
+    g("The song ___ won the competition was in Spanish.", "which/that", ["who", "where", "whose"]),
   ],
   // Unit 4
   b1_ppEverNever: [
@@ -551,6 +568,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "I've never had the flu.", ["I've ever had the flu.", "I haven't never had the flu."], 3),
     g("Have you ever ___ (give) blood?", "given", ["gave", "give", "gived"], 3),
     g("My grandad has never ___ (smoke) in his life.", "smoked", ["smoke", "smoking", "smoken"], 3),
+    g("Have you ever ___ (sleep) in a hospital?", "slept", ["sleeped", "sleep", "slep"], 2),
+    g("I've never ___ (break) a bone.", "broken", ["broke", "breaked", "break"], 2),
+    g("Has she ___ been on a diet?", "ever", ["never", "yet", "since"]),
+    g("He's ___ been ill in his life. He's very healthy.", "never", ["ever", "yet", "already"]),
   ],
   b1_ppForSince: [
     g("I've had this cough ___ three days.", "for", ["since", "ago", "from"]),
@@ -563,6 +584,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("My mum ___ (be) a nurse for twenty years.", "has been/'s been", ["is", "was", "have been"], 3),
     g("I ___ (not / eat) anything since breakfast.", "haven't eaten/have not eaten", ["didn't eat", "don't eat", "hasn't eaten"], 3),
     g("We've been friends ___ we were children.", "since", ["for", "ago", "from"], 3),
+    g("I've been a vegetarian ___ I was twelve.", "since", ["for", "ago", "from"], 2),
+    g("He's worked at the hospital ___ six months.", "for", ["since", "ago", "during"]),
+    g("We haven't been to the dentist ___ last summer.", "since", ["for", "ago", "from"], 2),
   ],
   b1_ppJustYetAlready: [
     g("The doctor has ___ left. You missed her by a minute.", "just", ["yet", "ever", "since"]),
@@ -574,6 +598,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "Have you had your check-up yet?", ["Have you had yet your check-up?", "Have you yet had your check-up yet?"], 3),
     pick("Elige la frase correcta.", "I've already told the nurse.", ["I've told already the nurse yet.", "I already have told the nurse yet."], 3),
     g("He hasn't recovered ___, but he's getting better.", "yet", ["already", "just", "ever"], 3),
+    g("I've ___ had my flu jab. I had it last week.", "already", ["yet", "ever", "since"]),
+    g("Has the ambulance arrived ___?", "yet", ["already", "just", "ever"]),
+    g("The nurse has ___ called your name. Go in!", "just", ["yet", "ever", "since"], 2),
+    g("We haven't booked the appointment ___.", "yet", ["already", "just", "ever"], 2),
   ],
   b1_ppPastSimple: [
     g("I ___ (break) my arm in 2022.", "broke", ["have broken", "break", "broken"]),
@@ -613,6 +641,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("My brother watches TV ___ (often) than I do.", "more often", ["oftener", "most often", "more oftener"], 3),
     g("This TV is ___ (thin) than our old one.", "thinner", ["thiner", "more thin", "thinnest"], 3),
     g("He's the ___ (good) presenter on the channel.", "best", ["better", "goodest", "most good"], 3),
+    g("This is the ___ (boring) programme on TV.", "most boring", ["boringest", "more boring", "boringer"]),
+    g("My new phone is ___ (light) than my old one.", "lighter", ["more light", "lightest", "lighter than"], 2),
+    g("It was the ___ (bad) film of the year.", "worst", ["worse", "baddest", "most bad"], 3),
   ],
   b1_lessAsAs: [
     g("Cartoons are ___ interesting than films for me.", "less", ["fewer", "as", "least"]),
@@ -624,6 +655,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "Radio isn't as popular as TV.", ["Radio isn't as popular than TV.", "Radio isn't so popular like TV."], 3),
     g("This TV was ___ expensive than I thought. It was cheap!", "less", ["more", "as", "least"], 3),
     g("Documentaries are ___ addictive as series.", "not as", ["less as", "not than", "as not"], 3),
+    g("Comedies are ___ popular than reality shows in my family. Nobody watches them.", "less", ["fewer", "as", "least"], 2),
+    g("My sister is as tall ___ my mum.", "as", ["than", "like", "that"]),
+    g("This episode wasn't ___ funny as the last one.", "as", ["than", "less", "more"], 2),
+    pick("Elige la frase correcta.", "The book is less exciting than the film.", ["The book is less exciting as the film.", "The book is least exciting than the film."], 3),
   ],
   b1_tooEnough: [
     g("I can't watch the film. I'm ___ tired.", "too", ["enough", "very enough", "so much"]),
@@ -636,6 +671,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "There aren't enough chairs for everyone.", ["There aren't chairs enough for everyone.", "There aren't too chairs for everyone."], 3),
     g("You watch ___ much TV. Go outside!", "too", ["enough", "so", "very"], 3),
     g("The film wasn't funny ___ to make me laugh.", "enough", ["too", "as", "so"], 3),
+    g("The tea is ___ hot to drink.", "too", ["enough", "very enough", "as"]),
+    g("Is the room big ___ for twenty people?", "enough", ["too", "as", "so"], 2),
+    g("There are ___ many adverts on this channel.", "too", ["enough", "so", "very"], 3),
   ],
   // Unit 6
   b1_goingToWill: [
@@ -647,6 +685,11 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("Scientists say sea levels ___ (rise) this century.", "will rise/'ll rise", ["rise", "are rising to", "rising"], 3),
     pick("¿Qué frase es una decisión tomada en el momento?", "I'll turn off the lights.", ["I'm going to study biology next year.", "Look! The river is going to flood."], 3),
     pick("¿Qué frase es una predicción con pruebas en el presente?", "That glacier is going to melt soon. Look at it!", ["I think it'll be sunny next week.", "I'll recycle these bottles."], 3),
+    g("I'm hungry. I think I ___ (make) a sandwich.", "will make/'ll make", ["am going to make", "make", "am making"]),
+    g("She's bought a ticket. She ___ (travel) to Iceland in June.", "is going to travel/'s going to travel", ["will travel", "travels", "travel"], 2),
+    g("Be careful! That glass ___ (fall).", "is going to fall/'s going to fall", ["will fall", "falls", "is falling to"], 2),
+    g("Maybe I ___ (see) you later.", "will see/'ll see", ["am going to see", "see", "am seeing"], 3),
+    g("They ___ (build) a new solar farm here. The plans are ready.", "are going to build/'re going to build", ["will build", "build", "are build"], 3),
   ],
   b1_willMayMight: [
     g("It ___ snow tomorrow, but I'm not sure.", "might/may", ["will", "won't", "must"]),
@@ -657,6 +700,11 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("We ___ go to the beach this weekend. We haven't decided.", "might/may", ["will", "won't", "must"], 2),
     pick("Elige la frase que expresa menos seguridad.", "There might be a storm tonight.", ["There will be a storm tonight.", "There is going to be a storm tonight."], 3),
     g("She ___ not come to the protest. She's very busy.", "may/might", ["will", "won't", "must"], 3),
+    g("I'm not sure, but I ___ study engineering.", "might/may", ["will", "won't", "must"]),
+    g("It's certain. The sun ___ rise tomorrow.", "will", ["might", "may", "might not"]),
+    g("Don't wait for me. I ___ be late.", "might/may", ["will not", "won't", "must"], 2),
+    g("Prices ___ definitely go up next year.", "will", ["might", "may", "won't"], 2),
+    pick("Elige la frase que expresa más seguridad.", "Electric cars will be cheaper in the future.", ["Electric cars might be cheaper in the future.", "Electric cars may be cheaper in the future."], 3),
   ],
   b1_zeroFirstConditional: [
     g("If you heat ice, it ___ (melt).", "melts", ["will melt", "melt", "melted"]),
@@ -668,6 +716,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("If you ___ (leave) the tap on, you waste water.", "leave", ["will leave", "left", "leaves"], 2),
     pick("Elige la frase correcta.", "If the temperature rises, the glaciers will melt.", ["If the temperature will rise, the glaciers will melt.", "If the temperature rises, the glaciers would melt."], 3),
     pick("¿Qué frase es un hecho general (zero conditional)?", "If you mix blue and yellow, you get green.", ["If it's sunny tomorrow, we'll go hiking.", "If I see her, I'll tell her."], 3),
+    g("If you don't eat, you ___ (get) hungry.", "get", ["will got", "got", "gets"]),
+    g("If we ___ (use) less plastic, the oceans will be cleaner.", "use", ["will use", "used", "uses"], 2),
+    g("We'll miss the train unless we ___ (hurry).", "hurry", ["will hurry", "don't hurry", "hurried"], 3),
+    g("If it ___ (not / rain) soon, the crops will die.", "doesn't rain/does not rain", ["won't rain", "don't rain", "didn't rain"], 3),
   ],
   // Unit 7
   b1_modalsObligation: [
@@ -681,6 +733,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("Last year I ___ work every Saturday. (obligación en pasado)", "had to", ["must", "have to", "musted"], 3),
     pick("Elige la frase correcta.", "You ought to prepare for the interview.", ["You ought prepare for the interview.", "You ought to preparing for the interview."], 3),
     pick("¿Qué frase significa que no es obligatorio?", "You don't have to wear a tie.", ["You mustn't wear a tie.", "You have to wear a tie."], 3),
+    g("You ___ smoke in hospitals. It's against the law.", "mustn't/must not", ["don't have to", "have to", "should"]),
+    g("She ___ wear a suit to work. She can wear jeans. (no es necesario)", "doesn't have to/does not have to", ["mustn't", "has to", "must"], 2),
+    pick("Elige la frase correcta.", "Did you have to work last weekend?", ["Did you had to work last weekend?", "Must you worked last weekend?"], 3),
   ],
   b1_secondConditional: [
     g("If I ___ (be) rich, I would travel the world.", "were/was", ["am", "would be", "will be"]),
@@ -692,6 +747,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("If they ___ (not / be) so busy, they'd help us.", "weren't/were not", ["aren't", "wouldn't be", "won't be"], 3),
     pick("Elige la frase correcta.", "If I won the lottery, I would stop working.", ["If I would win the lottery, I would stop working.", "If I won the lottery, I will stop working."], 3),
     pick("¿Qué frase habla de una situación imaginaria?", "If I were a pilot, I'd fly every day.", ["If I study, I'll pass.", "If you heat water, it boils."], 3),
+    g("If I ___ (live) by the sea, I'd go surfing every day.", "lived", ["live", "would live", "will live"]),
+    g("I ___ (buy) a house if I had enough money.", "would buy/'d buy", ["will buy", "buy", "bought"]),
+    g("If you ___ (can) work anywhere, where would you go?", "could", ["can", "would can", "will can"], 2),
+    g("She'd be happier if she ___ (not / work) so hard.", "didn't work/did not work", ["doesn't work", "wouldn't work", "won't work"], 3),
   ],
   // Unit 8
   b1_nounSuffixesNess: [
@@ -706,6 +765,8 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("He was tired of the ___ of his job. (bore)", "boredom", ["boreness", "boreship"], 3),
     g("Being honest is the key to a good ___. (partner)", "partnership", ["partnerness", "partnerdom"], 3),
     g("Don't confuse ___ with weakness. (gentle)", "gentleness", ["gentleship", "gentledom"], 3),
+    g("Her ___ helped her through difficult times. (brave)", "braveness/bravery", ["braveship", "bravedom"], 3),
+    g("The ___ of their story touched everyone. (sweet)", "sweetness", ["sweetship", "sweetdom"], 2),
   ],
   b1_pastPerfect: [
     g("When I arrived at the party, my friends ___ (already / leave).", "had already left", ["have already left", "already left", "had already leave"]),
@@ -716,6 +777,11 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("They ___ (not / speak) for years when they met again.", "hadn't spoken/had not spoken", ["haven't spoken", "didn't spoke", "hadn't speak"], 3),
     pick("Elige la frase correcta.", "By the time I got there, the film had started.", ["By the time I got there, the film has started.", "By the time I had got there, the film started had."], 3),
     g("I recognised her because I ___ (see) her photo online.", "had seen", ["have seen", "had saw", "saw had"], 3),
+    g("I was hungry because I ___ (not / eat) all day.", "hadn't eaten/had not eaten", ["haven't eaten", "didn't ate", "hadn't eat"]),
+    g("When we got to the cinema, the film ___ (start).", "had started", ["has started", "started had", "had start"]),
+    g("She ___ (forget) her keys, so she couldn't get in.", "had forgotten", ["has forgotten", "had forgot", "forgotten had"], 2),
+    g("He told me he ___ (live) in Rome before.", "had lived", ["has lived", "lived had", "had live"], 2),
+    g("We ___ (just / sit) down when the phone rang.", "had just sat", ["have just sat", "just had sat", "had just sit"], 3),
   ],
   b1_usedTo: [
     g("We ___ live next door when we were kids.", "used to", ["use to", "were used to", "used"]),
@@ -726,6 +792,11 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "Did you use to have a best friend?", ["Did you used to have a best friend?", "Used you to have a best friend?"], 2),
     pick("¿Qué frase habla de un hábito del pasado que ya no existe?", "I used to walk to school with Ana.", ["I walk to school with Ana.", "I'm walking to school with Ana."], 3),
     g("Where ___ you use to go on holiday?", "did", ["do", "were", "had"], 3),
+    g("My dad ___ play the guitar in a band.", "used to", ["use to", "uses to", "was used"]),
+    g("We didn't ___ have mobile phones.", "use to", ["used to", "using to", "used"]),
+    g("___ she use to live in Madrid?", "Did", ["Does", "Was", "Has"], 2),
+    g("I ___ (not / like) coffee, but now I drink it every day.", "didn't use to like/did not use to like", ["didn't used to like", "used not like", "don't use to like"], 3),
+    pick("Elige la frase correcta.", "There used to be a cinema here.", ["There use to be a cinema here.", "There used to was a cinema here."], 3),
   ],
   b1_gerundsInfinitives: [
     g("I enjoy ___ (spend) time with my friends.", "spending", ["to spend", "spend", "spent"]),
@@ -738,6 +809,9 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("They agreed ___ (meet) at the station.", "to meet", ["meeting", "meet", "met"], 3),
     g("She avoided ___ (talk) about the argument.", "talking", ["to talk", "talk", "talked"], 3),
     g("I can't stand ___ (argue) with my best friend.", "arguing", ["to argue", "argue", "argued"], 3),
+    g("I hope ___ (see) you soon.", "to see", ["seeing", "see", "saw"]),
+    g("Stop ___ (talk) and listen!", "talking", ["to talk", "talk", "talked"], 2),
+    g("She's interested in ___ (learn) Japanese.", "learning", ["to learn", "learn", "learnt"], 2),
   ],
   // Unit 9
   b1_reportedStatements: [
@@ -750,6 +824,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("'I wrote a poem.' → Tom told me he ___ a poem.", "had written", ["has written", "wrote had", "writes"], 3),
     pick("Elige la frase correcta.", "She told me that she loved fantasy novels.", ["She said me that she loved fantasy novels.", "She told that she loved fantasy novels."], 3),
     g("'I'm meeting the author tomorrow.' → She said she was meeting the author the ___ day.", "next/following", ["tomorrow", "last", "previous"], 3),
+    g("'I live in Bilbao.' → He said he ___ in Bilbao.", "lived", ["lives", "live", "has lived"]),
+    g("'We are hungry.' → They said they ___ hungry.", "were", ["are", "was", "have been"]),
+    g("'I don't like poetry.' → She said she ___ like poetry.", "didn't/did not", ["doesn't", "don't", "hasn't"], 2),
+    g("'I'm going to read it.' → He said he ___ going to read it.", "was", ["is", "were", "has"], 3),
   ],
   b1_reportedQuestions: [
     g("'Do you like reading?' → She asked me ___ I liked reading.", "if/whether", ["that", "do", "what"]),
@@ -760,6 +838,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la pregunta indirecta correcta.", "He asked me what time the library opened.", ["He asked me what time did the library open.", "He asked me what time does the library open."], 2),
     pick("Elige la pregunta indirecta correcta.", "She wanted to know who had written the book.", ["She wanted to know who had the book written.", "She wanted to know who has written the book?"], 3),
     g("'Will you come to the book fair?' → They asked if I ___ come to the book fair.", "would", ["will", "can", "did"], 3),
+    g("'Are you tired?' → He asked me if I ___ tired.", "was", ["am", "were", "did"]),
+    g("'Why are you late?' → The teacher asked me why I ___ late.", "was", ["am", "were", "did"], 2),
+    g("'Where did you buy it?' → She asked me where I ___ it.", "had bought/bought", ["have bought", "bought had", "did buy"], 3),
+    pick("Elige la pregunta indirecta correcta.", "He asked me where I lived.", ["He asked me where did I live.", "He asked me where do I live."], 2),
   ],
   // Unit 10
   b1_passivePresent: [
@@ -770,6 +852,12 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("Most smartphones ___ (make) in Asia.", "are made", ["is made", "make", "are maked"], 2),
     g("The school computers ___ (check) every week.", "are checked", ["is checked", "check", "are check"], 3),
     pick("Elige la pasiva de «People upload thousands of videos every hour».", "Thousands of videos are uploaded every hour.", ["Thousands of videos is uploaded every hour.", "Thousands of videos uploaded every hour are."], 3),
+    g("English ___ (teach) in most schools.", "is taught", ["is teached", "teaches", "are taught"]),
+    g("These videos ___ (watch) by millions of people.", "are watched", ["is watched", "watch", "are watch"]),
+    g("Cookies ___ (use) by most websites.", "are used", ["is used", "use", "are using"], 2),
+    g("The data ___ (not / share) with other companies.", "isn't shared/is not shared", ["aren't shared", "doesn't share", "isn't share"], 2),
+    g("How ___ these phones ___ (recycle)?", "are, recycled", ["is, recycled", "do, recycle", "are, recycle"], 3),
+    g("Our homework ___ (send) by email.", "is sent", ["are sent", "is sended", "sends"], 3),
   ],
   b1_passiveOtherTenses: [
     g("The first website ___ (create) in 1991.", "was created", ["is created", "has been created", "were created"]),
@@ -780,6 +868,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     g("These photos ___ (take) with a phone.", "were taken", ["was taken", "are took", "took"], 2),
     g("The internet ___ (use) by billions of people today.", "is used", ["was used", "uses", "is using"], 2),
     pick("Elige la frase correcta.", "Your message has been sent.", ["Your message has sent.", "Your message has been send."], 3),
+    g("The video ___ (watch) by a million people yesterday.", "was watched", ["is watched", "were watched", "watched"]),
+    g("The results ___ (publish) tomorrow.", "will be published", ["are published", "will publish", "were published"], 2),
+    g("Three new apps ___ (launch) so far this year.", "have been launched", ["has been launched", "have launched", "are launch"], 3),
+    g("The phone ___ (not / repair) yet.", "hasn't been repaired/has not been repaired", ["hasn't repaired", "wasn't been repaired", "haven't been repaired"], 3),
   ],
   b1_haveSomethingDone: [
     g("I'm having my laptop ___ (repair) tomorrow.", "repaired", ["repair", "repairing", "to repair"]),
@@ -790,5 +882,10 @@ export const B1_GRAMMAR: Record<string, GrammarItem[]> = {
     pick("Elige la frase correcta.", "I'm going to have my computer checked.", ["I'm going to check my computer by someone.", "I'm going to have checked my computer."], 3),
     pick("¿Qué frase significa que otra persona lo hizo?", "We had our house painted.", ["We painted our house.", "We were painting our house."], 3),
     g("They had a website ___ (design) for their business.", "designed", ["design", "designing", "to design"], 3),
+    g("I need to have my eyes ___ (test).", "tested", ["test", "testing", "to test"]),
+    g("They're having their kitchen ___ (paint) this week.", "painted", ["paint", "painting", "to paint"], 2),
+    g("We ___ our car washed every month.", "have", ["make", "do", "are"], 2),
+    g("Did you have your bike ___ (fix)?", "fixed", ["fix", "fixing", "to fix"], 2),
+    g("She's going to ___ her nails done for the wedding.", "have", ["make", "do", "be"], 3),
   ],
 };
