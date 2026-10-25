@@ -259,7 +259,7 @@ export default function MentorPage() {
             }`}
           >
             <PenLine className="w-3.5 h-3.5" />
-            <span>Lengua 1º-2º</span>
+            <span>Lengua</span>
           </button>
           <button
             onClick={() => setActiveTab("skillcoins")}
