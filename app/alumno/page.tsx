@@ -13,6 +13,7 @@ import {
   Filter
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
+import LenguaStudent from "@/components/lengua/LenguaStudent";
 import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
 import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { isFlashcardSet } from "@/lib/english/flashcards";
@@ -156,7 +157,7 @@ export default function AlumnoPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "progreso" | "calculalo">("inicio");
+  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "calculalo">("inicio");
   
 
   // Estado de Flashcards
@@ -384,6 +385,7 @@ export default function AlumnoPage() {
             { id: "asignaturas", label: "1.1. Asignaturas" },
             { id: "flashcards", label: "Flashcards" },
             { id: "ingles", label: "Inglés" },
+            { id: "lengua", label: "Lengua" },
             { id: "progreso", label: "Mi Progreso (SC)" },
             { id: "calculalo", label: "Calcúlalo" }
           ].map((tab) => (
@@ -750,6 +752,8 @@ export default function AlumnoPage() {
             )}
           </div>
         )}
+
+        {mainTab === "lengua" && <LenguaStudent />}
 
         {/* SECCIÓN 4: INGLÉS · TAREAS ASIGNADAS POR EL MENTOR */}
         {mainTab === "ingles" && (
