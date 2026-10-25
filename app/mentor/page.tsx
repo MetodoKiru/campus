@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { 
   Users, 
   BookOpen, 
-  CheckCircle2, 
   ExternalLink,
   Layers,
   Plus,
@@ -18,6 +17,7 @@ import {
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
+import Toast from "@/components/Toast";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
@@ -212,12 +212,8 @@ export default function MentorPage() {
           </div>
         </div>
 
-        {savedMsg && (
-          <div className="p-3.5 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] text-[#806C50] text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#806C50]" />
-            <span>{savedMsg}</span>
-          </div>
-        )}
+        {/* Los mensajes de fallo de esta página empiezan por "No " o "Selecciona". */}
+        {savedMsg && <Toast text={savedMsg} type={/^(No |Selecciona)/.test(savedMsg) ? "error" : "success"} onClose={() => setSavedMsg(null)} />}
 
         <div className="bg-white rounded-2xl border border-[#E7E3DC] p-1.5 flex flex-wrap gap-2 w-fit shadow-xs text-xs font-semibold">
           <button

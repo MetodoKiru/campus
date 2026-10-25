@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import Toast from "@/components/Toast";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import { 
@@ -500,18 +501,7 @@ export default function AdminPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Notificaciones */}
-        {msg && (
-          <div
-            className={`p-4 rounded-2xl text-xs font-medium flex items-center justify-between transition-all ${
-              msg.type === "success"
-                ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                : "bg-rose-50 border border-rose-200 text-rose-800"
-            }`}
-          >
-            <span>{msg.text}</span>
-            <button onClick={() => setMsg(null)}><X className="w-4 h-4" /></button>
-          </div>
-        )}
+        {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
 
         {/* Pestañas de navegación */}
         <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 shadow-sm text-xs font-semibold w-fit">
