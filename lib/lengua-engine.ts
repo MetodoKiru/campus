@@ -13,6 +13,7 @@ interface LenguaExerciseBase {
   prompt: string;
   /** Texto que se lee en voz alta con el botón de altavoz. */
   speak?: string;
+  /** Dibujo solo cuando es la pista para reconocer la palabra. */
   emoji?: string;
 }
 
@@ -87,7 +88,7 @@ export const LENGUA_DATABASE: LenguaExercise[] = [
   { id: "1v-c5", course: "1EP", unit: "1-vocales", skill: "Lectoescritura", difficulty: "facil", type: "choice", emoji: "🍇", prompt: "¿Con qué vocal empieza «uva»?", speak: "uva", options: ["e", "i", "u", "o"], answer: "u" },
   { id: "1v-c6", course: "1EP", unit: "1-vocales", skill: "Lectoescritura", difficulty: "medio", type: "choice", prompt: "Escucha y elige la vocal que oyes.", speak: "i", options: ["a", "i", "o", "u"], answer: "i" },
   { id: "1v-c7", course: "1EP", unit: "1-vocales", skill: "Lectoescritura", difficulty: "medio", type: "choice", prompt: "¿Cuál es la «a» mayúscula?", options: ["A", "E", "O", "U"], answer: "A" },
-  { id: "1v-c8", course: "1EP", unit: "1-vocales", skill: "Lectoescritura", difficulty: "desafiante", type: "choice", emoji: "🦉", prompt: "¿Qué vocales tiene «búho»?", speak: "búho", options: ["u y o", "a y o", "u y e", "i y o"], answer: "u y o" },
+  { id: "1v-c8", course: "1EP", unit: "1-vocales", skill: "Lectoescritura", difficulty: "desafiante", type: "choice", prompt: "¿Qué vocales tiene «búho»?", speak: "búho", options: ["u y o", "a y o", "u y e", "i y o"], answer: "u y o" },
 
   // ───── 1º · m, p, l, s
   trace("1m-t1", "1EP", "1-mpls", "facil", "m"),
@@ -101,10 +102,10 @@ export const LENGUA_DATABASE: LenguaExercise[] = [
   { id: "1m-c3", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "facil", type: "choice", emoji: "🌙", prompt: "¿Con qué sílaba empieza «luna»?", speak: "luna", options: ["la", "le", "lu", "lo"], answer: "lu" },
   { id: "1m-c4", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "choice", emoji: "☀️", prompt: "¿Qué palabra es?", speak: "sol", options: ["sal", "sol", "sus", "sil"], answer: "sol" },
   { id: "1m-c5", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "choice", prompt: "Escucha y elige la sílaba.", speak: "mi", options: ["me", "mi", "mo", "mu"], answer: "mi" },
-  { id: "1m-b1", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "build", emoji: "👩", prompt: "Ordena las sílabas para formar «mamá».", speak: "mamá", pieces: ["má", "ma"], answer: "mamá" },
-  { id: "1m-b2", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "build", emoji: "🐻", prompt: "Ordena las sílabas: «oso»", speak: "oso", pieces: ["so", "o"], answer: "oso" },
-  { id: "1m-b3", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "desafiante", type: "build", emoji: "🕊️", prompt: "Ordena las sílabas: «paloma»", speak: "paloma", pieces: ["ma", "pa", "lo"], answer: "paloma" },
-  { id: "1m-b4", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "desafiante", type: "build", emoji: "🧂", prompt: "Ordena las letras: «sal»", speak: "sal", pieces: ["l", "s", "a"], answer: "sal" },
+  { id: "1m-b1", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "build", prompt: "Ordena las sílabas para formar «mamá».", speak: "mamá", pieces: ["má", "ma"], answer: "mamá" },
+  { id: "1m-b2", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "medio", type: "build", prompt: "Ordena las sílabas: «oso»", speak: "oso", pieces: ["so", "o"], answer: "oso" },
+  { id: "1m-b3", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "desafiante", type: "build", prompt: "Ordena las sílabas: «paloma»", speak: "paloma", pieces: ["ma", "pa", "lo"], answer: "paloma" },
+  { id: "1m-b4", course: "1EP", unit: "1-mpls", skill: "Lectoescritura", difficulty: "desafiante", type: "build", prompt: "Ordena las letras: «sal»", speak: "sal", pieces: ["l", "s", "a"], answer: "sal" },
 
   // ───── 1º · t, n, d, f
   trace("1t-t1", "1EP", "1-tndf", "facil", "t"),
@@ -117,15 +118,15 @@ export const LENGUA_DATABASE: LenguaExercise[] = [
   { id: "1t-c3", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "facil", type: "choice", emoji: "🦭", prompt: "¿Con qué letra empieza «foca»?", speak: "foca", options: ["t", "f", "d", "n"], answer: "f" },
   { id: "1t-c4", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "medio", type: "choice", emoji: "👃", prompt: "¿Qué palabra es?", speak: "nariz", options: ["nariz", "nadar", "nube", "nido"], answer: "nariz" },
   { id: "1t-c5", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "medio", type: "choice", emoji: "🧒", prompt: "¿Qué palabra es?", speak: "niño", options: ["nino", "niño", "nido", "niña"], answer: "niño" },
-  { id: "1t-b1", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "medio", type: "build", emoji: "☁️", prompt: "Ordena las sílabas: «nube»", speak: "nube", pieces: ["be", "nu"], answer: "nube" },
-  { id: "1t-b2", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "desafiante", type: "build", emoji: "🍅", prompt: "Ordena las sílabas: «tomate»", speak: "tomate", pieces: ["te", "to", "ma"], answer: "tomate" },
-  { id: "1t-b3", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "desafiante", type: "build", emoji: "🦭", prompt: "Ordena las letras: «foca»", speak: "foca", pieces: ["c", "o", "a", "f"], answer: "foca" },
+  { id: "1t-b1", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "medio", type: "build", prompt: "Ordena las sílabas: «nube»", speak: "nube", pieces: ["be", "nu"], answer: "nube" },
+  { id: "1t-b2", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "desafiante", type: "build", prompt: "Ordena las sílabas: «tomate»", speak: "tomate", pieces: ["te", "to", "ma"], answer: "tomate" },
+  { id: "1t-b3", course: "1EP", unit: "1-tndf", skill: "Lectoescritura", difficulty: "desafiante", type: "build", prompt: "Ordena las letras: «foca»", speak: "foca", pieces: ["c", "o", "a", "f"], answer: "foca" },
 
   // ───── 1º · Palabras y frases
   { id: "1p-c1", course: "1EP", unit: "1-palabras", skill: "Ortografía", difficulty: "facil", type: "choice", prompt: "¿Qué frase está bien escrita?", options: ["mi perro es pequeño.", "Mi perro es pequeño.", "Mi perro es pequeño", "mi perro es pequeño"], answer: "Mi perro es pequeño." },
   { id: "1p-c2", course: "1EP", unit: "1-palabras", skill: "Ortografía", difficulty: "facil", type: "choice", prompt: "Los nombres de personas empiezan por…", options: ["mayúscula", "minúscula", "número", "punto"], answer: "mayúscula" },
-  { id: "1p-c3", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "facil", type: "choice", emoji: "🐱", prompt: "¿Cuántas sílabas tiene «gato»?", speak: "ga-to", options: ["1", "2", "3", "4"], answer: "2" },
-  { id: "1p-c4", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "medio", type: "choice", emoji: "🦋", prompt: "¿Cuántas sílabas tiene «mariposa»?", speak: "ma-ri-po-sa", options: ["2", "3", "4", "5"], answer: "4" },
+  { id: "1p-c3", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "facil", type: "choice", prompt: "¿Cuántas sílabas tiene «gato»?", speak: "ga-to", options: ["1", "2", "3", "4"], answer: "2" },
+  { id: "1p-c4", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "medio", type: "choice", prompt: "¿Cuántas sílabas tiene «mariposa»?", speak: "ma-ri-po-sa", options: ["2", "3", "4", "5"], answer: "4" },
   { id: "1p-c5", course: "1EP", unit: "1-palabras", skill: "Ortografía", difficulty: "medio", type: "choice", prompt: "¿Qué nombre está bien escrito?", options: ["lucía", "Lucía", "LUcía", "lUcía"], answer: "Lucía" },
   { id: "1p-b1", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "medio", type: "build", prompt: "Ordena las palabras para formar la frase.", pieces: ["come", "El", "gato", "pescado."], answer: "El gato come pescado." },
   { id: "1p-b2", course: "1EP", unit: "1-palabras", skill: "Lectoescritura", difficulty: "desafiante", type: "build", prompt: "Ordena las palabras para formar la frase.", pieces: ["sale", "El", "por", "sol", "la mañana."], answer: "El sol sale por la mañana." },
@@ -147,11 +148,11 @@ export const LENGUA_DATABASE: LenguaExercise[] = [
   { id: "2c-c2", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "facil", type: "choice", emoji: "🏠", prompt: "Completa: ___sa", speak: "casa", options: ["ka", "ca", "qa", "cua"], answer: "ca" },
   { id: "2c-c3", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "choice", emoji: "🎸", prompt: "¿Cómo se escribe?", speak: "guitarra", options: ["gitarra", "guitarra", "jitarra", "guitara"], answer: "guitarra" },
   { id: "2c-c4", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "choice", emoji: "🍒", prompt: "¿Cómo se escribe?", speak: "cereza", options: ["zereza", "sereza", "cereza", "cerresa"], answer: "cereza" },
-  { id: "2c-c5", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "choice", emoji: "🐱", prompt: "¿Qué palabra está bien escrita?", options: ["gato", "jato", "guato", "gatto"], answer: "gato" },
+  { id: "2c-c5", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "choice", prompt: "¿Qué palabra está bien escrita?", options: ["gato", "jato", "guato", "gatto"], answer: "gato" },
   { id: "2c-c6", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "desafiante", type: "choice", prompt: "Delante de «e» e «i», el sonido fuerte de «c» se escribe…", options: ["qu", "c", "k", "z"], answer: "qu" },
   { id: "2c-c7", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "desafiante", type: "choice", prompt: "¿Qué palabra está bien escrita?", options: ["zielo", "cielo", "sielo", "quielo"], answer: "cielo" },
-  { id: "2c-b1", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "build", emoji: "🧀", prompt: "Ordena las sílabas: «queso»", speak: "queso", pieces: ["so", "que"], answer: "queso" },
-  { id: "2c-b2", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "desafiante", type: "build", emoji: "🎸", prompt: "Ordena las sílabas: «guitarra»", speak: "guitarra", pieces: ["rra", "gui", "ta"], answer: "guitarra" },
+  { id: "2c-b1", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "medio", type: "build", prompt: "Ordena las sílabas: «queso»", speak: "queso", pieces: ["so", "que"], answer: "queso" },
+  { id: "2c-b2", course: "2EP", unit: "2-cqg", skill: "Ortografía", difficulty: "desafiante", type: "build", prompt: "Ordena las sílabas: «guitarra»", speak: "guitarra", pieces: ["rra", "gui", "ta"], answer: "guitarra" },
 
   // ───── 2º · Ortografía: r/rr, mb/mp, mayúsculas
   { id: "2o-c1", course: "2EP", unit: "2-ortografia", skill: "Ortografía", difficulty: "facil", type: "choice", emoji: "🐕", prompt: "¿Cómo se escribe?", speak: "perro", options: ["pero", "perro", "perrro", "pérro"], answer: "perro" },

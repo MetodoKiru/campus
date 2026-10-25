@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Volume2 } from "lucide-react";
 import TraceLetter from "@/components/lengua/TraceLetter";
 import { checkAnswer, joinPieces, type BuildExercise, type LenguaAnswer, type LenguaExercise } from "@/lib/lengua-engine";
 
@@ -17,6 +18,15 @@ export function speak(text: string) {
 /** Un trazo cuenta como acierto si sale bien en uno de los dos primeros intentos. */
 const TRACE_TRIES_THAT_COUNT = 2;
 
+function ListenButton({ text, label = "Escuchar" }: { text: string; label?: string }) {
+  return (
+    <button type="button" onClick={() => speak(text)} className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#E7E3DC] text-sm font-semibold text-[#555149] hover:bg-[#FAF8F5]">
+      <Volume2 className="w-4 h-4" aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
 function BuildWord({ exercise, locked, onCheck }: { exercise: BuildExercise; locked: boolean; onCheck: (answer: string) => void }) {
   const [chosen, setChosen] = useState<number[]>([]);
   const remaining = exercise.pieces.map((piece, index) => ({ piece, index })).filter(({ index }) => !chosen.includes(index));
@@ -26,7 +36,7 @@ function BuildWord({ exercise, locked, onCheck }: { exercise: BuildExercise; loc
       <div className="min-h-16 rounded-2xl border-2 border-dashed border-[#D9CFBF] bg-white p-3 flex flex-wrap items-center justify-center gap-2">
         {chosen.length === 0 && <span className="text-sm text-[#A39E95]">Toca las piezas en orden</span>}
         {chosen.map((index) => (
-          <button key={index} type="button" disabled={locked} onClick={() => setChosen((previous) => previous.filter((item) => item !== index))} className="px-4 py-2.5 rounded-xl bg-[#F0E9DE] border border-[#B9A58A] text-lg font-bold text-[#292825]">
+          <button key={index} type="button" disabled={locked} onClick={() => setChosen((previous) => previous.filter((item) => item !== index))} className="px-4 py-2.5 rounded-xl bg-[#F0E9DE] border border-[#B9A58A] text-xl font-bold text-[#292825]">
             {exercise.pieces[index]}
           </button>
         ))}
@@ -90,17 +100,15 @@ export default function ExercisePlayer({ exercises, onFinish }: { exercises: Len
 
       {exercise.type === "choice" && exercise.reading && (
         <div className="rounded-2xl bg-[#F7F5F1] border border-[#EEEAE3] p-4 flex gap-3 items-start">
-          <p className="text-lg leading-relaxed text-[#292825] flex-1">{exercise.reading}</p>
-          <button type="button" onClick={() => speak(exercise.reading ?? "")} title="Escuchar el texto" className="shrink-0 w-10 h-10 rounded-full bg-white border border-[#E7E3DC] text-lg">🔊</button>
+          <p className="text-xl leading-relaxed text-[#292825] flex-1">{exercise.reading}</p>
+          <ListenButton text={exercise.reading} />
         </div>
       )}
 
-      <div className="text-center space-y-2">
-        {exercise.emoji && <div className="text-6xl" aria-hidden="true">{exercise.emoji}</div>}
-        <div className="flex items-center justify-center gap-2">
-          <h3 className="text-xl font-bold text-[#292825]">{exercise.prompt}</h3>
-          {exercise.speak && <button type="button" onClick={() => speak(exercise.speak ?? "")} title="Escuchar" className="w-10 h-10 rounded-full bg-white border border-[#E7E3DC] text-lg shrink-0">🔊</button>}
-        </div>
+      <div className="text-center space-y-3">
+        {exercise.emoji && <div className="text-7xl leading-none" aria-hidden="true">{exercise.emoji}</div>}
+        <h3 className="text-2xl font-bold text-[#292825] leading-snug">{exercise.prompt}</h3>
+        {exercise.speak && <ListenButton text={exercise.speak} />}
       </div>
 
       {exercise.type === "trace" && <TraceLetter key={exercise.id} target={exercise.target} onResult={(ok) => answer(ok ? "ok" : "fail")} />}
@@ -128,8 +136,8 @@ export default function ExercisePlayer({ exercises, onFinish }: { exercises: Len
       {exercise.type === "build" && <BuildWord key={exercise.id} exercise={exercise} locked={Boolean(current)} onCheck={answer} />}
 
       {current && exercise.type !== "trace" && (
-        <p className={`text-center text-base font-semibold ${current.correct ? "text-[#5E7A3A]" : "text-[#9A5B3C]"}`}>
-          {current.correct ? "¡Muy bien! ⭐" : `Era «${exercise.answer}». ¡La próxima sale!`}
+        <p className={`text-center text-lg font-semibold ${current.correct ? "text-[#5E7A3A]" : "text-[#9A5B3C]"}`}>
+          {current.correct ? "¡Muy bien!" : `La respuesta era «${exercise.answer}».`}
         </p>
       )}
 

@@ -181,8 +181,8 @@ export default function TraceLetter({ target, onResult }: { target: string; onRe
         <button type="button" onClick={clear} className="px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-white text-sm font-semibold text-[#555149] hover:bg-[#FAF8F5]">Borrar</button>
         <button type="button" onClick={check} className="px-5 py-2.5 rounded-xl bg-[#242321] text-white text-sm font-semibold hover:bg-[#3A3835]">¡Ya está!</button>
       </div>
-      {feedback === "ok" && <p className="text-center text-sm font-semibold text-[#5E7A3A]">¡Muy bien trazado! ⭐</p>}
-      {feedback === "fail" && <p className="text-center text-sm font-semibold text-[#9A5B3C]">Casi… intenta seguir mejor la letra. Pulsa «Borrar» y prueba otra vez.</p>}
+      {feedback === "ok" && <p className="text-center text-base font-semibold text-[#5E7A3A]">¡Muy bien trazado!</p>}
+      {feedback === "fail" && <p className="text-center text-base font-semibold text-[#9A5B3C]">Casi… intenta seguir mejor la letra. Pulsa «Borrar» y prueba otra vez.</p>}
       {feedback === "empty" && <p className="text-center text-sm text-[#77736B]">Primero repasa la letra con el dedo.</p>}
     </div>
   );

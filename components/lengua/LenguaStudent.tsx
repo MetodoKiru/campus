@@ -117,8 +117,8 @@ export default function LenguaStudent() {
 
         {result && (
           <div className="rounded-2xl bg-[#F7F5F1] p-4 text-center space-y-1">
-            <p className="text-3xl">{"⭐".repeat(Math.max(1, Math.round((result.score / Math.max(1, result.total)) * 3)))}</p>
-            <p className="text-lg font-bold text-[#292825]">¡Has acertado {result.score} de {result.total}!</p>
+            <p className="text-4xl font-bold text-[#292825]">{result.score} / {result.total}</p>
+            <p className="text-lg font-semibold text-[#292825]">{result.score === result.total ? "¡Todo bien!" : "¡Buen trabajo!"}</p>
             <p className="text-xs text-[#77736B]">{result.status}</p>
           </div>
         )}
@@ -144,7 +144,7 @@ export default function LenguaStudent() {
           return (
             <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#EEEAE3] p-4">
               <div className="space-y-0.5">
-                <p className="text-sm font-bold text-[#292825]">{done ? "✅ " : "📝 "}{task.title}</p>
+                <p className="text-sm font-bold text-[#292825]">{task.title}{done && <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EEF2E6] text-[#4F6A30]">Hecha</span>}</p>
                 <p className="text-xs text-[#77736B]">{task.questionCount} ejercicios{task.dueDate ? ` · para el ${new Date(task.dueDate).toLocaleDateString("es-ES")}` : ""}</p>
                 {task.note && <p className="text-xs text-[#555149] italic">«{task.note}»</p>}
               </div>
