@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 
-export type StaffRole = "admin" | "formador";
+export type StaffRole = "admin" | "formador" | "coordinador";
 
 type StaffSuccess = { ok: true; admin: SupabaseClient<Database>; user: User; role: StaffRole };
 type StaffFailure = { ok: false; response: NextResponse };

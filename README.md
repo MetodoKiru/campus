@@ -11,9 +11,10 @@ Campus online de Método Kiru para alumnos, mentores, familias y administración
 
 | Ruta | Para qué |
 | --- | --- |
-| `app/admin`, `app/alumno`, `app/mentor`, `app/padre` | Área de cada rol |
+| `app/admin`, `app/alumno`, `app/mentor`, `app/padre`, `app/formador`, `app/coordinador` | Área de cada rol |
 | `app/api/auth/login` | Login con usuario + PIN (resuelve el email en servidor) |
 | `app/api/admin/users` | Alta, edición y borrado de cuentas (solo admin, usa la service role) |
+| `app/api/registros/importar` | Recibe los registros de sesión del Apps Script de la hoja (clave `KIRU_REGISTROS_SECRET`) |
 | `app/api/admin/bootstrap` | Crea el primer admin; desactivado en cuanto existe uno |
 | `lib/` | Cliente de Supabase y acceso a datos |
 | `supabase/migrations/` | Historial completo del esquema y las políticas RLS |
@@ -33,7 +34,7 @@ npm ci
 npm run dev
 ```
 
-Variables necesarias: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y, para las rutas de servidor, `SUPABASE_SERVICE_ROLE_KEY`.
+Variables necesarias: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y, para las rutas de servidor, `SUPABASE_SERVICE_ROLE_KEY`. Para importar los registros de sesión, `KIRU_REGISTROS_SECRET` (ver `docs/rol-coordinador.md`).
 
 ## Cambios en la base de datos
 

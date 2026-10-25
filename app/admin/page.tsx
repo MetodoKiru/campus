@@ -22,7 +22,8 @@ import {
   CreditCard,
   ExternalLink,
   Download,
-  GraduationCap
+  GraduationCap,
+  Compass
 } from "lucide-react";
 
 interface UserAccount {
@@ -30,7 +31,7 @@ interface UserAccount {
   name: string;
   username: string;
   password?: string;
-  role: "alumno" | "mentor" | "padre" | "formador" | "admin";
+  role: "alumno" | "mentor" | "padre" | "formador" | "coordinador" | "admin";
   createdAt: string;
   assignedParent?: string; // Vinculación alumno -> padre
 }
@@ -134,6 +135,11 @@ export default function AdminPage() {
   const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedMentor, setSelectedMentor] = useState("");
 
+  // Coordinador <-> Mentor (mentor_id -> coordinator_id)
+  const [coordinatorByMentor, setCoordinatorByMentor] = useState<Record<string, string>>({});
+  const [linkMentor, setLinkMentor] = useState("");
+  const [linkCoordinator, setLinkCoordinator] = useState("");
+
   // Padre <-> Alumno
   const [selectedChild, setSelectedChild] = useState("");
   const [selectedParent, setSelectedParent] = useState("");
@@ -172,13 +178,14 @@ export default function AdminPage() {
     let active = true;
     const loadAdminData = async () => {
       try {
-        const [userResponse, mentorLinks, guardianLinks, noticeRows, documentRows, paymentRows] = await Promise.all([
+        const [userResponse, mentorLinks, guardianLinks, noticeRows, documentRows, paymentRows, coordinatorLinks] = await Promise.all([
           (async () => { const { data: { session } } = await supabase.auth.getSession(); if (!session?.access_token) throw new Error("Sesión caducada."); const response = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No se pudieron cargar los usuarios."); return (result.users || []) as AdminUserRow[]; })(),
           supabase.from("student_mentors").select("student_id,mentor_id"),
           supabase.from("student_guardians").select("student_id,guardian_id"),
           supabase.from("kiru_notices").select("*").order("published_at", { ascending: false }),
           supabase.from("kiru_documents").select("*").order("created_at", { ascending: false }),
           supabase.from("kiru_payments").select("*").order("created_at", { ascending: false }),
+          supabase.from("kiru_coordinator_mentors").select("mentor_id,coordinator_id"),
         ]);
         if (mentorLinks.error) throw mentorLinks.error;
         if (guardianLinks.error) throw guardianLinks.error;
@@ -186,6 +193,8 @@ export default function AdminPage() {
         if (documentRows.error) throw documentRows.error;
         if (paymentRows.error) throw paymentRows.error;
         if (!active) return;
+        // Si la migración del coordinador aún no está aplicada, el resto del panel sigue funcionando.
+        if (!coordinatorLinks.error) setCoordinatorByMentor(Object.fromEntries((coordinatorLinks.data || []).map((l) => [l.mentor_id, l.coordinator_id])));
         const guardianByStudent = new Map((guardianLinks.data || []).map((link) => [link.student_id, link.guardian_id]));
         const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
         setUsers(mappedUsers);
@@ -356,6 +365,31 @@ export default function AdminPage() {
     }
   };
 
+  // Coordinador <-> Mentor: cada mentor tiene un solo coordinador; la base de datos
+  // no deja pasar de 5 mentores por coordinador.
+  const handleAssignCoordinator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const mentor = mentores.find((u) => u.id === linkMentor);
+    if (!mentor) { setMsg({ text: "Elige un mentor.", type: "error" }); return; }
+    try {
+      if (!linkCoordinator) {
+        const { error } = await supabase.from("kiru_coordinator_mentors").delete().eq("mentor_id", mentor.id);
+        if (error) throw error;
+        setCoordinatorByMentor((current) => { const next = { ...current }; delete next[mentor.id]; return next; });
+        setMsg({ text: `${mentor.name} se ha quedado sin coordinador.`, type: "success" });
+        return;
+      }
+      const coordinator = coordinadores.find((u) => u.id === linkCoordinator);
+      if (!coordinator) throw new Error("Elige un coordinador.");
+      const { error } = await supabase.from("kiru_coordinator_mentors").upsert({ mentor_id: mentor.id, coordinator_id: coordinator.id, assigned_at: new Date().toISOString() }, { onConflict: "mentor_id" });
+      if (error) throw error;
+      setCoordinatorByMentor((current) => ({ ...current, [mentor.id]: coordinator.id }));
+      setMsg({ text: `${mentor.name} queda con ${coordinator.name} como coordinador/a.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar el enlace con el coordinador.", type: "error" });
+    }
+  };
+
   // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
   const handleAssignParent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,6 +488,8 @@ export default function AdminPage() {
   const alumnos = users.filter(u => u.role === "alumno");
   const mentores = users.filter(u => u.role === "mentor");
   const padres = users.filter(u => u.role === "padre");
+  const coordinadores = users.filter(u => u.role === "coordinador");
+  const mentorCount = (coordinatorId: string) => Object.values(coordinatorByMentor).filter((id) => id === coordinatorId).length;
 
   if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -477,6 +513,14 @@ export default function AdminPage() {
             <GraduationCap className="h-4 w-4" />
             <span className="hidden sm:inline">Incorporación de mentores</span>
             <span className="sm:hidden">Mentores nuevos</span>
+          </Link>
+          <Link
+            href="/coordinador"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Compass className="h-4 w-4" />
+            <span className="hidden sm:inline">Seguimiento de mentores</span>
+            <span className="sm:hidden">Seguimiento</span>
           </Link>
           <Link
             href="/previsualizacion"
@@ -578,6 +622,7 @@ export default function AdminPage() {
                       <option value="mentor">Mentor</option>
                       <option value="padre">Padre / Madre</option>
                       <option value="formador">Formador/a</option>
+                      <option value="coordinador">Coordinador/a</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </div>
@@ -610,6 +655,35 @@ export default function AdminPage() {
                   </div>
                   <button type="submit" disabled={!selectedStudent || !selectedMentor} className="w-full py-3 bg-blue-700 text-white text-xs font-semibold rounded-2xl hover:bg-blue-800 transition shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-40">
                     <Link2 className="w-4 h-4" /> Asignar Mentor
+                  </button>
+                </form>
+              </div>
+
+              {/* Enlazar Coordinador y Mentor */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm space-y-4">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-5 h-5 text-cyan-700" />
+                  <h2 className="font-serif text-lg text-slate-900">Enlazar Coordinador y Mentor</h2>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-500">Cada mentor tiene un coordinador y cada coordinador lleva hasta 5 mentores. Los alumnos del mentor pasan solos al coordinador.</p>
+                <form onSubmit={handleAssignCoordinator} className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Mentor</label>
+                    <select value={linkMentor} onChange={(e) => { setLinkMentor(e.target.value); setLinkCoordinator(coordinatorByMentor[e.target.value] || ""); }} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900">
+                      <option value="">-- Elige un mentor --</option>
+                      {mentores.map((m) => (<option key={m.id} value={m.id}>{m.name} (@{m.username})</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Coordinador/a</label>
+                    <select value={linkCoordinator} onChange={(e) => setLinkCoordinator(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 bg-[#F7F6F3] text-xs font-semibold text-slate-900">
+                      <option value="">Sin coordinador</option>
+                      {coordinadores.map((c) => (<option key={c.id} value={c.id}>{c.name} (@{c.username}) · {mentorCount(c.id)}/5</option>))}
+                    </select>
+                  </div>
+                  {coordinadores.length === 0 && <p className="text-[11px] text-amber-700">Aún no hay coordinadores. Créalos arriba con el rol «Coordinador/a».</p>}
+                  <button type="submit" disabled={!linkMentor} className="w-full py-3 bg-cyan-800 text-white text-xs font-semibold rounded-2xl hover:bg-cyan-900 transition shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-40">
+                    <Link2 className="w-4 h-4" /> Guardar coordinador
                   </button>
                 </form>
               </div>
@@ -651,7 +725,7 @@ export default function AdminPage() {
                     <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
                       <th className="pb-3 pl-2">Nombre / Usuario</th>
                       <th className="pb-3">Rol</th>
-                      <th className="pb-3">Mentor</th>
+                      <th className="pb-3">Mentor / Coord.</th>
                       <th className="pb-3">Familia</th>
                       <th className="pb-3 text-right pr-2">Acciones</th>
                     </tr>
@@ -670,7 +744,8 @@ export default function AdminPage() {
                               user.role === "admin" ? "bg-purple-100 text-purple-700" :
                               user.role === "mentor" ? "bg-blue-100 text-blue-700" :
                               user.role === "padre" ? "bg-amber-100 text-amber-700" :
-                              user.role === "formador" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                              user.role === "formador" ? "bg-rose-100 text-rose-700" :
+                              user.role === "coordinador" ? "bg-cyan-100 text-cyan-800" : "bg-emerald-100 text-emerald-700"
                             }`}>
                               {user.role}
                             </span>
@@ -680,6 +755,10 @@ export default function AdminPage() {
                               mentorLink ? (
                                 <span className="text-[11px] font-semibold text-blue-700">@{mentorLink.mentorUsername}</span>
                               ) : <span className="text-[11px] text-slate-400 italic">Sin asignar</span>
+                            ) : user.role === "mentor" ? (
+                              coordinatorByMentor[user.id] ? (
+                                <span className="text-[11px] font-semibold text-cyan-800">@{users.find((u) => u.id === coordinatorByMentor[user.id])?.username}</span>
+                              ) : <span className="text-[11px] text-slate-400 italic">Sin coordinador</span>
                             ) : "—"}
                           </td>
                           <td className="py-3.5">
@@ -1010,6 +1089,7 @@ export default function AdminPage() {
                   <option value="mentor">Mentor</option>
                   <option value="padre">Padre / Madre</option>
                   <option value="formador">Formador/a</option>
+                  <option value="coordinador">Coordinador/a</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>
