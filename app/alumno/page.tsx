@@ -227,7 +227,15 @@ export default function AlumnoPage() {
           updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
         });
         setTotalAccumulatedSC(Math.max(0, Number(latestSkillCoins?.totalAccumulated) || 0));
-        setScWeeklyHistory(Array.isArray(latestSkillCoins?.weeklyHistory) ? latestSkillCoins.weeklyHistory.filter((item: unknown): item is { week: string; total: number } => Boolean(item) && typeof item === "object" && typeof (item as { week?: unknown }).week === "string" && Number.isFinite(Number((item as { total?: unknown }).total)).map((item) => ({ week: item.week, total: Number(item.total) })).sort((a, b) => b.week.localeCompare(a.week)) : []);
+        const weeklyHistory = Array.isArray(latestSkillCoins?.weeklyHistory) ? latestSkillCoins.weeklyHistory : [];
+        setScWeeklyHistory(weeklyHistory
+          .filter((item: unknown): item is { week: string; total: number } => {
+            if (!item || typeof item !== "object") return false;
+            const value = item as { week?: unknown; total?: unknown };
+            return typeof value.week === "string" && Number.isFinite(Number(value.total));
+          })
+          .map((item) => ({ week: item.week, total: Number(item.total) }))
+          .sort((a, b) => b.week.localeCompare(a.week)));
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
