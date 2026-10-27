@@ -191,6 +191,7 @@ export default function AlumnoPage() {
     updatedAt: "Sin datos"
   });
   const [totalAccumulatedSC, setTotalAccumulatedSC] = useState(0);
+  const [scWeeklyHistory, setScWeeklyHistory] = useState<Array<{ week: string; total: number }>>([]);
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
@@ -226,6 +227,7 @@ export default function AlumnoPage() {
           updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
         });
         setTotalAccumulatedSC(Math.max(0, Number(latestSkillCoins?.totalAccumulated) || 0));
+        setScWeeklyHistory(Array.isArray(latestSkillCoins?.weeklyHistory) ? latestSkillCoins.weeklyHistory.filter((item: unknown): item is { week: string; total: number } => Boolean(item) && typeof item === "object" && typeof (item as { week?: unknown }).week === "string" && Number.isFinite(Number((item as { total?: unknown }).total)).map((item) => ({ week: item.week, total: Number(item.total) })).sort((a, b) => b.week.localeCompare(a.week)) : []);
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
@@ -792,6 +794,20 @@ export default function AlumnoPage() {
                 </div>
                 <p className="text-xs text-[#E8E2D8] max-w-xs">Todos los SkillCoins conseguidos en las semanas registradas.</p>
               </div>
+
+              {scWeeklyHistory.length > 0 && (
+                <div className="rounded-2xl border border-[#E7E3DC] p-4 space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Historial semanal</h3>
+                  <div className="space-y-2">
+                    {scWeeklyHistory.map((week) => (
+                      <div key={week.week} className="flex items-center justify-between gap-3 text-sm border-b border-[#EEEAE4] last:border-0 pb-2 last:pb-0">
+                        <span className="text-[#6D6962]">Semana del {new Date(week.week + "T12:00:00").toLocaleDateString("es-ES")}</span>
+                        <span className="font-bold text-[#292825]">{week.total} SC</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div className="p-4 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] space-y-1">
