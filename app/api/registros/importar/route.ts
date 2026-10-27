@@ -131,6 +131,88 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: "No se pudieron guardar los registros." }, { status: 500 });
   }
 
+
+  // Sincroniza SkillCoins cuando la hoja incluye las cuatro puntuaciones explícitas (0–10).
+  // Se reconstruye desde el historial importado, por lo que reimportar filas no duplica SC.
+  const { data: sessionRows, error: sessionReadError } = await admin
+    .from("kiru_session_logs")
+    .select("student_id,session_date,submitted_at,answers")
+    .not("student_id", "is", null)
+    .order("submitted_at", { ascending: true });
+  if (sessionReadError) {
+    return NextResponse.json({ error: "Los registros se guardaron, pero no se pudo recalcular el historial de SkillCoins." }, { status: 500 });
+  }
+
+  type ScoreSet = { estudios: number; compromiso: number; organizacion: number; bienestar: number };
+  const weekly = new Map<string, { studentId: string; week: string; submittedAt: string; scores: ScoreSet }>();
+  const weekStart = (dateText: string): string => {
+    const date = new Date(dateText.length === 10 ? dateText + "T12:00:00Z" : dateText);
+    if (Number.isNaN(date.getTime())) return "";
+    const day = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - day);
+    return date.toISOString().slice(0, 10);
+  };
+  for (const row of sessionRows ?? []) {
+    if (!row.student_id || !Array.isArray(row.answers)) continue;
+    const answers = row.answers as SessionAnswer[];
+    const scores: Partial<ScoreSet> = {};
+    for (const answer of answers) {
+      const question = normalizeName(answer.q);
+      const raw = String(answer.a ?? "").trim().replace(",", ".");
+      const match = raw.match(/^\s*(10|[0-9])\s*(?:\/\s*10|sc)?\s*$/i);
+      if (!match) continue;
+      const value = Number(match[1]);
+      if (!Number.isInteger(value) || value < 0 || value > 10) continue;
+      if (/estudios|aprendizaje|tecnicas de estudio/.test(question)) scores.estudios = value;
+      else if (/compromiso|puntualidad|responsabilidad/.test(question)) scores.compromiso = value;
+      else if (/organizacion|planificacion|agenda/.test(question)) scores.organizacion = value;
+      else if (/bienestar|confianza|calma|estado de animo|emocional/.test(question)) scores.bienestar = value;
+    }
+    if (scores.estudios === undefined || scores.compromiso === undefined || scores.organizacion === undefined || scores.bienestar === undefined) continue;
+    const date = row.session_date || row.submitted_at;
+    const week = weekStart(date);
+    if (!week) continue;
+    const key = row.student_id + "|" + week;
+    const prior = weekly.get(key);
+    // Si hay más de un registro semanal, conserva la evaluación más reciente de esa semana.
+    if (!prior || row.submitted_at >= prior.submittedAt) {
+      weekly.set(key, {
+        studentId: row.student_id,
+        week,
+        submittedAt: row.submitted_at,
+        scores: scores as ScoreSet,
+      });
+    }
+  }
+
+  const studentIds = [...new Set([...weekly.values()].map((item) => item.studentId))];
+  for (const studentId of studentIds) {
+    const history = [...weekly.values()]
+      .filter((item) => item.studentId === studentId)
+      .sort((a, b) => a.week.localeCompare(b.week))
+      .map((item) => ({ week: item.week, scores: item.scores, total: item.scores.estudios + item.scores.compromiso + item.scores.organizacion + item.scores.bienestar, submittedAt: item.submittedAt }));
+    if (!history.length) continue;
+    const current = history[history.length - 1];
+    const totalAccumulated = history.reduce((sum, item) => sum + item.total, 0);
+    const recordKey = `skillcoins_${studentId}`;
+    const data = {
+      module: "skillcoins",
+      studentId,
+      scores: current.scores,
+      weeklyHistory: history,
+      totalAccumulated,
+      updatedAt: new Date().toISOString(),
+      source: "google_sheets_session_log",
+    };
+    const { data: existing, error: existingError } = await admin.from("kiru_app_records")
+      .select("id").eq("owner_id", studentId).eq("record_type", "progress").eq("record_key", recordKey).maybeSingle();
+    if (existingError) return NextResponse.json({ error: "No se pudo comprobar el registro de SkillCoins." }, { status: 500 });
+    const write = existing?.id
+      ? await admin.from("kiru_app_records").update({ data, updated_at: new Date().toISOString() }).eq("id", existing.id)
+      : await admin.from("kiru_app_records").insert({ owner_id: studentId, record_type: "progress", record_key: recordKey, data, created_by: null });
+    if (write.error) return NextResponse.json({ error: "No se pudieron guardar los SkillCoins sincronizados." }, { status: 500 });
+  }
+
   const unmatched = unique.filter((r) => !r.mentor_id || !r.student_id).map((r) => `${r.mentor_name} / ${r.student_name}`);
   return NextResponse.json({ ok: true, saved: unique.length, skipped, unmatched: [...new Set(unmatched)] });
 }

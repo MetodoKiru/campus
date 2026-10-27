@@ -130,6 +130,61 @@ const SUBJECTS = [
   }
 ];
 
+
+type SkillCoinReward = { name: string; cost: number; category: string };
+const SKILLCOIN_REWARDS: SkillCoinReward[] = [
+  { name: "Pegatinas", cost: 30, category: "Pequeños detalles" },
+  { name: "Bolígrafo especial", cost: 40, category: "Pequeños detalles" },
+  { name: "Lápiz especial", cost: 40, category: "Pequeños detalles" },
+  { name: "Goma divertida", cost: 40, category: "Pequeños detalles" },
+  { name: "Libreta pequeña", cost: 60, category: "Pequeños detalles" },
+  { name: "Llavero", cost: 70, category: "Pequeños detalles" },
+  { name: "Peluche pequeño", cost: 80, category: "Pequeños detalles" },
+  { name: "Balón de espuma", cost: 80, category: "Pequeños detalles" },
+  { name: "Cómic", cost: 100, category: "Pequeños detalles" },
+  { name: "Acuarelas", cost: 120, category: "Arte y creatividad" },
+  { name: "Set de pinceles", cost: 120, category: "Arte y creatividad" },
+  { name: "Rotuladores", cost: 150, category: "Arte y creatividad" },
+  { name: "Cuaderno de dibujo", cost: 150, category: "Arte y creatividad" },
+  { name: "Material manualidades", cost: 200, category: "Arte y creatividad" },
+  { name: "Kit de pintura", cost: 300, category: "Arte y creatividad" },
+  { name: "Kit de arcilla", cost: 350, category: "Arte y creatividad" },
+  { name: "Kit de ciencia", cost: 500, category: "Arte y creatividad" },
+  { name: "Juego de cartas", cost: 180, category: "Juegos y construcción" },
+  { name: "Libro", cost: 250, category: "Juegos y construcción" },
+  { name: "Juego de mesa", cost: 450, category: "Juegos y construcción" },
+  { name: "LEGO", cost: 600, category: "Juegos y construcción" },
+  { name: "Juego de estrategia", cost: 500, category: "Juegos y construcción" },
+  { name: "Set de magia", cost: 500, category: "Juegos y construcción" },
+  { name: "Kit de modelismo", cost: 600, category: "Juegos y construcción" },
+  { name: "Frisbee", cost: 120, category: "Deporte" },
+  { name: "Comba", cost: 120, category: "Deporte" },
+  { name: "Raquetas de playa", cost: 180, category: "Deporte" },
+  { name: "Balón de voleibol", cost: 250, category: "Deporte" },
+  { name: "Balón de fútbol", cost: 300, category: "Deporte" },
+  { name: "Balón de baloncesto", cost: 300, category: "Deporte" },
+  { name: "Material deportivo", cost: 350, category: "Deporte" },
+  { name: "Material para practicar un deporte", cost: 500, category: "Deporte" },
+  { name: "Cocinar una receta especial", cost: 250, category: "Experiencias" },
+  { name: "Tarde especial", cost: 300, category: "Experiencias" },
+  { name: "Invitar amigo a casa", cost: 350, category: "Experiencias" },
+  { name: "Ir al cine", cost: 400, category: "Experiencias" },
+  { name: "Ir a los bolos", cost: 500, category: "Experiencias" },
+  { name: "Ir al minigolf", cost: 500, category: "Experiencias" },
+  { name: "Probar un deporte nuevo", cost: 500, category: "Experiencias" },
+  { name: "Escape Room", cost: 700, category: "Experiencias" },
+  { name: "Día de escalada", cost: 700, category: "Experiencias" },
+  { name: "Parque de aventuras o tirolinas", cost: 800, category: "Experiencias" },
+  { name: "Parque acuático", cost: 900, category: "Experiencias" },
+  { name: "Parque temático", cost: 1000, category: "Experiencias" },
+  { name: "Mochila especial", cost: 900, category: "Grandes recompensas" },
+  { name: "Material deportivo especial", cost: 1000, category: "Grandes recompensas" },
+  { name: "Experiencia especial", cost: 1000, category: "Grandes recompensas" },
+  { name: "Excursión de un día", cost: 1000, category: "Grandes recompensas" },
+  { name: "Día completo de aventura", cost: 1000, category: "Grandes recompensas" },
+  { name: "Escapada familiar", cost: 1000, category: "Grandes recompensas" },
+];
+
 export default function AlumnoPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
@@ -157,7 +212,7 @@ export default function AlumnoPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "calculalo">("inicio");
+  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "catalogo" | "calculalo">("inicio");
   
 
   // Estado de Flashcards
@@ -190,6 +245,8 @@ export default function AlumnoPage() {
     bienestar: 0,
     updatedAt: "Sin datos"
   });
+  const [totalAccumulatedSC, setTotalAccumulatedSC] = useState(0);
+  const [scWeeklyHistory, setScWeeklyHistory] = useState<Array<{ week: string; total: number }>>([]);
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
@@ -224,6 +281,16 @@ export default function AlumnoPage() {
           bienestar: Number(latestSkillCoins.scores.bienestar) || 0,
           updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
         });
+        setTotalAccumulatedSC(Math.max(0, Number(latestSkillCoins?.totalAccumulated) || 0));
+        const weeklyHistory = Array.isArray(latestSkillCoins?.weeklyHistory) ? latestSkillCoins.weeklyHistory : [];
+        setScWeeklyHistory(weeklyHistory
+          .filter((item: unknown): item is { week: string; total: number } => {
+            if (!item || typeof item !== "object") return false;
+            const value = item as { week?: unknown; total?: unknown };
+            return typeof value.week === "string" && Number.isFinite(Number(value.total));
+          })
+          .map((item) => ({ week: item.week, total: Number(item.total) }))
+          .sort((a, b) => b.week.localeCompare(a.week)));
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
@@ -387,6 +454,7 @@ export default function AlumnoPage() {
             { id: "ingles", label: "Inglés" },
             { id: "lengua", label: "Lengua" },
             { id: "progreso", label: "Mi Progreso (SC)" },
+            { id: "catalogo", label: "Catálogo de recompensas" },
             { id: "calculalo", label: "Calcúlalo" }
           ].map((tab) => (
             <button
@@ -432,12 +500,12 @@ export default function AlumnoPage() {
               </div>
 
               <div
-                onClick={() => setMainTab("progreso")}
+                onClick={() => setMainTab("catalogo")}
                 className="p-5 bg-white rounded-2xl border border-[#E7E3DC] hover:border-slate-400 transition cursor-pointer shadow-xs space-y-2"
               >
                 <Award className="w-5 h-5 text-[#927B5D]" />
-                <h3 className="font-serif text-base text-[#292825] font-bold">Mis SkillCoins</h3>
-                <p className="text-xs text-[#77736B]">Puntuaciones semanales por categorías y evolución gráfica.</p>
+                <h3 className="font-serif text-base text-[#292825] font-bold">Mis SkillCoins y recompensas</h3>
+                <p className="text-xs text-[#77736B]">Consulta tu saldo y descubre qué recompensas tienes más cerca.</p>
               </div>
             </div>
           </div>
@@ -783,6 +851,28 @@ export default function AlumnoPage() {
                 </span>
               </div>
 
+              <div className="rounded-2xl bg-[#242321] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Total acumulado</span>
+                  <p className="text-3xl font-serif font-bold mt-1">{totalAccumulatedSC} SC</p>
+                </div>
+                <p className="text-xs text-[#E8E2D8] max-w-xs">Todos los SkillCoins conseguidos en las semanas registradas.</p>
+              </div>
+
+              {scWeeklyHistory.length > 0 && (
+                <div className="rounded-2xl border border-[#E7E3DC] p-4 space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Historial semanal</h3>
+                  <div className="space-y-2">
+                    {scWeeklyHistory.map((week) => (
+                      <div key={week.week} className="flex items-center justify-between gap-3 text-sm border-b border-[#EEEAE4] last:border-0 pb-2 last:pb-0">
+                        <span className="text-[#6D6962]">Semana del {new Date(week.week + "T12:00:00").toLocaleDateString("es-ES")}</span>
+                        <span className="font-bold text-[#292825]">{week.total} SC</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div className="p-4 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B]">Estudios</span>
@@ -815,6 +905,58 @@ export default function AlumnoPage() {
             </div>
           </div>
         )}
+
+
+        {/* CATÁLOGO SKILLCOINS */}
+        {mainTab === "catalogo" && (() => {
+          const affordable = SKILLCOIN_REWARDS.filter((reward) => reward.cost <= totalAccumulatedSC).sort((a, b) => a.cost - b.cost);
+          const nextRewards = SKILLCOIN_REWARDS.filter((reward) => reward.cost > totalAccumulatedSC).sort((a, b) => (a.cost - totalAccumulatedSC) - (b.cost - totalAccumulatedSC)).slice(0, 3);
+          const categories = Array.from(new Set(SKILLCOIN_REWARDS.map((reward) => reward.category)));
+          return (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <div className="rounded-3xl bg-[#242321] text-white p-6 sm:p-8 space-y-3">
+                <p className="text-xs uppercase tracking-wider text-[#D7C8AF] font-bold">Mi catálogo SkillCoins</p>
+                <div className="flex items-end justify-between gap-4 flex-wrap">
+                  <div><p className="text-4xl font-serif font-bold">{totalAccumulatedSC} SC</p><p className="text-sm text-[#E8E2D8]">Saldo acumulado registrado</p></div>
+                  <button onClick={() => setMainTab("progreso")} className="rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/20">Ver mi progreso</button>
+                </div>
+                <p className="text-xs text-[#E8E2D8]">Elige una recompensa para consultarla. Antes de canjearla, debe aprobarla tu familia.</p>
+              </div>
+              {nextRewards.length > 0 && (
+                <section className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-4">
+                  <div><h2 className="text-xl font-serif font-bold">¡Estás cada vez más cerca!</h2><p className="text-sm text-[#77736B]">Estas son las recompensas que tienes más cerca de conseguir.</p></div>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {nextRewards.map((reward) => {
+                      const missing = reward.cost - totalAccumulatedSC;
+                      const progress = Math.min(100, Math.round((totalAccumulatedSC / reward.cost) * 100));
+                      return <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F4] p-4 space-y-3">
+                        <span className="text-[10px] uppercase tracking-wide text-[#8A775B] font-bold">{reward.category}</span>
+                        <h3 className="font-semibold text-[#292825]">{reward.name}</h3>
+                        <p className="text-lg font-bold">{reward.cost.toLocaleString("es-ES")} SC</p>
+                        <div className="h-2 rounded-full bg-[#E9E4DB] overflow-hidden"><div className="h-full rounded-full bg-[#8A775B]" style={{ width: progress + "%" }} /></div>
+                        <p className="text-xs text-[#77736B]">Te faltan {missing.toLocaleString("es-ES")} SC</p>
+                      </article>;
+                    })}
+                  </div>
+                </section>
+              )}
+              {affordable.length > 0 && <section className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-3">
+                <h2 className="text-xl font-serif font-bold">Recompensas que puedes elegir</h2>
+                <p className="text-xs text-[#77736B]">Recuerda que el canje necesita la aprobación previa de tu familia.</p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{affordable.map((reward) => <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-sm">{reward.name}</p><p className="text-xs text-[#77736B]">{reward.category}</p></div><span className="shrink-0 rounded-full bg-[#F3EEE5] px-3 py-1 text-xs font-bold">{reward.cost} SC</span></article>)}</div>
+              </section>}
+              {categories.map((category) => {
+                const items = SKILLCOIN_REWARDS.filter((reward) => reward.category === category && reward.cost > totalAccumulatedSC);
+                if (!items.length) return null;
+                return <section key={category} className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-3">
+                  <h2 className="text-lg font-serif font-bold">{category}</h2>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{items.map((reward) => <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-sm">{reward.name}</p><p className="text-xs text-[#77736B]">Te faltan {(reward.cost-totalAccumulatedSC).toLocaleString("es-ES")} SC</p></div><span className="shrink-0 text-xs font-bold">{reward.cost.toLocaleString("es-ES")} SC</span></article>)}</div>
+                </section>;
+              })}
+              <p className="text-xs leading-relaxed text-[#77736B] bg-[#F3F0EA] rounded-2xl p-4">Las SkillCoins son virtuales. La familia debe aprobar las recompensas y se encarga de comprarlas y entregarlas. Las recompensas personalizadas deben acordarse con la familia y el mentor. Al canjear una recompensa, se descuentan las SkillCoins utilizadas.</p>
+            </div>
+          );
+        })()}
 
         {/* SECCIÓN 6: CALCÚLALO */}
         {mainTab === "calculalo" && (
