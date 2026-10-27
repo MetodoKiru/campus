@@ -953,7 +953,7 @@ export default function AlumnoPage() {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{items.map((reward) => <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-sm">{reward.name}</p><p className="text-xs text-[#77736B]">Te faltan {(reward.cost-totalAccumulatedSC).toLocaleString("es-ES")} SC</p></div><span className="shrink-0 text-xs font-bold">{reward.cost.toLocaleString("es-ES")} SC</span></article>)}</div>
                 </section>;
               })}
-              <p className="text-xs leading-relaxed text-[#77736B] bg-[#F3F0EA] rounded-2xl p-4">Las SkillCoins son virtuales. La familia debe aprobar las recompensas y se encarga de comprarlas y entregarlas. Las recompensas personalizadas deben acordarse con la familia y el mentor. Al canjear una recompensa, se descuentan las SkillCoins utilizadas. fileciteturn954file0L7-L24</p>
+              <p className="text-xs leading-relaxed text-[#77736B] bg-[#F3F0EA] rounded-2xl p-4">Las SkillCoins son virtuales. La familia debe aprobar las recompensas y se encarga de comprarlas y entregarlas. Las recompensas personalizadas deben acordarse con la familia y el mentor. Al canjear una recompensa, se descuentan las SkillCoins utilizadas.</p>
             </div>
           );
         })()}
