@@ -159,14 +159,14 @@ export async function POST(request: Request) {
     for (const answer of answers) {
       const question = normalizeName(answer.q);
       const raw = String(answer.a ?? "").trim().replace(",", ".");
-      const match = raw.match(/(?:^|\\s)(10|[0-9])(?:\\s*(?:\\/\\s*10|sc))?(?:$|\\s)/i);
+      const match = raw.match(/^\s*(10|[0-9])\s*(?:\/\s*10|sc)?\s*$/i);
       if (!match) continue;
       const value = Number(match[1]);
       if (!Number.isInteger(value) || value < 0 || value > 10) continue;
       if (/estudios|aprendizaje|tecnicas de estudio/.test(question)) scores.estudios = value;
       else if (/compromiso|puntualidad|responsabilidad/.test(question)) scores.compromiso = value;
       else if (/organizacion|planificacion|agenda/.test(question)) scores.organizacion = value;
-      else if (/bienestar|confianza|calma/.test(question)) scores.bienestar = value;
+      else if (/bienestar|confianza|calma|estado de animo|emocional/.test(question)) scores.bienestar = value;
     }
     if (scores.estudios === undefined || scores.compromiso === undefined || scores.organizacion === undefined || scores.bienestar === undefined) continue;
     const date = row.session_date || row.submitted_at;
