@@ -190,6 +190,7 @@ export default function AlumnoPage() {
     bienestar: 0,
     updatedAt: "Sin datos"
   });
+  const [totalAccumulatedSC, setTotalAccumulatedSC] = useState(0);
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
@@ -224,6 +225,7 @@ export default function AlumnoPage() {
           bienestar: Number(latestSkillCoins.scores.bienestar) || 0,
           updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
         });
+        setTotalAccumulatedSC(Math.max(0, Number(latestSkillCoins?.totalAccumulated) || 0));
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
@@ -781,6 +783,14 @@ export default function AlumnoPage() {
                 <span className="text-[11px] text-[#8D887F] font-semibold">
                   Actualizado el {scData.updatedAt}
                 </span>
+              </div>
+
+              <div className="rounded-2xl bg-[#242321] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Total acumulado</span>
+                  <p className="text-3xl font-serif font-bold mt-1">{totalAccumulatedSC} SC</p>
+                </div>
+                <p className="text-xs text-[#E8E2D8] max-w-xs">Todos los SkillCoins conseguidos en las semanas registradas.</p>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
