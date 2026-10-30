@@ -13,6 +13,40 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecoverOpen, setIsRecoverOpen] = useState(false);
+  const [recoverUser, setRecoverUser] = useState("");
+  const [recoverMessage, setRecoverMessage] = useState("");
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  const openRecover = () => {
+    setRecoverUser(username.trim());
+    setRecoverMessage("");
+    setIsRecoverOpen(true);
+  };
+
+  const handleRecover = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isRecovering) return;
+    setIsRecovering(true);
+    try {
+      const response = await fetch("/api/acceso/olvido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario: recoverUser.trim() }),
+      });
+      const result = await response.json();
+      setRecoverMessage(
+        typeof result.message === "string"
+          ? result.message
+          : typeof result.error === "string"
+            ? result.error
+            : "No se ha podido enviar. Inténtalo de nuevo en unos minutos."
+      );
+    } catch {
+      setRecoverMessage("No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.");
+    } finally {
+      setIsRecovering(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -160,10 +194,10 @@ export default function HomePage() {
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => setIsRecoverOpen(true)}
+              onClick={openRecover}
               className="text-xs font-medium text-slate-500 underline-offset-4 transition hover:text-emerald-800 hover:underline"
             >
-              ¿Has olvidado tu contraseña?
+              ¿Has olvidado tu PIN?
             </button>
           </div>
 
@@ -199,7 +233,7 @@ export default function HomePage() {
               <div className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-emerald-800" />
                 <h2 id="recover-title" className="font-serif text-lg font-bold text-slate-900">
-                  Recuperar acceso
+                  Crear un PIN nuevo
                 </h2>
               </div>
               <button
@@ -211,16 +245,44 @@ export default function HomePage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="text-sm leading-6 text-slate-600">
-              Para restablecer tu contraseña, contacta con la persona que administra el Campus Kiru.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsRecoverOpen(false)}
-              className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Entendido
-            </button>
+            {recoverMessage ? (
+              <>
+                <p role="status" className="text-sm leading-6 text-slate-600">{recoverMessage}</p>
+                <button
+                  type="button"
+                  onClick={() => setIsRecoverOpen(false)}
+                  className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Entendido
+                </button>
+              </>
+            ) : (
+              <form onSubmit={handleRecover}>
+                <p className="text-sm leading-6 text-slate-600">
+                  Escribe tu usuario o el correo con el que te diste de alta. Te mandaremos un botón para crear un PIN nuevo.
+                </p>
+                <input
+                  type="text"
+                  autoComplete="username"
+                  aria-label="Usuario o correo"
+                  value={recoverUser}
+                  onChange={(e) => setRecoverUser(e.target.value)}
+                  placeholder="Usuario o correo"
+                  className="mt-4 w-full rounded-xl border border-slate-200 bg-[#F7F3EB] px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/10"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={isRecovering || !recoverUser.trim()}
+                  className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRecovering ? "Enviando…" : "Enviarme un PIN nuevo"}
+                </button>
+                <p className="mt-4 text-xs leading-5 text-slate-400">
+                  Si eres alumno o alumna, pídele a tu mentor que te ayude.
+                </p>
+              </form>
+            )}
           </section>
         </div>
       )}
