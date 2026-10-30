@@ -9,7 +9,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 type Step =
   | { kind: "checking" }
   | { kind: "invalid"; message: string }
-  | { kind: "form"; fullName: string; username: string }
+  | { kind: "form"; fullName: string; username: string; firstTime: boolean }
   | { kind: "done"; username: string };
 
 const inputClass =
@@ -46,7 +46,7 @@ export default function AccesoPage() {
           return;
         }
         setToken(fromHash);
-        setStep({ kind: "form", fullName: result.fullName, username: result.username });
+        setStep({ kind: "form", fullName: result.fullName, username: result.username, firstTime: result.firstTime !== false });
       })
       .catch(() => {
         if (!cancelled) setStep({ kind: "invalid", message: "No hemos podido comprobar el enlace. Revisa tu conexión y vuelve a abrirlo." });
@@ -79,7 +79,7 @@ export default function AccesoPage() {
       if (result.session?.access_token && result.session?.refresh_token) {
         const { error: sessionError } = await supabase.auth.setSession(result.session);
         if (!sessionError) {
-          router.push("/mentor");
+          router.push(typeof result.home === "string" && result.home.startsWith("/") ? result.home : "/");
           return;
         }
       }
@@ -133,7 +133,9 @@ export default function AccesoPage() {
         {step.kind === "form" && (
           <>
             <p className="mb-5 text-center text-sm leading-6 text-slate-500">
-              Bienvenido/a al equipo. Solo te falta elegir tu PIN para entrar al Campus.
+              {step.firstTime
+                ? "Bienvenido/a al equipo. Solo te falta elegir tu PIN para entrar al Campus."
+                : "Elige un PIN nuevo. El anterior deja de valer en cuanto guardes este."}
             </p>
             <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Tu usuario</p>

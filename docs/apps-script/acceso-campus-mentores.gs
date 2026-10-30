@@ -13,8 +13,10 @@
  *  - Red de seguridad: cada hora mira la pestaña «Incorporación». Si a alguien
  *    ya le salió la BIENVENIDA y su ACCESO PLATAFORMA está vacío, le manda un
  *    correo corto con su acceso y lo apunta.
- *  - Añade el menú «Campus Kiru» → «Reenviar acceso a la fila seleccionada»
- *    (para quien ha perdido el correo o ha olvidado su PIN).
+ *  - Añade el menú «Campus Kiru» → «Reenviar acceso a la fila seleccionada».
+ *  - PIN olvidado: cada 5 minutos recoge del campus a quien ha pulsado
+ *    «¿Has olvidado tu PIN?» y le manda el correo con un botón para crear uno
+ *    nuevo. Nadie de Método Kiru tiene que hacer nada.
  *
  * Antes de usarlo, en Apps Script → Configuración del proyecto (rueda) →
  * Propiedades del script, añade:
@@ -23,6 +25,7 @@
  */
 
 var KIRU_ALTA_URL = 'https://campus.metodokiru.es/api/mentores/acceso';
+var KIRU_PINS_URL = 'https://campus.metodokiru.es/api/mentores/acceso/pendientes';
 var KIRU_PESTANA_INCORPORACION = 'Incorporación';
 var KIRU_REMITENTE = 'Método Kiru';
 
@@ -180,6 +183,42 @@ function kiruRevisarAccesosPendientes() {
   }
 }
 
+// ===== PIN olvidado =====
+
+/** Cada 5 minutos: manda el correo «Crea un PIN nuevo» a quien lo haya pedido en el campus. */
+function kiruEnviarPinsOlvidados() {
+  var clave = PropertiesService.getScriptProperties().getProperty('KIRU_ALTA_SECRET');
+  if (!clave) throw new Error('Falta la propiedad KIRU_ALTA_SECRET.');
+  var r = UrlFetchApp.fetch(KIRU_PINS_URL, {
+    method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + clave },
+    payload: '{}', muteHttpExceptions: true,
+  });
+  if (r.getResponseCode() !== 200) throw new Error('El campus respondió ' + r.getResponseCode() + ': ' + r.getContentText());
+  var datos = JSON.parse(r.getContentText());
+  (datos.resets || []).forEach(function (p) {
+    try {
+      kiruEnviarCorreoPinNuevo(p);
+    } catch (e) {
+      console.error('PIN nuevo para ' + p.email + ': ' + e.message);
+    }
+  });
+}
+
+function kiruEnviarCorreoPinNuevo(p) {
+  var pila = String(p.fullName || '').trim().split(/\s+/)[0] || 'hola';
+  var zona = Session.getScriptTimeZone();
+  var caduca = Utilities.formatDate(new Date(p.expiresAt), zona, "dd/MM/yyyy 'a las' HH:mm");
+  var html = '<p>Hola ' + kiruEscapar(pila) + ':</p>' +
+    '<p>Nos has pedido un PIN nuevo para el Campus Kiru. Tu usuario es <strong style="font-family:monospace;font-size:16px">' + kiruEscapar(p.username) + '</strong>.</p>' +
+    '<p style="margin:20px 0"><a href="' + kiruEscapar(p.accessUrl) + '" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#0F172A;color:#FFFFFF;text-decoration:none;font-weight:bold">Crear un PIN nuevo</a></p>' +
+    '<p style="font-size:12px;color:#64748B">El botón solo sirve una vez y caduca el ' + caduca + '. Si no lo has pedido tú, ignora este correo: tu PIN actual sigue valiendo.</p>' +
+    '<p>Un saludo,<br>Equipo Método Kiru</p>';
+  var texto = 'Hola ' + pila + ':\n\nNos has pedido un PIN nuevo para el Campus Kiru. Tu usuario es ' + p.username +
+    '.\nAbre este enlace para crearlo (solo sirve una vez y caduca el ' + caduca + '): ' + p.accessUrl +
+    '\n\nSi no lo has pedido tú, ignora este correo: tu PIN actual sigue valiendo.\n\nEquipo Método Kiru';
+  GmailApp.sendEmail(p.email, 'Método Kiru | Crea un PIN nuevo para el Campus', texto, { htmlBody: html, name: KIRU_REMITENTE });
+}
+
 // ===== Menú y puesta en marcha =====
 
 function kiruMenuAccesoCampus() {
@@ -228,16 +267,17 @@ function kiruProbarAccesoCampus() {
   else throw new Error('El campus respondió ' + codigo + ': ' + r.getContentText());
 }
 
-/** Ejecútalo una sola vez: crea el menú y la revisión de cada hora. */
+/** Ejecútalo una vez (y otra vez si cambias este archivo): crea el menú, la revisión de cada hora y la de PIN olvidados cada 5 minutos. */
 function kiruInstalarAccesoCampus() {
   kiruProbarAccesoCampus();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var f = t.getHandlerFunction();
-    if (f === 'kiruRevisarAccesosPendientes' || f === 'kiruMenuAccesoCampus') ScriptApp.deleteTrigger(t);
+    if (f === 'kiruRevisarAccesosPendientes' || f === 'kiruMenuAccesoCampus' || f === 'kiruEnviarPinsOlvidados') ScriptApp.deleteTrigger(t);
   });
   var libro = SpreadsheetApp.getActiveSpreadsheet();
   ScriptApp.newTrigger('kiruMenuAccesoCampus').forSpreadsheet(libro).onOpen().create();
   ScriptApp.newTrigger('kiruRevisarAccesosPendientes').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('kiruEnviarPinsOlvidados').timeBased().everyMinutes(5).create();
   kiruRevisarAccesosPendientes();
   console.log('Instalado. Recarga la hoja para ver el menú «Campus Kiru».');
 }

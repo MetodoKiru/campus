@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
-import { ACCESS_LINK_DAYS, hashAccessToken, newAccessToken, usernameBase } from "@/lib/server/access-links";
+import { ACCESS_LINK_DAYS, issueAccessLink, usernameBase } from "@/lib/server/access-links";
 import { EMAIL_RE } from "@/lib/server/require-staff";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
@@ -158,17 +158,11 @@ export async function POST(request: Request) {
   }
 
   // 4. Enlace nuevo de un solo uso; los anteriores sin usar dejan de valer.
-  await admin.from("kiru_access_links").delete().eq("profile_id", profileId).is("used_at", null);
-  const token = newAccessToken();
-  const expiresAt = new Date(Date.now() + ACCESS_LINK_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { error: linkError } = await admin
-    .from("kiru_access_links")
-    .insert({ profile_id: profileId, token_hash: hashAccessToken(token), expires_at: expiresAt });
-  if (linkError) return NextResponse.json({ error: "No se pudo generar el enlace de acceso." }, { status: 500 });
+  const link = await issueAccessLink(admin, profileId, request.url, ACCESS_LINK_DAYS * 24 * 60 * 60 * 1000);
+  if (!link) return NextResponse.json({ error: "No se pudo generar el enlace de acceso." }, { status: 500 });
 
-  const accessUrl = new URL(`/acceso#t=${token}`, request.url).toString();
   return NextResponse.json(
-    { ok: true, status: created ? "created" : "link", username, accessUrl, expiresAt, loginUrl },
+    { ok: true, status: created ? "created" : "link", username, ...link, loginUrl },
     { status: created ? 201 : 200 },
   );
 }

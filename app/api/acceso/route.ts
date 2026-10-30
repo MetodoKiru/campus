@@ -2,10 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { ACCESS_TOKEN_RE, hashAccessToken, pinProblem } from "@/lib/server/access-links";
+import { homeForRole } from "@/lib/server/pin-reset";
 
 export const runtime = "nodejs";
 
-const GONE = "Este enlace ya se ha usado o ha caducado. Si aún no tienes PIN, escribe a metodokiru@gmail.com y te mandamos otro.";
+const GONE = "Este enlace ya se ha usado o ha caducado. Pide otro en la entrada del Campus con «¿Has olvidado tu PIN?».";
 
 /**
  * Página «Crea tu PIN» (/acceso). Sin PIN, comprueba el enlace y devuelve el
@@ -38,9 +39,13 @@ export async function POST(request: Request) {
       .gt("expires_at", now)
       .maybeSingle();
     if (!link) return NextResponse.json({ error: GONE }, { status: 410 });
-    const { data: profile } = await admin.from("profiles").select("full_name,username,is_active").eq("id", link.profile_id).maybeSingle();
+    const [{ data: profile }, { data: authUser }] = await Promise.all([
+      admin.from("profiles").select("full_name,username,is_active").eq("id", link.profile_id).maybeSingle(),
+      admin.auth.admin.getUserById(link.profile_id),
+    ]);
     if (!profile?.is_active || !profile.username) return NextResponse.json({ error: GONE }, { status: 410 });
-    return NextResponse.json({ fullName: profile.full_name, username: profile.username });
+    // firstTime: aún no ha entrado nunca (bienvenida); si no, viene de «¿Has olvidado tu PIN?».
+    return NextResponse.json({ fullName: profile.full_name, username: profile.username, firstTime: !authUser.user?.last_sign_in_at });
   }
 
   const pin = typeof body.pin === "string" ? body.pin.trim() : "";
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
 
   const release = () => admin.from("kiru_access_links").update({ used_at: null }).eq("id", link.id);
   const [{ data: profile }, { data: authUser }] = await Promise.all([
-    admin.from("profiles").select("username,is_active").eq("id", link.profile_id).maybeSingle(),
+    admin.from("profiles").select("username,role,is_active").eq("id", link.profile_id).maybeSingle(),
     admin.auth.admin.getUserById(link.profile_id),
   ]);
   const email = authUser.user?.email;
@@ -79,11 +84,12 @@ export async function POST(request: Request) {
   const { data, error } = await authClient.auth.signInWithPassword({ email, password: pin });
   if (error || !data.session || !data.user) {
     // El PIN ya está guardado: puede entrar desde la página de inicio.
-    return NextResponse.json({ ok: true, username: profile.username, session: null });
+    return NextResponse.json({ ok: true, username: profile.username, home: homeForRole(profile.role), session: null });
   }
   return NextResponse.json({
     ok: true,
     username: profile.username,
+    home: homeForRole(profile.role),
     session: { access_token: data.session.access_token, refresh_token: data.session.refresh_token },
     user: { id: data.user.id },
   });

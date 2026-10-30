@@ -25,6 +25,21 @@ y un botón «Crear mi PIN y entrar».
 Errores: 401 clave incorrecta, 409 si el correo es de una cuenta que no es de
 mentor o está desactivada, 503 si falta la clave en Vercel.
 
+## PIN olvidado (sin que nadie de Método Kiru haga nada)
+
+1. En la entrada del campus, «¿Has olvidado tu PIN?» → el mentor (o la familia,
+   coordinador o formador) escribe su usuario o su correo.
+2. `POST /api/acceso/olvido` apunta la petición en `kiru_pin_requests`. Responde
+   siempre lo mismo, exista o no la cuenta. Como mucho una petición cada 10
+   minutos y 3 al día por cuenta. Administración y alumnos quedan fuera
+   (los alumnos no tienen correo propio).
+3. Cada 5 minutos el Apps Script llama a `POST /api/mentores/acceso/pendientes`
+   (misma clave `KIRU_ALTA_SECRET`). El campus genera en ese momento un enlace
+   de un solo uso que vale 24 h y el script lo manda por correo desde
+   metodokiru@gmail.com. Una petición sin recoger en 2 h se descarta.
+4. El enlace lleva a `/acceso`, que pide el PIN nuevo y entra en el panel de
+   su rol. El PIN anterior sigue valiendo hasta que se guarda el nuevo.
+
 ## Seguridad
 
 - El enlace va detrás de `#`, así que el navegador no lo manda al servidor y
@@ -56,3 +71,4 @@ proyecto «Kiru filtro candidatos». Da tres cosas:
 ## Cambios en la base de datos
 
 - `20261030090000_mentor_access_links.sql`: tabla `kiru_access_links`.
+- `20261030130000_pin_reset_requests.sql`: tabla `kiru_pin_requests`.
