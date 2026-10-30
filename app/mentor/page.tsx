@@ -14,7 +14,7 @@ import {
   Award,
   PenLine
 } from "lucide-react";
-import SkillCoinsChart from "@/components/SkillCoinsChart";
+import MentorSkillcoins from "@/components/skillcoins/MentorSkillcoins";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
@@ -74,7 +74,6 @@ export default function MentorPage() {
   const [bulkText, setBulkText] = useState("");
   const [bulkTarget, setBulkTarget] = useState("");
 
-  const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
 
   // Menú ☰: los cuatro pasos del mentor. El panel de alumnos de abajo no cambia.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -98,13 +97,11 @@ export default function MentorPage() {
         const assigned = (profiles || []).flatMap((p) => (p.username ? [{ id: p.id, username: p.username, name: p.full_name }] : []));
         setStudents(assigned);
         if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); }
-        const [activities, progress] = await Promise.all([getKiruRecords<KiruRecordData>("activity"), getKiruRecords<KiruRecordData>("progress")]);
+        const activities = await getKiruRecords<KiruRecordData>("activity");
         if (!active) return;
         const subjects: Record<string, string[]> = {};
         activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
         setStudentSubjects(subjects);
-        const sc = progress.map((r) => r.data).find((d) => d?.module === "skillcoins" && assigned.some((s) => s.id === d.studentId));
-        if (sc?.scores) setStudentSC({ estudios: Number(sc.scores.estudios) || 0, compromiso: Number(sc.scores.compromiso) || 0, organizacion: Number(sc.scores.organizacion) || 0, bienestar: Number(sc.scores.bienestar) || 0 });
       } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
     };
     void loadAssignedStudents();
@@ -147,14 +144,6 @@ export default function MentorPage() {
     } catch { setSavedMsg("No se pudieron guardar las flashcards."); }
   };
 
-  const handleUpdateSC = async (field: "estudios" | "compromiso" | "organizacion" | "bienestar", val: number) => {
-    const student = students.find((item) => item.username === selectedStudent);
-    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
-    const updated = { ...studentSC, [field]: Math.max(0, Math.min(10, val)) };
-    setStudentSC(updated);
-    try { await saveKiruRecord("progress", `skillcoins_${student.id}`, { module: "skillcoins", studentId: student.id, scores: updated, updatedAt: new Date().toISOString() }, student.id); setSavedMsg("SkillCoins guardadas en Supabase."); }
-    catch { setSavedMsg("No se pudieron guardar las SkillCoins."); }
-  };
 
   if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -514,44 +503,10 @@ export default function MentorPage() {
 
         {activeTab === "lengua" && <LenguaMentor student={students.find((item) => item.username === selectedStudent)} onStatus={setSavedMsg} />}
 
-        {activeTab === "skillcoins" && (
-          <div className="space-y-6 animate-in fade-in duration-150">
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-[#EEEAE3] pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-[#292825]">
-                    Editar SkillCoins de @{selectedStudent}
-                  </h3>
-                  <p className="text-xs text-[#77736B]">Puntúa semanalmente de 0 a 10 cada categoría tras la sesión.</p>
-                </div>
-                <span className="text-[10px] text-[#8D887F] font-semibold">Actualizado</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {(["estudios", "compromiso", "organizacion", "bienestar"] as const).map((cat) => (
-                  <div key={cat} className="p-3.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#77736B] block capitalize">{cat}</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={studentSC[cat]}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateSC(cat, parseInt(e.target.value) || 0)}
-                        className="w-16 p-2 bg-white border border-[#E7E3DC] rounded-xl text-center text-sm font-bold text-[#45433F]"
-                      />
-                      <span className="text-xs text-[#8D887F] font-semibold">/ 10 SC</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-4">
-              <SkillCoinsChart />
-            </div>
-          </div>
-        )}
+        {activeTab === "skillcoins" && (() => {
+          const student = students.find((item) => item.username === selectedStudent);
+          return <MentorSkillcoins key={student?.id ?? "ninguno"} student={student} onStatus={setSavedMsg} />;
+        })()}
         </div>
       </main>
     </div>

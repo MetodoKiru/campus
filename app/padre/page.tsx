@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
+import FamilyRewards from "@/components/skillcoins/FamilyRewards";
+import NotificationBell from "@/components/skillcoins/NotificationBell";
+import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
+import { weekLabel } from "@/lib/skillcoins";
 
 interface Child {
   id: string;
@@ -76,7 +80,7 @@ export default function PadrePage() {
   }, [router]);
 
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
-  const [activeTab, setActiveTab] = useState<"inicio" | "progreso" | "documentos" | "pagos">("inicio");
+  const [activeTab, setActiveTab] = useState<"inicio" | "progreso" | "recompensas" | "documentos" | "pagos">("inicio");
 
   // Lista de hijos dinámica cargada desde las cuentas de alumnos creadas
   const [childrenList, setChildrenList] = useState<Child[]>(FALLBACK_CHILDREN);
@@ -89,8 +93,18 @@ export default function PadrePage() {
   const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
 
-  // SkillCoins automáticas
-  const [scData] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0, updatedAt: "Sin datos" });
+  // SkillCoins del hijo seleccionado: saldo y semanas calculados en la base de datos.
+  const childSkillcoins = useStudentSkillcoins(selectedChild?.id ?? null);
+  const childSummary = childSkillcoins.summary;
+  const latestWeek = childSummary.weeks[childSummary.weeks.length - 1];
+  const scData = {
+    estudios: latestWeek?.estudios ?? 0,
+    compromiso: latestWeek?.compromiso ?? 0,
+    organizacion: latestWeek?.organizacion ?? 0,
+    bienestar: latestWeek?.bienestar ?? 0,
+    updatedAt: latestWeek ? weekLabel(latestWeek.week).replace("Semana del ", "") : "Sin datos",
+  };
+  const childNeedsAnswer = childSkillcoins.goals.some((g) => g.status === "pendiente" || g.status === "canje_solicitado");
 
   useEffect(() => {
     let active = true;
@@ -196,9 +210,15 @@ export default function PadrePage() {
                 <line x1="12" y1="2" x2="12" y2="12" />
               </svg>
             </button>
-            <span className="text-xs font-serif font-bold text-[#8D887F] uppercase tracking-widest">
-              Método Kiru
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-serif font-bold text-[#8D887F] uppercase tracking-widest">
+                Método Kiru
+              </span>
+              <NotificationBell onOpenItem={(n) => {
+                const child = childrenList.find((c) => c.id === n.student_id);
+                if (child) { setSelectedChild(child); setActiveTab("recompensas"); }
+              }} />
+            </div>
           </header>
 
           <div className="space-y-1 text-left">
@@ -257,6 +277,15 @@ export default function PadrePage() {
                 }`}
               >
                 Progreso
+              </button>
+              <button
+                onClick={() => setActiveTab("recompensas")}
+                className={`relative px-3 py-1.5 rounded-xl transition shrink-0 ${
+                  activeTab === "recompensas" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                }`}
+              >
+                Recompensas
+                {childNeedsAnswer && <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#806C50]" aria-label="Hay algo pendiente" />}
               </button>
               <button
                 onClick={() => setActiveTab("documentos")}
@@ -322,6 +351,15 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
+              {childNeedsAnswer && (
+                <button
+                  onClick={() => setActiveTab("recompensas")}
+                  className="w-full text-left rounded-2xl border-2 border-[#E4D8C5] bg-[#FBF8F2] p-4 text-sm text-[#5C5141] hover:bg-[#F6F0E4] transition"
+                >
+                  <strong className="block text-[#292825]">{selectedChild.name} espera vuestra respuesta</strong>
+                  Hay una solicitud de recompensa pendiente. Pulsa para verla.
+                </button>
+              )}
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Avisos importantes</h3>
                 <p className="text-xs text-[#77736B]">Comunicaciones de Método Kiru, festivos y cambios de horario.</p>
@@ -360,9 +398,15 @@ export default function PadrePage() {
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="font-serif text-lg text-[#292825] font-bold">SkillCoins Semanales</h3>
-                  <p className="text-xs text-[#77736B]">Puntuación obtenida en la última sesión (no acumuladas).</p>
+                  <p className="text-xs text-[#77736B]">Puntuación de la última semana registrada (0 a 10 por categoría).</p>
                 </div>
-                <span className="text-[10px] font-medium text-[#8D887F]">Actualizado el {scData.updatedAt}</span>
+                <span className="text-[10px] font-medium text-[#8D887F]">Semana del {scData.updatedAt}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 rounded-2xl bg-[#242321] text-white p-4">
+                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Saldo</p><p className="text-xl font-serif font-bold">{childSummary.balance} SC</p></div>
+                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Ganadas</p><p className="text-xl font-serif font-bold">{childSummary.earned} SC</p></div>
+                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Canjeadas</p><p className="text-xl font-serif font-bold">{childSummary.spent} SC</p></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
@@ -392,9 +436,13 @@ export default function PadrePage() {
               </div>
 
               <div className="pt-4 border-t border-[#EEEAE3]">
-                <SkillCoinsChart />
+                <SkillCoinsChart weeks={childSummary.weeks} />
               </div>
             </div>
+          )}
+
+          {activeTab === "recompensas" && (
+            <FamilyRewards students={[{ id: selectedChild.id, name: selectedChild.name }]} onChanged={() => void childSkillcoins.reload()} />
           )}
 
           {activeTab === "documentos" && (

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
+import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
 import { 
   UserPlus, 
   Trash2, 
@@ -23,7 +24,8 @@ import {
   ExternalLink,
   Download,
   GraduationCap,
-  Compass
+  Compass,
+  Coins
 } from "lucide-react";
 
 interface UserAccount {
@@ -120,7 +122,7 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos">("usuarios");
+  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -585,7 +587,18 @@ export default function AdminPage() {
             <Bell className="w-3.5 h-3.5" />
             <span>Gestión de Avisos</span>
           </button>
+          <button
+            onClick={() => setActiveTab("skillcoins")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "skillcoins" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span>SkillCoins y recompensas</span>
+          </button>
         </div>
+
+        {activeTab === "skillcoins" && <AdminSkillcoins />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}
         {activeTab === "usuarios" && (

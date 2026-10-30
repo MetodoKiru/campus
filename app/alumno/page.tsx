@@ -10,7 +10,13 @@ import {
   CheckCircle2, 
   ExternalLink, 
   Award, 
-  Filter
+  Filter,
+  Home,
+  BookOpen,
+  Coins,
+  Store,
+  Menu,
+  X
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import LenguaStudent from "@/components/lengua/LenguaStudent";
@@ -18,6 +24,13 @@ import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
 import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { isFlashcardSet } from "@/lib/english/flashcards";
 import { supabase } from "@/lib/supabase";
+import Toast from "@/components/Toast";
+import StudentGoal from "@/components/skillcoins/StudentGoal";
+import StudentShop from "@/components/skillcoins/StudentShop";
+import NotificationBell from "@/components/skillcoins/NotificationBell";
+import ProgressBar from "@/components/skillcoins/ProgressBar";
+import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
+import { weekLabel } from "@/lib/skillcoins";
 
 interface Flashcard {
   id: string;
@@ -131,65 +144,12 @@ const SUBJECTS = [
 ];
 
 
-type SkillCoinReward = { name: string; cost: number; category: string };
-const SKILLCOIN_REWARDS: SkillCoinReward[] = [
-  { name: "Pegatinas", cost: 30, category: "Pequeños detalles" },
-  { name: "Bolígrafo especial", cost: 40, category: "Pequeños detalles" },
-  { name: "Lápiz especial", cost: 40, category: "Pequeños detalles" },
-  { name: "Goma divertida", cost: 40, category: "Pequeños detalles" },
-  { name: "Libreta pequeña", cost: 60, category: "Pequeños detalles" },
-  { name: "Llavero", cost: 70, category: "Pequeños detalles" },
-  { name: "Peluche pequeño", cost: 80, category: "Pequeños detalles" },
-  { name: "Balón de espuma", cost: 80, category: "Pequeños detalles" },
-  { name: "Cómic", cost: 100, category: "Pequeños detalles" },
-  { name: "Acuarelas", cost: 120, category: "Arte y creatividad" },
-  { name: "Set de pinceles", cost: 120, category: "Arte y creatividad" },
-  { name: "Rotuladores", cost: 150, category: "Arte y creatividad" },
-  { name: "Cuaderno de dibujo", cost: 150, category: "Arte y creatividad" },
-  { name: "Material manualidades", cost: 200, category: "Arte y creatividad" },
-  { name: "Kit de pintura", cost: 300, category: "Arte y creatividad" },
-  { name: "Kit de arcilla", cost: 350, category: "Arte y creatividad" },
-  { name: "Kit de ciencia", cost: 500, category: "Arte y creatividad" },
-  { name: "Juego de cartas", cost: 180, category: "Juegos y construcción" },
-  { name: "Libro", cost: 250, category: "Juegos y construcción" },
-  { name: "Juego de mesa", cost: 450, category: "Juegos y construcción" },
-  { name: "LEGO", cost: 600, category: "Juegos y construcción" },
-  { name: "Juego de estrategia", cost: 500, category: "Juegos y construcción" },
-  { name: "Set de magia", cost: 500, category: "Juegos y construcción" },
-  { name: "Kit de modelismo", cost: 600, category: "Juegos y construcción" },
-  { name: "Frisbee", cost: 120, category: "Deporte" },
-  { name: "Comba", cost: 120, category: "Deporte" },
-  { name: "Raquetas de playa", cost: 180, category: "Deporte" },
-  { name: "Balón de voleibol", cost: 250, category: "Deporte" },
-  { name: "Balón de fútbol", cost: 300, category: "Deporte" },
-  { name: "Balón de baloncesto", cost: 300, category: "Deporte" },
-  { name: "Material deportivo", cost: 350, category: "Deporte" },
-  { name: "Material para practicar un deporte", cost: 500, category: "Deporte" },
-  { name: "Cocinar una receta especial", cost: 250, category: "Experiencias" },
-  { name: "Tarde especial", cost: 300, category: "Experiencias" },
-  { name: "Invitar amigo a casa", cost: 350, category: "Experiencias" },
-  { name: "Ir al cine", cost: 400, category: "Experiencias" },
-  { name: "Ir a los bolos", cost: 500, category: "Experiencias" },
-  { name: "Ir al minigolf", cost: 500, category: "Experiencias" },
-  { name: "Probar un deporte nuevo", cost: 500, category: "Experiencias" },
-  { name: "Escape Room", cost: 700, category: "Experiencias" },
-  { name: "Día de escalada", cost: 700, category: "Experiencias" },
-  { name: "Parque de aventuras o tirolinas", cost: 800, category: "Experiencias" },
-  { name: "Parque acuático", cost: 900, category: "Experiencias" },
-  { name: "Parque temático", cost: 1000, category: "Experiencias" },
-  { name: "Mochila especial", cost: 900, category: "Grandes recompensas" },
-  { name: "Material deportivo especial", cost: 1000, category: "Grandes recompensas" },
-  { name: "Experiencia especial", cost: 1000, category: "Grandes recompensas" },
-  { name: "Excursión de un día", cost: 1000, category: "Grandes recompensas" },
-  { name: "Día completo de aventura", cost: 1000, category: "Grandes recompensas" },
-  { name: "Escapada familiar", cost: 1000, category: "Grandes recompensas" },
-];
-
 export default function AlumnoPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentStudentName, setCurrentStudentName] = useState("");
+  const [studentId, setStudentId] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     const verifyRole = async () => {
@@ -203,6 +163,7 @@ export default function AlumnoPage() {
         }
         if (alive) {
           setCurrentStudentName(profile.full_name);
+          setStudentId(profile.id);
           setAuthorized(true);
         }
       } catch { router.replace("/"); }
@@ -212,7 +173,14 @@ export default function AlumnoPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "catalogo" | "calculalo">("inicio");
+  const [mainTab, setMainTab] = useState<"inicio" | "flashcards" | "asignaturas" | "ingles" | "lengua" | "progreso" | "tienda" | "calculalo">("inicio");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const showMessage = (text: string, type: "success" | "error" = "success") => setToast({ text, type });
+  const skillcoins = useStudentSkillcoins(studentId);
+  const { summary } = skillcoins;
+  const latestWeek = summary.weeks[summary.weeks.length - 1];
+  const goTo = (tab: typeof mainTab) => { setMainTab(tab); setMenuOpen(false); window.scrollTo({ top: 0 }); };
   
 
   // Estado de Flashcards
@@ -236,17 +204,6 @@ export default function AlumnoPage() {
   // Asignaturas y mensajes del mentor
   const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
   const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
-
-  // SkillCoins Semanales
-  const [scData, setScData] = useState({
-    estudios: 0,
-    compromiso: 0,
-    organizacion: 0,
-    bienestar: 0,
-    updatedAt: "Sin datos"
-  });
-  const [totalAccumulatedSC, setTotalAccumulatedSC] = useState(0);
-  const [scWeeklyHistory, setScWeeklyHistory] = useState<Array<{ week: string; total: number }>>([]);
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
@@ -273,24 +230,6 @@ export default function AlumnoPage() {
         }
         setFlashcardProgressLoaded(true);
         setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value) => ({ ...value, studentId: value.studentUsername || value.studentId, date: typeof value.date === "string" ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
-        const latestSkillCoins = progressRecords.map((record) => record.data).find((value) => value?.module === "skillcoins");
-        if (latestSkillCoins?.scores) setScData({
-          estudios: Number(latestSkillCoins.scores.estudios) || 0,
-          compromiso: Number(latestSkillCoins.scores.compromiso) || 0,
-          organizacion: Number(latestSkillCoins.scores.organizacion) || 0,
-          bienestar: Number(latestSkillCoins.scores.bienestar) || 0,
-          updatedAt: latestSkillCoins.updatedAt ? new Date(latestSkillCoins.updatedAt).toLocaleDateString("es-ES") : "Sin datos",
-        });
-        setTotalAccumulatedSC(Math.max(0, Number(latestSkillCoins?.totalAccumulated) || 0));
-        const weeklyHistory = Array.isArray(latestSkillCoins?.weeklyHistory) ? latestSkillCoins.weeklyHistory : [];
-        setScWeeklyHistory(weeklyHistory
-          .filter((item: unknown): item is { week: string; total: number } => {
-            if (!item || typeof item !== "object") return false;
-            const value = item as { week?: unknown; total?: unknown };
-            return typeof value.week === "string" && Number.isFinite(Number(value.total));
-          })
-          .map((item) => ({ week: item.week, total: Number(item.total) }))
-          .sort((a, b) => b.week.localeCompare(a.week)));
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
@@ -425,52 +364,109 @@ export default function AlumnoPage() {
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] font-sans pb-16">
       {/* Cabecera */}
       <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-serif text-lg sm:text-xl text-[#292825] font-bold">Campus Método Kiru</span>
-          <span className="text-[11px] bg-[#F3EEE5] text-[#8A775B] px-2.5 py-0.5 rounded-full border border-[#E4D8C5] font-semibold">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Abrir menú"
+            aria-expanded={menuOpen}
+            className="lg:hidden w-9 h-9 shrink-0 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-[#45433F] flex items-center justify-center hover:bg-[#F3F0EA] transition"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <span className="font-serif text-lg sm:text-xl text-[#292825] font-bold truncate">Campus Método Kiru</span>
+          <span className="hidden sm:inline text-[11px] bg-[#F3EEE5] text-[#8A775B] px-2.5 py-0.5 rounded-full border border-[#E4D8C5] font-semibold">
             Alumno: {currentStudentName}
           </span>
         </div>
 
-        <button
-          onClick={() => router.push("/")}
-          title="Cerrar sesión"
-          className="p-2 sm:p-2.5 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition flex items-center justify-center shadow-xs"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-            <line x1="12" y1="2" x2="12" y2="12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => goTo("progreso")}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F3EEE5] text-[#5C5141] text-xs font-bold hover:bg-[#EDE5D6] transition"
+          >
+            <Coins className="w-3.5 h-3.5" /> {summary.balance.toLocaleString("es-ES")} SC
+          </button>
+          <NotificationBell onOpenItem={(n) => goTo(n.kind === "canje_completado" ? "progreso" : "inicio")} />
+          <button
+            onClick={() => router.push("/")}
+            title="Cerrar sesión"
+            className="p-2 sm:p-2.5 rounded-xl bg-[#242321] text-white hover:bg-[#3A3835] transition flex items-center justify-center shadow-xs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+              <line x1="12" y1="2" x2="12" y2="12" />
+            </svg>
+          </button>
+        </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* Barra superior de navegación */}
-        <div className="bg-white rounded-2xl border border-[#E7E3DC] p-1.5 flex flex-wrap gap-1.5 shadow-xs text-xs font-semibold">
-          {[
-            { id: "inicio", label: "Mi Panel" },
-            { id: "asignaturas", label: "1.1. Asignaturas" },
-            { id: "flashcards", label: "Flashcards" },
-            { id: "ingles", label: "Inglés" },
-            { id: "lengua", label: "Lengua" },
-            { id: "progreso", label: "Mi Progreso (SC)" },
-            { id: "catalogo", label: "Catálogo de recompensas" },
-            { id: "calculalo", label: "Calcúlalo" }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setMainTab(tab.id as typeof mainTab)}
-              className={`px-4 py-2 rounded-xl transition ${
-                mainTab === tab.id
-                  ? "bg-[#242321] text-white shadow-xs"
-                  : "text-[#6D6962] hover:bg-[#F5F2EC]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {toast && <Toast text={toast.text} type={toast.type} onClose={() => setToast(null)} />}
 
+      {/* Fondo del menú en móvil */}
+      {menuOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/30" onClick={() => setMenuOpen(false)} aria-hidden />}
+
+      <div className="max-w-6xl mx-auto lg:flex lg:gap-6 lg:px-6">
+        {/* Menú lateral: fijo en ordenador, desplegable en móvil */}
+        <aside
+          className={`fixed lg:sticky top-0 lg:top-[72px] left-0 z-50 lg:z-0 h-full lg:h-auto w-72 lg:w-56 shrink-0 bg-white lg:bg-transparent border-r border-[#E7E3DC] lg:border-0 p-4 lg:p-0 lg:pt-6 transition-transform lg:translate-x-0 ${
+            menuOpen ? "translate-x-0 shadow-xl" : "-translate-x-full"
+          } lg:self-start`}
+          aria-label="Menú del alumno"
+        >
+          <div className="flex items-center justify-between lg:hidden mb-4">
+            <span className="font-serif font-bold text-[#292825]">{currentStudentName}</span>
+            <button type="button" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[#F3F0EA]">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <nav className="lg:bg-white lg:rounded-2xl lg:border lg:border-[#E7E3DC] lg:p-2 lg:shadow-xs space-y-1 text-sm">
+            {([
+              { id: "inicio", label: "Mi panel", icon: Home },
+              { id: "progreso", label: "Mis SkillCoins", icon: Coins },
+              { id: "tienda", label: "Tienda", icon: Store },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => goTo(item.id)}
+                aria-current={mainTab === item.id ? "page" : undefined}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold transition ${
+                  mainTab === item.id ? "bg-[#242321] text-white" : "text-[#45433F] hover:bg-[#F5F2EC]"
+                }`}
+              >
+                <item.icon className="w-4 h-4" /> {item.label}
+              </button>
+            ))}
+            <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8D887F] flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" /> Aprender
+            </p>
+            {([
+              { id: "asignaturas", label: "Asignaturas" },
+              { id: "flashcards", label: "Flashcards" },
+              { id: "ingles", label: "Inglés" },
+              { id: "lengua", label: "Lengua" },
+              { id: "calculalo", label: "Calcúlalo" },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => goTo(item.id)}
+                aria-current={mainTab === item.id ? "page" : undefined}
+                className={`w-full text-left pl-9 pr-3 py-2 rounded-xl text-[13px] transition ${
+                  mainTab === item.id ? "bg-[#242321] text-white font-semibold" : "text-[#6D6962] hover:bg-[#F5F2EC]"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div className="mt-4 lg:mt-3 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] p-3 text-xs text-[#5C5141]">
+            <p className="font-bold">Tu saldo</p>
+            <p className="text-xl font-serif font-bold text-[#292825]">{summary.balance.toLocaleString("es-ES")} SC</p>
+          </div>
+        </aside>
+
+      <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 sm:px-6 lg:px-0 pt-6 space-y-6">
         {/* SECCIÓN 1: INICIO */}
         {mainTab === "inicio" && (
           <div className="space-y-6 animate-in fade-in duration-150">
@@ -481,6 +477,17 @@ export default function AlumnoPage() {
                 ¿Qué quieres trabajar hoy?
               </p>
             </div>
+
+            {studentId && (
+              <StudentGoal
+                studentId={studentId}
+                balance={summary.balance}
+                goals={skillcoins.goals}
+                onChanged={skillcoins.reload}
+                onOpenShop={() => goTo("tienda")}
+                onMessage={showMessage}
+              />
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div
@@ -500,12 +507,12 @@ export default function AlumnoPage() {
               </div>
 
               <div
-                onClick={() => setMainTab("catalogo")}
+                onClick={() => goTo("tienda")}
                 className="p-5 bg-white rounded-2xl border border-[#E7E3DC] hover:border-slate-400 transition cursor-pointer shadow-xs space-y-2"
               >
                 <Award className="w-5 h-5 text-[#927B5D]" />
-                <h3 className="font-serif text-base text-[#292825] font-bold">Mis SkillCoins y recompensas</h3>
-                <p className="text-xs text-[#77736B]">Consulta tu saldo y descubre qué recompensas tienes más cerca.</p>
+                <h3 className="font-serif text-base text-[#292825] font-bold">Tienda de recompensas</h3>
+                <p className="text-xs text-[#77736B]">Tienes {summary.balance.toLocaleString("es-ES")} SC. Descubre qué recompensas tienes más cerca.</p>
               </div>
             </div>
           </div>
@@ -837,126 +844,109 @@ export default function AlumnoPage() {
           </div>
         )}
 
-        {/* SECCIÓN 5: MI PROGRESO */}
+        {/* SECCIÓN 5: MIS SKILLCOINS */}
         {mainTab === "progreso" && (
           <div className="space-y-6 animate-in fade-in duration-150">
+            <div className="rounded-3xl bg-[#242321] text-white p-6 sm:p-8 grid sm:grid-cols-3 gap-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Saldo disponible</span>
+                <p className="text-4xl font-serif font-bold mt-1">{summary.balance.toLocaleString("es-ES")} SC</p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Ganadas</span>
+                <p className="text-2xl font-serif font-bold mt-1">{summary.earned.toLocaleString("es-ES")} SC</p>
+                <p className="text-[11px] text-[#CFC6B8]">En {summary.weeks.length} semana{summary.weeks.length === 1 ? "" : "s"} registradas</p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Canjeadas</span>
+                <p className="text-2xl font-serif font-bold mt-1">{summary.spent.toLocaleString("es-ES")} SC</p>
+                <button onClick={() => goTo("tienda")} className="text-[11px] underline text-[#E8E2D8]">Ir a la tienda</button>
+              </div>
+            </div>
+
+            {(() => {
+              const goal = skillcoins.goals.find((g) => g.status === "aprobado" || g.status === "canje_solicitado");
+              return goal ? (
+                <div className="bg-white rounded-3xl border border-[#E7E3DC] p-5 space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#8A775B]">Mi objetivo: {goal.reward_name}</p>
+                  <ProgressBar cost={goal.cost} balance={summary.balance} />
+                </div>
+              ) : null;
+            })()}
+
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 border-b border-[#EEEAE4] pb-3">
                 <div>
-                  <h2 className="text-2xl font-serif text-[#292825] font-bold">SkillCoins Semanales</h2>
-                  <p className="text-xs text-[#77736B]">Puntuación semanal no acumulada por categorías (0 a 10 SC).</p>
+                  <h2 className="text-2xl font-serif text-[#292825] font-bold">Mi última semana</h2>
+                  <p className="text-xs text-[#77736B]">Cada categoría puntúa de 0 a 10 SC por semana.</p>
                 </div>
                 <span className="text-[11px] text-[#8D887F] font-semibold">
-                  Actualizado el {scData.updatedAt}
+                  {latestWeek ? weekLabel(latestWeek.week) : "Sin semanas registradas"}
                 </span>
               </div>
-
-              <div className="rounded-2xl bg-[#242321] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#D7C8AF]">Total acumulado</span>
-                  <p className="text-3xl font-serif font-bold mt-1">{totalAccumulatedSC} SC</p>
-                </div>
-                <p className="text-xs text-[#E8E2D8] max-w-xs">Todos los SkillCoins conseguidos en las semanas registradas.</p>
-              </div>
-
-              {scWeeklyHistory.length > 0 && (
-                <div className="rounded-2xl border border-[#E7E3DC] p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Historial semanal</h3>
-                  <div className="space-y-2">
-                    {scWeeklyHistory.map((week) => (
-                      <div key={week.week} className="flex items-center justify-between gap-3 text-sm border-b border-[#EEEAE4] last:border-0 pb-2 last:pb-0">
-                        <span className="text-[#6D6962]">Semana del {new Date(week.week + "T12:00:00").toLocaleDateString("es-ES")}</span>
-                        <span className="font-bold text-[#292825]">{week.total} SC</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div className="p-4 rounded-2xl bg-[#F3EEE5] border border-[#E4D8C5] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B]">Estudios</span>
-                  <p className="text-3xl font-serif font-bold text-[#4C4438]">{scData.estudios} SC</p>
+                  <p className="text-3xl font-serif font-bold text-[#4C4438]">{latestWeek?.estudios ?? 0} SC</p>
                   <span className="text-[10px] text-[#77736B] block">Técnicas y asimilación</span>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-[#F1F0ED] border border-[#E2DED7] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#706A60]">Compromiso</span>
-                  <p className="text-3xl font-serif font-bold text-[#403D38]">{scData.compromiso} SC</p>
+                  <p className="text-3xl font-serif font-bold text-[#403D38]">{latestWeek?.compromiso ?? 0} SC</p>
                   <span className="text-[10px] text-[#77736B] block">Actitud y puntualidad</span>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-[#F4EFE6] border border-[#E7DCC9] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Organización</span>
-                  <p className="text-3xl font-serif font-bold text-[#504536]">{scData.organizacion} SC</p>
+                  <p className="text-3xl font-serif font-bold text-[#504536]">{latestWeek?.organizacion ?? 0} SC</p>
                   <span className="text-[10px] text-[#77736B] block">Agenda y planificación</span>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-[#F2F0EC] border border-[#E3DFD7] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#746D63]">Bienestar</span>
-                  <p className="text-3xl font-serif font-bold text-[#45413B]">{scData.bienestar} SC</p>
+                  <p className="text-3xl font-serif font-bold text-[#45413B]">{latestWeek?.bienestar ?? 0} SC</p>
                   <span className="text-[10px] text-[#77736B] block">Confianza y calma</span>
                 </div>
               </div>
 
               <div className="pt-4 border-t border-[#EEEAE4]">
-                <SkillCoinsChart />
+                <SkillCoinsChart weeks={summary.weeks} />
               </div>
             </div>
+
+            {(summary.weeks.length > 0 || skillcoins.movements.length > 0) && (
+              <div className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Historial</h3>
+                <ul className="space-y-2 text-sm">
+                  {[
+                    ...summary.weeks.map((w) => ({ key: "w" + w.week, date: w.week, text: weekLabel(w.week), amount: w.total })),
+                    ...skillcoins.movements.map((m) => ({ key: m.id, date: m.created_at.slice(0, 10), text: m.reason, amount: m.amount })),
+                  ].sort((x, y) => y.date.localeCompare(x.date)).map((item) => (
+                    <li key={item.key} className="flex items-center justify-between gap-3 border-b border-[#EEEAE4] last:border-0 pb-2 last:pb-0">
+                      <span className="text-[#6D6962]">{item.text}</span>
+                      <span className={`font-bold ${item.amount < 0 ? "text-[#8A4B3C]" : "text-[#292825]"}`}>{item.amount > 0 ? "+" : ""}{item.amount} SC</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
-
-        {/* CATÁLOGO SKILLCOINS */}
-        {mainTab === "catalogo" && (() => {
-          const affordable = SKILLCOIN_REWARDS.filter((reward) => reward.cost <= totalAccumulatedSC).sort((a, b) => a.cost - b.cost);
-          const nextRewards = SKILLCOIN_REWARDS.filter((reward) => reward.cost > totalAccumulatedSC).sort((a, b) => (a.cost - totalAccumulatedSC) - (b.cost - totalAccumulatedSC)).slice(0, 3);
-          const categories = Array.from(new Set(SKILLCOIN_REWARDS.map((reward) => reward.category)));
-          return (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="rounded-3xl bg-[#242321] text-white p-6 sm:p-8 space-y-3">
-                <p className="text-xs uppercase tracking-wider text-[#D7C8AF] font-bold">Mi catálogo SkillCoins</p>
-                <div className="flex items-end justify-between gap-4 flex-wrap">
-                  <div><p className="text-4xl font-serif font-bold">{totalAccumulatedSC} SC</p><p className="text-sm text-[#E8E2D8]">Saldo acumulado registrado</p></div>
-                  <button onClick={() => setMainTab("progreso")} className="rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/20">Ver mi progreso</button>
-                </div>
-                <p className="text-xs text-[#E8E2D8]">Elige una recompensa para consultarla. Antes de canjearla, debe aprobarla tu familia.</p>
-              </div>
-              {nextRewards.length > 0 && (
-                <section className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-4">
-                  <div><h2 className="text-xl font-serif font-bold">¡Estás cada vez más cerca!</h2><p className="text-sm text-[#77736B]">Estas son las recompensas que tienes más cerca de conseguir.</p></div>
-                  <div className="grid sm:grid-cols-3 gap-3">
-                    {nextRewards.map((reward) => {
-                      const missing = reward.cost - totalAccumulatedSC;
-                      const progress = Math.min(100, Math.round((totalAccumulatedSC / reward.cost) * 100));
-                      return <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F4] p-4 space-y-3">
-                        <span className="text-[10px] uppercase tracking-wide text-[#8A775B] font-bold">{reward.category}</span>
-                        <h3 className="font-semibold text-[#292825]">{reward.name}</h3>
-                        <p className="text-lg font-bold">{reward.cost.toLocaleString("es-ES")} SC</p>
-                        <div className="h-2 rounded-full bg-[#E9E4DB] overflow-hidden"><div className="h-full rounded-full bg-[#8A775B]" style={{ width: progress + "%" }} /></div>
-                        <p className="text-xs text-[#77736B]">Te faltan {missing.toLocaleString("es-ES")} SC</p>
-                      </article>;
-                    })}
-                  </div>
-                </section>
-              )}
-              {affordable.length > 0 && <section className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-3">
-                <h2 className="text-xl font-serif font-bold">Recompensas que puedes elegir</h2>
-                <p className="text-xs text-[#77736B]">Recuerda que el canje necesita la aprobación previa de tu familia.</p>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{affordable.map((reward) => <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-sm">{reward.name}</p><p className="text-xs text-[#77736B]">{reward.category}</p></div><span className="shrink-0 rounded-full bg-[#F3EEE5] px-3 py-1 text-xs font-bold">{reward.cost} SC</span></article>)}</div>
-              </section>}
-              {categories.map((category) => {
-                const items = SKILLCOIN_REWARDS.filter((reward) => reward.category === category && reward.cost > totalAccumulatedSC);
-                if (!items.length) return null;
-                return <section key={category} className="bg-white rounded-3xl border border-[#E7E3DC] p-5 sm:p-6 space-y-3">
-                  <h2 className="text-lg font-serif font-bold">{category}</h2>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{items.map((reward) => <article key={reward.name} className="rounded-2xl border border-[#E7E3DC] p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-sm">{reward.name}</p><p className="text-xs text-[#77736B]">Te faltan {(reward.cost-totalAccumulatedSC).toLocaleString("es-ES")} SC</p></div><span className="shrink-0 text-xs font-bold">{reward.cost.toLocaleString("es-ES")} SC</span></article>)}</div>
-                </section>;
-              })}
-              <p className="text-xs leading-relaxed text-[#77736B] bg-[#F3F0EA] rounded-2xl p-4">Las SkillCoins son virtuales. La familia debe aprobar las recompensas y se encarga de comprarlas y entregarlas. Las recompensas personalizadas deben acordarse con la familia y el mentor. Al canjear una recompensa, se descuentan las SkillCoins utilizadas.</p>
-            </div>
-          );
-        })()}
+        {/* TIENDA */}
+        {mainTab === "tienda" && studentId && (
+          <StudentShop
+            studentId={studentId}
+            summary={summary}
+            rewards={skillcoins.rewards}
+            goals={skillcoins.goals}
+            loading={skillcoins.loading}
+            onChanged={skillcoins.reload}
+            onMessage={showMessage}
+          />
+        )}
 
         {/* SECCIÓN 6: CALCÚLALO */}
         {mainTab === "calculalo" && (
@@ -977,6 +967,7 @@ export default function AlumnoPage() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }
