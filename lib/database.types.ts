@@ -171,6 +171,40 @@ export type PinRequestRow = { id: string; profile_id: string; created_at: string
 
 export type IncidentReviewRow = { log_id: string; note: string; reviewed_by: string | null; reviewed_at: string };
 
+export type MentorStepRow = {
+  mentor_id: string;
+  step: "certificado" | "nuestro_equipo" | "llamadas";
+  status: "enviado" | "en_revision" | "completado" | "requiere_correccion";
+  document_path: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  review_note: string;
+  updated_at: string;
+};
+
+export type AssignmentOfferRow = {
+  id: string;
+  offer_code: string;
+  mentor_email: string;
+  mentor_id: string | null;
+  course: string;
+  student_profile: string;
+  zone: string;
+  intensity: string;
+  slots: string;
+  sent_at: string;
+  response_links: Json;
+  response: "si" | "ajustar" | "no" | null;
+  response_detail: string;
+  responded_at: string | null;
+  response_source: "correo" | "campus" | null;
+  forwarded_at: string | null;
+  forward_error: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type Timestamps = "created_at" | "updated_at";
 
 export type Database = {
@@ -193,6 +227,8 @@ export type Database = {
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
       kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
       kiru_pin_requests: Table<PinRequestRow, "id" | "created_at" | "sent_at">;
+      kiru_mentor_steps: Table<MentorStepRow, "document_path" | "submitted_at" | "reviewed_at" | "reviewed_by" | "review_note" | "updated_at">;
+      kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
