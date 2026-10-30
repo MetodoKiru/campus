@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   const { data: rows, error } = await admin
     .from("kiru_mentor_steps")
-    .select("mentor_id,step,status,submitted_at,review_note")
+    .select("mentor_id,step,status,submitted_at,review_note,document_path,holder_name")
     .in("step", ["certificado", "nuestro_equipo"])
     .in("status", ["enviado", "en_revision", "requiere_correccion"])
     .order("submitted_at", { ascending: true });
@@ -35,6 +35,8 @@ export async function GET(request: Request) {
     status: r.status,
     submittedAt: r.submitted_at,
     note: r.review_note,
+    hasDocument: Boolean(r.document_path),
+    holderName: r.holder_name,
   }));
   return NextResponse.json({ items });
 }

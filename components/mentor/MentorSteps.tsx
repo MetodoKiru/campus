@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -14,16 +14,16 @@ import {
   type StepStatus,
 } from "@/lib/mentor-steps";
 
-/** Jotform actual donde los mentores entregan el certificado hasta que se pueda subir aquí (fase 2). */
-const CERTIFICATE_FORM_URL = "https://form.jotform.com/262904452066053";
+const MAX_CERTIFICATE_BYTES = 4 * 1024 * 1024;
 
 async function call<T>(path: string, init?: { method: string; body: unknown }): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
+  const isFile = init?.body instanceof FormData;
   const response = await fetch(path, {
     method: init?.method ?? "GET",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-    body: init ? JSON.stringify(init.body) : undefined,
+    headers: isFile ? { Authorization: `Bearer ${session.access_token}` } : { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: init ? (isFile ? (init.body as FormData) : JSON.stringify(init.body)) : undefined,
   });
   const json = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(json.error || "No se pudo completar la acción.");
@@ -157,6 +157,7 @@ export function MentorStepView({ step, data, reload, notify }: {
   notify: (text: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [redo, setRedo] = useState(false);
   const info = data.steps[step];
 
   const confirmStep = async (id: "nuestro_equipo" | "llamadas", message: string) => {
@@ -183,7 +184,7 @@ export function MentorStepView({ step, data, reload, notify }: {
           </a>
         </Block>
         <Block title="Qué hacer cuando lo tengas">
-          <p>Guarda el PDF original tal como te lo descarga el Ministerio (no una foto ni una captura) y entrégalo a Método Kiru. Después lo revisamos y aquí verás su estado.</p>
+          <p>Guarda el PDF original tal como te lo descarga el Ministerio (no una foto ni una captura) y súbelo aquí abajo. Después lo revisamos y aquí verás su estado.</p>
         </Block>
         <div className="space-y-3 rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4">
           <p className="text-xs text-[#555149]">
@@ -192,16 +193,27 @@ export function MentorStepView({ step, data, reload, notify }: {
               : info.status === "requiere_correccion"
                 ? `Tenemos que pedirte que lo vuelvas a entregar.${info.note ? ` Motivo: ${info.note}` : ""}`
                 : info.status === "pendiente"
-                  ? "Todavía no consta que hayamos comprobado tu certificado."
+                  ? "Todavía no nos has entregado el certificado."
                   : `Lo recibimos${info.date ? ` el ${formatDate(info.date)}` : ""} y está pendiente de revisión.`}
           </p>
-          {info.status !== "completado" && (
-            <>
-              <p className="text-xs text-[#77736B]">Muy pronto podrás subirlo desde aquí. Mientras tanto, entrégalo en el formulario de documentación de incorporación.</p>
-              <a href={CERTIFICATE_FORM_URL} target="_blank" rel="noopener noreferrer" className={secondaryButton}>
-                Abrir el formulario de entrega <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </>
+          {data.certificate.holderName && info.status !== "pendiente" && (
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-[auto_1fr]">
+              <dt className="font-semibold text-[#77736B]">Nombre indicado</dt>
+              <dd className="text-[#292825]">{data.certificate.holderName}</dd>
+              {info.date && <><dt className="font-semibold text-[#77736B]">{info.status === "enviado" ? "Fecha de entrega" : "Última revisión"}</dt><dd className="text-[#292825]">{formatDate(info.date)}</dd></>}
+            </dl>
+          )}
+          {info.status !== "completado" && (info.status === "enviado" || info.status === "en_revision") && !redo ? (
+            <button type="button" onClick={() => setRedo(true)} className="text-xs font-semibold text-[#806C50] underline underline-offset-2">
+              ¿Te has equivocado de archivo? Entregarlo otra vez
+            </button>
+          ) : info.status !== "completado" && (
+            <CertificateUpload
+              defaultName={data.certificate.holderName || data.mentorName}
+              hasPrevious={data.certificate.hasDocument}
+              reload={async () => { await reload(); setRedo(false); }}
+              notify={notify}
+            />
           )}
         </div>
       </Section>
@@ -213,7 +225,7 @@ export function MentorStepView({ step, data, reload, notify }: {
       <Section number={2} title="Nuestro Equipo" status={info.status}>
         <Block title="Para qué sirve">
           <p>Con este formulario preparamos tu perfil en la web de Método Kiru, en la página «Nuestro equipo», para que las familias puedan conocerte y elegirte.</p>
-          <p>Rellénalo una sola vez. Cuando lo envíes, vuelve aquí y pulsa «Ya lo he enviado». Revisaremos tu perfil antes de publicarlo.</p>
+          <p>Rellénalo una sola vez, con el mismo nombre y apellidos de tu cuenta del campus. Cuando lo envíes, aparecerá aquí como «Enviado» en menos de una hora; si no, pulsa «Ya lo he enviado». Revisaremos tu perfil antes de publicarlo.</p>
         </Block>
         {info.status === "requiere_correccion" && (
           <p className="rounded-2xl border border-[#D9B3AA] bg-white p-4 text-xs text-[#9A4B3F]">Necesitamos que lo revises y lo envíes otra vez.{info.note ? ` Motivo: ${info.note}` : ""}</p>
@@ -263,14 +275,11 @@ export function MentorStepView({ step, data, reload, notify }: {
           </ul>
         </Block>
         <div className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4">
-          <p className="text-xs font-semibold text-[#555149]">Formulario de llamadas</p>
-          {data.callsFormUrl ? (
-            <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
-              Abrir el formulario <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          ) : (
-            <p className="mt-1 text-xs text-[#77736B]">Estamos preparando el formulario para registrar las llamadas. Aparecerá aquí cuando esté listo.</p>
-          )}
+          <p className="text-xs font-semibold text-[#555149]">Después de cada llamada</p>
+          <p className="mt-1 text-xs text-[#77736B]">Rellena el registro de la llamada: quién asistió, cómo va el alumno, dificultades, objetivos y acuerdos. Tu nombre y tu correo ya vienen puestos.</p>
+          <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
+            Registrar una llamada <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
         {info.status === "completado" ? (
           <p className="text-xs text-[#77736B]">Confirmaste que lo has leído{info.date ? ` el ${formatDate(info.date)}` : ""}.</p>
@@ -284,6 +293,72 @@ export function MentorStepView({ step, data, reload, notify }: {
   }
 
   return <OffersView data={data} reload={reload} notify={notify} />;
+}
+
+/** Formulario de entrega: nombre y apellidos + PDF. Quién entrega lo sabe el campus por la sesión. */
+function CertificateUpload({ defaultName, hasPrevious, reload, notify }: {
+  defaultName: string;
+  hasPrevious: boolean;
+  reload: () => Promise<void>;
+  notify: (text: string) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(defaultName);
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const pick = (chosen: File | undefined) => {
+    if (input.current) input.current.value = "";
+    if (!chosen) return;
+    if (chosen.type && chosen.type !== "application/pdf") { notify("Tiene que ser el PDF que te descargaste del Ministerio, no una foto."); return; }
+    if (chosen.size > MAX_CERTIFICATE_BYTES) { notify("El PDF pesa demasiado (máximo 4 MB). Sube el original del Ministerio."); return; }
+    setFile(chosen);
+  };
+
+  const upload = async () => {
+    const holder = name.replace(/\s+/g, " ").trim();
+    if (holder.length < 3 || !holder.includes(" ")) { notify("Escribe tu nombre y apellidos tal como aparecen en el certificado."); return; }
+    if (!file) { notify("Elige el PDF del certificado."); return; }
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("nombre", holder);
+      body.append("file", file);
+      await call("/api/mentor/certificado", { method: "POST", body });
+      setFile(null);
+      await reload();
+      notify("Certificado recibido. Lo revisaremos y verás aquí su estado.");
+    } catch (e) { notify(e instanceof Error ? e.message : "No se pudo subir el certificado."); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-3 border-t border-[#E7E3DC] pt-3">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">{hasPrevious ? "Entregar otra vez" : "Entregar mi certificado"}</p>
+      <div className="space-y-1">
+        <label htmlFor="certificado-nombre" className="block text-xs font-semibold text-[#555149]">Nombre y apellidos (como aparecen en el certificado)</label>
+        <input
+          id="certificado-nombre"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={200}
+          autoComplete="name"
+          className="w-full rounded-xl border border-[#E7E3DC] bg-white p-2.5 text-sm text-[#292825] focus:outline-none"
+        />
+      </div>
+      <input ref={input} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={busy} onClick={() => input.current?.click()} className={secondaryButton}>
+          <Upload className="h-3.5 w-3.5" /> {file ? "Cambiar PDF" : "Elegir el PDF"}
+        </button>
+        {file && <span className="min-w-0 truncate text-xs text-[#45433F]">{file.name}</span>}
+      </div>
+      <button type="button" disabled={busy || !file} onClick={upload} className={primaryButton}>
+        {busy ? "Enviando…" : "Enviar certificado"}
+      </button>
+      <p className="text-[11px] text-[#77736B]">Solo PDF, hasta 4 MB. Se guarda en un espacio privado: únicamente lo ven administración y el formador de Método Kiru.</p>
+    </div>
+  );
 }
 
 function OffersView({ data, reload, notify }: { data: MentorPanelData; reload: () => Promise<void>; notify: (text: string) => void }) {
@@ -377,5 +452,33 @@ function OfferCard({ offer, reload, notify }: { offer: MentorOffer; reload: () =
         </>
       )}
     </article>
+  );
+}
+
+/** Flechas para pasar de un paso al anterior o al siguiente sin abrir el menú. */
+export function StepPager({ step, onChange }: { step: StepId; onChange: (step: StepId) => void }) {
+  const index = STEPS.findIndex((s) => s.id === step);
+  const prev = STEPS[index - 1];
+  const next = STEPS[index + 1];
+  const go = (target: StepId) => { onChange(target); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  return (
+    <nav aria-label="Pasar de paso" className="flex items-center justify-between gap-2">
+      {prev ? (
+        <button type="button" onClick={() => go(prev.id)} className={secondaryButton} aria-label={`Paso anterior: ${prev.title}`}>
+          <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">{prev.title}</span><span className="sm:hidden">Anterior</span>
+        </button>
+      ) : <span />}
+      <span className="flex items-center gap-1.5" aria-label={`Paso ${index + 1} de ${STEPS.length}`}>
+        {STEPS.map((s) => (
+          <button key={s.id} type="button" onClick={() => go(s.id)} aria-label={s.title}
+            className={`h-2 rounded-full transition-all ${s.id === step ? "w-5 bg-[#806C50]" : "w-2 bg-[#E4D8C5] hover:bg-[#D9C8AE]"}`} />
+        ))}
+      </span>
+      {next ? (
+        <button type="button" onClick={() => go(next.id)} className={primaryButton} aria-label={`Paso siguiente: ${next.title}`}>
+          <span className="hidden sm:inline">{next.title}</span><span className="sm:hidden">Siguiente</span> <ChevronRight className="h-4 w-4" />
+        </button>
+      ) : <span />}
+    </nav>
   );
 }

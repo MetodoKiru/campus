@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 
 /** Formulario «Nuestro Equipo» (Google Forms) que ya alimenta la página Equipo de la web. */
 const TEAM_FORM_URL = "https://docs.google.com/forms/d/1_J5QUAv-RgDhbOL3DTpqrwh2gY_ghm8ARFMIdG67cos/viewform";
-/** Punto de integración del futuro formulario de llamadas en Jotform (fase 2). */
-const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL ?? "";
+/** Jotform «Registro de llamada con la familia»: el mentor lo rellena después de cada llamada. */
+const CALLS_FORM_URL = "https://form.jotform.com/263027109468055";
 
 /**
  * Estado real de los cuatro pasos del menú del mentor y sus propuestas de
@@ -23,16 +23,17 @@ export async function GET(request: Request) {
   // Propuestas que llegaron antes de que el correo del mentor tuviera cuenta.
   if (user.email) await linkOffersToMentor(admin, user.id, user.email);
 
-  const [stepsResult, onboardingResult, offersResult] = await Promise.all([
-    admin.from("kiru_mentor_steps").select("step,status,submitted_at,reviewed_at,review_note").eq("mentor_id", user.id),
+  const [stepsResult, onboardingResult, offersResult, profileResult] = await Promise.all([
+    admin.from("kiru_mentor_steps").select("step,status,submitted_at,reviewed_at,review_note,holder_name,document_path").eq("mentor_id", user.id),
     admin.from("kiru_mentor_onboarding").select("certificate_checked_at").eq("profile_id", user.id).is("archived_at", null).maybeSingle(),
     admin.from("kiru_assignment_offers")
       .select("id,course,student_profile,zone,intensity,slots,sent_at,response,response_detail,responded_at")
       .eq("mentor_id", user.id)
       .order("sent_at", { ascending: false })
       .limit(50),
+    admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
   ]);
-  if (stepsResult.error || onboardingResult.error || offersResult.error) {
+  if (stepsResult.error || onboardingResult.error || offersResult.error || profileResult.error) {
     return NextResponse.json({ error: "No se pudo cargar tu progreso." }, { status: 500 });
   }
 
@@ -66,11 +67,20 @@ export async function GET(request: Request) {
       ? { status: "enviado" as StepStatus, date: offers[0].respondedAt, note: "Has respondido a todas tus propuestas" }
       : { status: "pendiente" as StepStatus, date: null, note: "Aún no tienes propuestas" };
 
+  const mentorName = profileResult.data?.full_name ?? "";
+  const certificateRow = rows.get("certificado");
+  // El registro de llamadas llega ya con el nombre y el correo del mentor.
+  const callsUrl = new URL(CALLS_FORM_URL);
+  if (mentorName) callsUrl.searchParams.set("mentor", mentorName);
+  if (user.email) callsUrl.searchParams.set("correo", user.email);
+
   const data: MentorPanelData = {
     steps: { certificado, nuestro_equipo: fromRow("nuestro_equipo"), llamadas: fromRow("llamadas"), asignacion },
     offers,
+    mentorName,
+    certificate: { holderName: certificateRow?.holder_name ?? "", hasDocument: Boolean(certificateRow?.document_path) },
     teamFormUrl: TEAM_FORM_URL,
-    callsFormUrl: CALLS_FORM_URL,
+    callsFormUrl: callsUrl.toString(),
   };
   return NextResponse.json(data);
 }
