@@ -19,6 +19,8 @@ import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import { MentorMenu, MentorStepView, useMentorPanel } from "@/components/mentor/MentorSteps";
+import type { StepId } from "@/lib/mentor-steps";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
 const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
@@ -73,6 +75,12 @@ export default function MentorPage() {
   const [bulkTarget, setBulkTarget] = useState("");
 
   const [studentSC, setStudentSC] = useState({ estudios: 0, compromiso: 0, organizacion: 0, bienestar: 0 });
+
+  // Menú ☰: los cuatro pasos del mentor. El panel de alumnos de abajo no cambia.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuStep, setMenuStep] = useState<StepId | null>(null);
+  const mentorPanel = useMentorPanel();
+  const hasNewOffer = Boolean(mentorPanel.data?.offers.some((offer) => !offer.response));
 
   useEffect(() => {
     let active = true;
@@ -154,8 +162,28 @@ export default function MentorPage() {
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] font-sans pb-16">
       <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#242321] text-white flex items-center justify-center font-serif font-bold">
+        <div className="relative flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-label="Abrir mis pasos como mentor"
+            className="relative w-9 h-9 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-[#45433F] flex items-center justify-center hover:bg-[#F3F0EA] transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4" aria-hidden>
+              <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
+            </svg>
+            {hasNewOffer && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#806C50] border-2 border-white" aria-label="Tienes una propuesta nueva" />}
+          </button>
+          {menuOpen && (
+            <MentorMenu
+              data={mentorPanel.data}
+              active={menuStep}
+              onSelect={(step) => { setMenuStep(step); setMenuOpen(false); }}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
+          <div className="hidden sm:flex w-9 h-9 rounded-xl bg-[#242321] text-white items-center justify-center font-serif font-bold">
             M
           </div>
           <div>
@@ -189,6 +217,19 @@ export default function MentorPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {menuStep && (
+          <div className="space-y-3">
+            <button type="button" onClick={() => setMenuStep(null)} className="text-xs font-semibold text-[#6D6962] hover:text-[#292825]">
+              ← Volver a mi panel de alumnos
+            </button>
+            {mentorPanel.data
+              ? <MentorStepView step={menuStep} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
+              : <p className="text-xs text-[#77736B]">{mentorPanel.error ?? "Cargando…"}</p>}
+          </div>
+        )}
+        {menuStep && savedMsg && <Toast text={savedMsg} type={/^(No |Selecciona)/.test(savedMsg) ? "error" : "success"} onClose={() => setSavedMsg(null)} />}
+
+        <div className={menuStep ? "hidden" : "space-y-6"}>
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E7E3DC] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#77736B]" />
@@ -510,6 +551,7 @@ export default function MentorPage() {
             </div>
           </div>
         )}
+        </div>
       </main>
     </div>
   );

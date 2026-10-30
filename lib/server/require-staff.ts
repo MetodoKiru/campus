@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 
 export type StaffRole = "admin" | "formador" | "coordinador";
+/** El mentor solo entra en las rutas de su propio panel (/api/mentor/…). */
+type SessionRole = StaffRole | "mentor";
 
-type StaffSuccess = { ok: true; admin: SupabaseClient<Database>; user: User; role: StaffRole };
+type StaffSuccess = { ok: true; admin: SupabaseClient<Database>; user: User; role: SessionRole };
 type StaffFailure = { ok: false; response: NextResponse };
 
 /**
@@ -12,7 +14,7 @@ type StaffFailure = { ok: false; response: NextResponse };
  * uno de los roles permitidos, tanto en profiles como en app_metadata del JWT.
  * Solo después devuelve el cliente con service role, que nunca sale del servidor.
  */
-export async function requireStaff(request: Request, allowed: readonly StaffRole[]): Promise<StaffSuccess | StaffFailure> {
+export async function requireStaff(request: Request, allowed: readonly SessionRole[]): Promise<StaffSuccess | StaffFailure> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,7 +33,7 @@ export async function requireStaff(request: Request, allowed: readonly StaffRole
 
   const admin = createClient<Database>(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: profile, error: profileError } = await admin.from("profiles").select("role,is_active").eq("id", data.user.id).maybeSingle();
-  const role = profile?.role as StaffRole | undefined;
+  const role = profile?.role as SessionRole | undefined;
   if (profileError || !profile?.is_active || !role || !allowed.includes(role) || data.user.app_metadata?.kiru_role !== role) {
     return { ok: false, response: NextResponse.json({ error: "No tienes permisos para esta sección." }, { status: 403 }) };
   }

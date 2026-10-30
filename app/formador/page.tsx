@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, GraduationCap, KeyRound, LogOut, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
+import MentorStepsReview from "@/components/mentor/MentorStepsReview";
 
 interface OnboardingMentor {
   id: string;
@@ -45,6 +46,8 @@ export default function FormadorPage() {
     if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "Ha ocurrido un error.");
     return result;
   }, []);
+
+  const notify = useCallback((text: string, type: "success" | "error") => setMsg({ text, type }), []);
 
   const loadMentors = useCallback(async () => {
     try {
@@ -167,6 +170,8 @@ export default function FormadorPage() {
             <button disabled={busy} type="submit" className="py-3 bg-slate-900 text-white text-xs font-semibold rounded-2xl hover:bg-slate-800 disabled:opacity-50">Añadir</button>
           </form>
         </section>
+
+        <MentorStepsReview api={api} notify={notify} />
 
         <section className="space-y-3">
           <h2 className="font-serif text-lg font-bold text-slate-900">Pendientes ({pending.length})</h2>
