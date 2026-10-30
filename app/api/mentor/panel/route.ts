@@ -7,8 +7,12 @@ export const runtime = "nodejs";
 
 /** Formulario «Nuestro Equipo» (Google Forms) que ya alimenta la página Equipo de la web. */
 const TEAM_FORM_URL = "https://docs.google.com/forms/d/1_J5QUAv-RgDhbOL3DTpqrwh2gY_ghm8ARFMIdG67cos/viewform";
-/** Jotform «Registro de llamada con la familia»: el mentor lo rellena después de cada llamada. */
-const CALLS_FORM_URL = "https://form.jotform.com/263027109468055";
+/**
+ * Punto de integración del formulario de llamadas en Jotform. Vacío hasta que
+ * se definan sus campos; al ponerlo en Vercel el botón aparece en el paso 3
+ * con el nombre (?mentor=) y el correo (?correo=) del mentor ya puestos.
+ */
+const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL ?? "";
 
 /**
  * Estado real de los cuatro pasos del menú del mentor y sus propuestas de
@@ -69,10 +73,13 @@ export async function GET(request: Request) {
 
   const mentorName = profileResult.data?.full_name ?? "";
   const certificateRow = rows.get("certificado");
-  // El registro de llamadas llega ya con el nombre y el correo del mentor.
-  const callsUrl = new URL(CALLS_FORM_URL);
-  if (mentorName) callsUrl.searchParams.set("mentor", mentorName);
-  if (user.email) callsUrl.searchParams.set("correo", user.email);
+  let callsFormUrl = "";
+  if (/^https:\/\//.test(CALLS_FORM_URL)) {
+    const callsUrl = new URL(CALLS_FORM_URL);
+    if (mentorName) callsUrl.searchParams.set("mentor", mentorName);
+    if (user.email) callsUrl.searchParams.set("correo", user.email);
+    callsFormUrl = callsUrl.toString();
+  }
 
   const data: MentorPanelData = {
     steps: { certificado, nuestro_equipo: fromRow("nuestro_equipo"), llamadas: fromRow("llamadas"), asignacion },
@@ -80,7 +87,7 @@ export async function GET(request: Request) {
     mentorName,
     certificate: { holderName: certificateRow?.holder_name ?? "", hasDocument: Boolean(certificateRow?.document_path) },
     teamFormUrl: TEAM_FORM_URL,
-    callsFormUrl: callsUrl.toString(),
+    callsFormUrl,
   };
   return NextResponse.json(data);
 }

@@ -275,11 +275,14 @@ export function MentorStepView({ step, data, reload, notify }: {
           </ul>
         </Block>
         <div className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4">
-          <p className="text-xs font-semibold text-[#555149]">Después de cada llamada</p>
-          <p className="mt-1 text-xs text-[#77736B]">Rellena el registro de la llamada: quién asistió, cómo va el alumno, dificultades, objetivos y acuerdos. Tu nombre y tu correo ya vienen puestos.</p>
-          <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
-            Registrar una llamada <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          <p className="text-xs font-semibold text-[#555149]">Formulario de llamadas</p>
+          {data.callsFormUrl ? (
+            <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
+              Abrir el formulario <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <p className="mt-1 text-xs text-[#77736B]">Estamos preparando el formulario para registrar las llamadas. Aparecerá aquí cuando esté listo.</p>
+          )}
         </div>
         {info.status === "completado" ? (
           <p className="text-xs text-[#77736B]">Confirmaste que lo has leído{info.date ? ` el ${formatDate(info.date)}` : ""}.</p>
