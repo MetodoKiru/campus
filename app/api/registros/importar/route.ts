@@ -1,7 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
+import { sharedSecretStatus } from "@/lib/server/shared-secret";
 import { matchByName, normalizeName, type SessionAnswer } from "@/lib/session-logs";
 
 export const runtime = "nodejs";
@@ -9,12 +9,6 @@ export const runtime = "nodejs";
 const MAX_ROWS = 3000;
 const MAX_ANSWER = 4000;
 type SheetRow = Record<string, unknown>;
-
-function sameSecret(given: string, expected: string): boolean {
-  const a = createHash("sha256").update(given).digest();
-  const b = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(a, b);
-}
 
 function text(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -45,12 +39,11 @@ function parseDate(value: string): { iso: string; day: string } | null {
 export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const secret = process.env.KIRU_REGISTROS_SECRET;
-  if (!url || !service || !secret || secret.length < 24) {
+  const secret = sharedSecretStatus(request, process.env.KIRU_REGISTROS_SECRET);
+  if (!url || !service || secret === "missing") {
     return NextResponse.json({ error: "La importación de registros no está configurada." }, { status: 503 });
   }
-  const given = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  if (!given || !sameSecret(given, secret)) return NextResponse.json({ error: "Clave no válida." }, { status: 401 });
+  if (secret !== "ok") return NextResponse.json({ error: "Clave no válida." }, { status: 401 });
 
   let body: { rows?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }

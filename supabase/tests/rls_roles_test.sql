@@ -181,5 +181,15 @@ reset role;
 set local role anon;
 select pg_temp.expect('anon no ve perfiles', (select count(*) from profiles), 0);
 select pg_temp.expect('anon no ve fichas', (select count(*) from kiru_mentor_onboarding), 0);
+select pg_temp.expect_denied('anon no lee enlaces de acceso', $q$select 1 from kiru_access_links$q$);
+reset role;
+-- enlaces de acceso: solo el servidor (service role)
+insert into kiru_access_links(profile_id,token_hash,expires_at) values ((select id from ids where k='MN'), repeat('a',64), now() + interval '14 days');
+select pg_temp.as_user('A');
+select pg_temp.expect_denied('admin no lee enlaces de acceso', $q$select 1 from kiru_access_links$q$);
+reset role;
+select pg_temp.as_user('MN');
+select pg_temp.expect_denied('mentor no lee su enlace', $q$select 1 from kiru_access_links$q$);
+select pg_temp.expect_denied('mentor no crea enlaces', format($q$insert into kiru_access_links(profile_id,token_hash,expires_at) values (%L,%L,now())$q$, (select id from ids where k='MN'), repeat('b',64)));
 reset role;
 rollback;
