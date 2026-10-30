@@ -11,7 +11,8 @@ const TEAM_FORM_URL = "https://docs.google.com/forms/d/1_J5QUAv-RgDhbOL3DTpqrwh2
  * Jotform «Disponibilidad para llamadas · Equipo»: el mentor indica cuándo
  * puede hacer las llamadas con las familias (no hace falta tener alumno). Sus
  * respuestas van a la hoja «Coordinación llamadas (nueva)», que cruza solas la
- * disponibilidad de familia, mentor y coordinador.
+ * disponibilidad de familia, mentor y coordinador. q2_textbox0, q3_email1 y
+ * q4_radio2 son los nombres internos de nombre, correo y rol en ese Jotform.
  */
 const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL || "https://form.jotform.com/263026449536057";
 
@@ -78,9 +79,9 @@ export async function GET(request: Request) {
   let callsFormUrl = "";
   if (/^https:\/\//.test(CALLS_FORM_URL)) {
     const callsUrl = new URL(CALLS_FORM_URL);
-    if (mentorName) callsUrl.searchParams.set("nombre", mentorName);
-    if (user.email) callsUrl.searchParams.set("correo", user.email);
-    callsUrl.searchParams.set("rol", "Mentor/a");
+    if (mentorName) callsUrl.searchParams.set("q2_textbox0", mentorName);
+    if (user.email) callsUrl.searchParams.set("q3_email1", user.email);
+    callsUrl.searchParams.set("q4_radio2", "Mentor/a");
     callsFormUrl = callsUrl.toString();
   }
 
