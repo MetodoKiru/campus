@@ -120,13 +120,15 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT student = kiru_private.active_uid()
+  SELECT coalesce(
+    student = kiru_private.active_uid()
     OR kiru_private.is_admin()
     OR EXISTS (SELECT 1 FROM public.student_guardians sg
                WHERE sg.student_id = student AND sg.guardian_id = kiru_private.active_uid())
     OR EXISTS (SELECT 1 FROM public.student_mentors sm
                WHERE sm.student_id = student AND sm.mentor_id = kiru_private.active_uid())
-    OR kiru_private.coordinates_student(student)
+    OR kiru_private.coordinates_student(student),
+    false)
 $$;
 
 -- Solo una familia (rol padre) vinculada a ese alumno.
