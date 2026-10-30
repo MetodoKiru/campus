@@ -165,6 +165,8 @@ export type SessionLogRow = {
   updated_at: string;
 };
 
+export type AccessLinkRow = { id: string; profile_id: string; token_hash: string; expires_at: string; used_at: string | null; created_at: string };
+
 export type IncidentReviewRow = { log_id: string; note: string; reviewed_by: string | null; reviewed_at: string };
 
 type Timestamps = "created_at" | "updated_at";
@@ -187,6 +189,7 @@ export type Database = {
       kiru_session_logs: Table<SessionLogRow, Timestamps | "id" | "session_date" | "mentor_name" | "student_name" | "respondent_email" | "mentor_id" | "student_id" | "incident" | "answers">;
       kiru_incident_reviews: Table<IncidentReviewRow, "note" | "reviewed_by" | "reviewed_at">;
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
+      kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
