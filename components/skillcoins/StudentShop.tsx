@@ -92,7 +92,7 @@ export default function StudentShop({ studentId, summary, rewards, goals, loadin
       )}
 
       {/* Categorías */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="tablist" aria-label="Categorías">
+      <div className="flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible pb-1 -mx-1 px-1" role="tablist" aria-label="Categorías">
         {[{ category: ALL, rewards }, ...groups].map((group) => (
           <button
             key={group.category}

@@ -70,10 +70,12 @@ export default function StudentGoal({ studentId, balance, goals, onChanged, onOp
 
       <ProgressBar cost={main.cost} balance={balance} size="lg" dark />
 
-      <p className="text-sm text-[#E8E2D8] flex items-start gap-2">
-        <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-[#D7C8AF]" />
-        {isPendingOnly ? "Tu familia tiene que aprobarla. Mientras tanto, ¡sigue sumando SkillCoins!" : motivation(main.cost, balance)}
-      </p>
+      {active?.status !== "canje_solicitado" && (
+        <p className="text-sm text-[#E8E2D8] flex items-start gap-2">
+          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-[#D7C8AF]" />
+          {isPendingOnly ? "Tu familia tiene que aprobarla. Mientras tanto, ¡sigue sumando SkillCoins!" : motivation(main.cost, balance)}
+        </p>
+      )}
 
       {active?.status === "canje_solicitado" && (
         <div className="rounded-2xl bg-white/10 p-4 text-sm flex items-start gap-2">
