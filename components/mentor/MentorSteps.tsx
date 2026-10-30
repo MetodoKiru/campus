@@ -275,13 +275,16 @@ export function MentorStepView({ step, data, reload, notify }: {
           </ul>
         </Block>
         <div className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4">
-          <p className="text-xs font-semibold text-[#555149]">Formulario de llamadas</p>
-          {data.callsFormUrl ? (
-            <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
-              Abrir el formulario <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+          <p className="text-xs font-semibold text-[#555149]">Tu disponibilidad para las llamadas</p>
+          {data.hasStudents ? (
+            <p className="mt-1 text-xs text-[#806C50]">Ya tienes alumno asignado. ¿Ha cambiado tu disponibilidad? Vuelve a rellenarla: siempre contamos tu última respuesta.</p>
           ) : (
-            <p className="mt-1 text-xs text-[#77736B]">Estamos preparando el formulario para registrar las llamadas. Aparecerá aquí cuando esté listo.</p>
+            <p className="mt-1 text-xs text-[#77736B]">Indica cuándo podrías hacer las llamadas. No hace falta tener alumno: con esto buscamos el hueco en el que podáis la familia, el coordinador y tú. Tu nombre y tu correo ya vienen puestos.</p>
+          )}
+          {data.callsFormUrl && (
+            <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${data.hasStudents ? primaryButton : secondaryButton} mt-2`}>
+              {data.hasStudents ? "Actualizar mi disponibilidad" : "Indicar mi disponibilidad"} <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           )}
         </div>
         {info.status === "completado" ? (
