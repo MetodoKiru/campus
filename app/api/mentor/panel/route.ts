@@ -8,11 +8,13 @@ export const runtime = "nodejs";
 /** Formulario «Nuestro Equipo» (Google Forms) que ya alimenta la página Equipo de la web. */
 const TEAM_FORM_URL = "https://docs.google.com/forms/d/1_J5QUAv-RgDhbOL3DTpqrwh2gY_ghm8ARFMIdG67cos/viewform";
 /**
- * Punto de integración del formulario de llamadas en Jotform. Vacío hasta que
- * se definan sus campos; al ponerlo en Vercel el botón aparece en el paso 3
- * con el nombre (?mentor=) y el correo (?correo=) del mentor ya puestos.
+ * Jotform «Disponibilidad para llamadas · Equipo»: el mentor indica cuándo
+ * puede hacer las llamadas con las familias (no hace falta tener alumno). Sus
+ * respuestas van a la hoja «Coordinación llamadas (nueva)», que cruza solas la
+ * disponibilidad de familia, mentor y coordinador. q2_textbox0, q3_email1 y
+ * q4_radio2 son los nombres internos de nombre, correo y rol en ese Jotform.
  */
-const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL ?? "";
+const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL || "https://form.jotform.com/263026449536057";
 
 /**
  * Estado real de los cuatro pasos del menú del mentor y sus propuestas de
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
   // Propuestas que llegaron antes de que el correo del mentor tuviera cuenta.
   if (user.email) await linkOffersToMentor(admin, user.id, user.email);
 
-  const [stepsResult, onboardingResult, offersResult, profileResult] = await Promise.all([
+  const [stepsResult, onboardingResult, offersResult, profileResult, studentsResult] = await Promise.all([
     admin.from("kiru_mentor_steps").select("step,status,submitted_at,reviewed_at,review_note,holder_name,document_path").eq("mentor_id", user.id),
     admin.from("kiru_mentor_onboarding").select("certificate_checked_at").eq("profile_id", user.id).is("archived_at", null).maybeSingle(),
     admin.from("kiru_assignment_offers")
@@ -36,8 +38,9 @@ export async function GET(request: Request) {
       .order("sent_at", { ascending: false })
       .limit(50),
     admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    admin.from("student_mentors").select("student_id", { count: "exact", head: true }).eq("mentor_id", user.id),
   ]);
-  if (stepsResult.error || onboardingResult.error || offersResult.error || profileResult.error) {
+  if (stepsResult.error || onboardingResult.error || offersResult.error || profileResult.error || studentsResult.error) {
     return NextResponse.json({ error: "No se pudo cargar tu progreso." }, { status: 500 });
   }
 
@@ -76,8 +79,9 @@ export async function GET(request: Request) {
   let callsFormUrl = "";
   if (/^https:\/\//.test(CALLS_FORM_URL)) {
     const callsUrl = new URL(CALLS_FORM_URL);
-    if (mentorName) callsUrl.searchParams.set("mentor", mentorName);
-    if (user.email) callsUrl.searchParams.set("correo", user.email);
+    if (mentorName) callsUrl.searchParams.set("q2_textbox0", mentorName);
+    if (user.email) callsUrl.searchParams.set("q3_email1", user.email);
+    callsUrl.searchParams.set("q4_radio2", "Mentor/a");
     callsFormUrl = callsUrl.toString();
   }
 
@@ -88,6 +92,7 @@ export async function GET(request: Request) {
     certificate: { holderName: certificateRow?.holder_name ?? "", hasDocument: Boolean(certificateRow?.document_path) },
     teamFormUrl: TEAM_FORM_URL,
     callsFormUrl,
+    hasStudents: (studentsResult.count ?? 0) > 0,
   };
   return NextResponse.json(data);
 }

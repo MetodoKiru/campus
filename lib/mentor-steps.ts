@@ -52,6 +52,8 @@ export type MentorPanelData = {
   certificate: { holderName: string; hasDocument: boolean };
   /** Enlace público del formulario «Nuestro Equipo» (Google Forms). */
   teamFormUrl: string;
-  /** Formulario de llamadas en Jotform: vacío hasta que se definan sus campos. */
+  /** Jotform de disponibilidad para las llamadas, con nombre, correo y rol ya puestos. */
   callsFormUrl: string;
+  /** Si ya tiene algún alumno asignado (entonces se le pregunta si quiere actualizar su disponibilidad). */
+  hasStudents: boolean;
 };
