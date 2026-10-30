@@ -19,7 +19,7 @@ import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
-import { MentorMenu, MentorStepView, useMentorPanel } from "@/components/mentor/MentorSteps";
+import { MentorMenu, MentorStepView, StepPager, useMentorPanel } from "@/components/mentor/MentorSteps";
 import type { StepId } from "@/lib/mentor-steps";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
@@ -223,8 +223,9 @@ export default function MentorPage() {
               ← Volver a mi panel de alumnos
             </button>
             {mentorPanel.data
-              ? <MentorStepView step={menuStep} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
+              ? <MentorStepView key={menuStep} step={menuStep} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
               : <p className="text-xs text-[#77736B]">{mentorPanel.error ?? "Cargando…"}</p>}
+            <StepPager step={menuStep} onChange={setMenuStep} />
           </div>
         )}
         {menuStep && savedMsg && <Toast text={savedMsg} type={/^(No |Selecciona)/.test(savedMsg) ? "error" : "success"} onClose={() => setSavedMsg(null)} />}

@@ -11,6 +11,8 @@ type Item = {
   status: StepStatus;
   submittedAt: string | null;
   note: string;
+  hasDocument: boolean;
+  holderName: string;
 };
 
 const STEP_LABEL = { certificado: "Certificado de delitos sexuales", nuestro_equipo: "Formulario «Nuestro Equipo»" };
@@ -20,7 +22,7 @@ const STEP_LABEL = { certificado: "Certificado de delitos sexuales", nuestro_equ
  * mentores han marcado como enviado en su menú y espera revisión.
  */
 export default function MentorStepsReview({ api, notify }: {
-  api: (path: string, init?: RequestInit) => Promise<{ items?: Item[] }>;
+  api: (path: string, init?: RequestInit) => Promise<{ items?: Item[]; url?: string }>;
   notify: (text: string, type: "success" | "error") => void;
 }) {
   const [items, setItems] = useState<Item[]>([]);
@@ -50,6 +52,19 @@ export default function MentorStepsReview({ api, notify }: {
     finally { setBusy(false); }
   };
 
+  const openCertificate = async (item: Item) => {
+    // La pestaña se abre antes de pedir el enlace para que el navegador no la bloquee.
+    const tab = window.open("", "_blank");
+    try {
+      const { url } = await api(`/api/formador/pasos/certificado?mentorId=${item.mentorId}`);
+      if (!url) throw new Error("No se pudo abrir el PDF.");
+      if (tab) { tab.opener = null; tab.location.replace(url); } else window.location.assign(url);
+    } catch (e) {
+      tab?.close();
+      notify(e instanceof Error ? e.message : "No se pudo abrir el PDF.", "error");
+    }
+  };
+
   if (!items.length) return null;
   return (
     <section className="space-y-3">
@@ -65,6 +80,14 @@ export default function MentorStepsReview({ api, notify }: {
               </div>
               <span className="rounded-full border border-[#E4D8C5] bg-[#F3EEE5] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#806C50]">{STATUS_LABEL[item.status]}</span>
             </div>
+            {item.step === "certificado" && item.holderName && (
+              <p className="text-xs text-slate-500">Nombre en el certificado, según el mentor: <span className="font-semibold text-slate-700">{item.holderName}</span>. Comprueba que coincide con el PDF.</p>
+            )}
+            {item.step === "certificado" && (item.hasDocument ? (
+              <button type="button" onClick={() => openCertificate(item)} className="rounded-xl border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">Ver el PDF del certificado</button>
+            ) : (
+              <p className="text-xs text-slate-500">Lo entregó fuera del campus: búscalo en «Documentación de incorporación».</p>
+            ))}
             {item.step === "nuestro_equipo" && (
               <p className="text-xs text-slate-500">Comprueba su respuesta en la hoja «Nuestro Equipo (respuestas)» y, si está bien, publícala como siempre.</p>
             )}

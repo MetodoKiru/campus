@@ -46,8 +46,12 @@ export type MentorOffer = {
 export type MentorPanelData = {
   steps: Record<StepId, { status: StepStatus; date: string | null; note: string }>;
   offers: MentorOffer[];
+  /** Nombre de la cuenta, para proponerlo al entregar el certificado. */
+  mentorName: string;
+  /** Última entrega del certificado desde el panel (vacía si lo entregó por otro canal). */
+  certificate: { holderName: string; hasDocument: boolean };
   /** Enlace público del formulario «Nuestro Equipo» (Google Forms). */
   teamFormUrl: string;
-  /** Formulario de llamadas en Jotform: vacío hasta que exista (fase 2). */
+  /** Formulario «Registro de llamada con la familia» (Jotform), con nombre y correo ya puestos. */
   callsFormUrl: string;
 };

@@ -176,6 +176,7 @@ export type MentorStepRow = {
   step: "certificado" | "nuestro_equipo" | "llamadas";
   status: "enviado" | "en_revision" | "completado" | "requiere_correccion";
   document_path: string | null;
+  holder_name: string;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -227,7 +228,7 @@ export type Database = {
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
       kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
       kiru_pin_requests: Table<PinRequestRow, "id" | "created_at" | "sent_at">;
-      kiru_mentor_steps: Table<MentorStepRow, "document_path" | "submitted_at" | "reviewed_at" | "reviewed_by" | "review_note" | "updated_at">;
+      kiru_mentor_steps: Table<MentorStepRow, "document_path" | "holder_name" | "submitted_at" | "reviewed_at" | "reviewed_by" | "review_note" | "updated_at">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error">;
     };
     Views: { [_ in never]: never };
