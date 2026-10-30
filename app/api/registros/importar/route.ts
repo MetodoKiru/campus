@@ -124,6 +124,16 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: "No se pudieron guardar los registros." }, { status: 500 });
   }
 
+
+  // SkillCoins: las calcula la base de datos desde los registros (suma de las
+  // cuatro notas 0-10 de cada semana, con las correcciones aplicadas). Aquí solo
+  // se refresca la copia que leen los paneles; reimportar no duplica nada.
+  const studentIds = [...new Set(unique.map((r) => r.student_id).filter((id): id is string => !!id))];
+  for (const studentId of studentIds) {
+    const { error } = await admin.rpc("kiru_skillcoin_refresh", { p_student: studentId });
+    if (error) return NextResponse.json({ error: "Los registros se guardaron, pero no se pudieron recalcular las SkillCoins." }, { status: 500 });
+  }
+
   const unmatched = unique.filter((r) => !r.mentor_id || !r.student_id).map((r) => `${r.mentor_name} / ${r.student_name}`);
   return NextResponse.json({ ok: true, saved: unique.length, skipped, unmatched: [...new Set(unmatched)] });
 }

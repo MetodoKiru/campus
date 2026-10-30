@@ -206,6 +206,82 @@ export type AssignmentOfferRow = {
   updated_at: string;
 };
 
+export type RewardRow = {
+  id: string;
+  name: string;
+  category: string;
+  category_order: number;
+  cost: number;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RewardGoalStatus = "pendiente" | "aprobado" | "rechazado" | "canje_solicitado" | "completado" | "cancelado" | "sustituido";
+
+export type RewardGoalRow = {
+  id: string;
+  student_id: string;
+  reward_id: string;
+  reward_name: string;
+  reward_category: string;
+  cost: number;
+  status: RewardGoalStatus;
+  replaces_goal_id: string | null;
+  family_note: string;
+  requested_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  redeem_round: number;
+  redeem_requested_at: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SkillcoinMovementRow = {
+  id: string;
+  student_id: string;
+  amount: number;
+  reason: string;
+  goal_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type SkillcoinCorrectionRow = {
+  id: string;
+  student_id: string;
+  week: string;
+  estudios: number;
+  compromiso: number;
+  organizacion: number;
+  bienestar: number;
+  previous: Json | null;
+  reason: string;
+  corrected_by: string | null;
+  corrected_role: "mentor" | "admin";
+  created_at: string;
+};
+
+export type NotificationRow = {
+  id: string;
+  recipient_id: string;
+  student_id: string | null;
+  goal_id: string | null;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado";
+  title: string;
+  body: string;
+  event_key: string;
+  read_at: string | null;
+  email_status: "no_aplica" | "pendiente" | "enviado" | "sin_correo";
+  email_sent_at: string | null;
+  created_at: string;
+};
+
 type Timestamps = "created_at" | "updated_at";
 
 export type Database = {
@@ -229,10 +305,28 @@ export type Database = {
       kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
       kiru_pin_requests: Table<PinRequestRow, "id" | "created_at" | "sent_at">;
       kiru_mentor_steps: Table<MentorStepRow, "document_path" | "holder_name" | "submitted_at" | "reviewed_at" | "reviewed_by" | "review_note" | "updated_at">;
+      kiru_rewards: Table<RewardRow, Timestamps | "category_order" | "sort_order" | "is_active">;
+      kiru_reward_goals: Table<RewardGoalRow, Timestamps | "id" | "status" | "replaces_goal_id" | "family_note" | "requested_at" | "decided_at" | "decided_by" | "redeem_round" | "redeem_requested_at" | "completed_at" | "completed_by" | "closed_at">;
+      kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
+      kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
+      kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error">;
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      kiru_skillcoin_summary: { Args: { p_student: string }; Returns: Json };
+      kiru_skillcoin_correct_week: {
+        Args: { p_student: string; p_week: string; p_estudios: number; p_compromiso: number; p_organizacion: number; p_bienestar: number; p_reason?: string };
+        Returns: Json;
+      };
+      kiru_skillcoin_refresh: { Args: { p_student: string }; Returns: undefined };
+      kiru_reward_choose: { Args: { p_reward_id: string }; Returns: string };
+      kiru_reward_cancel: { Args: { p_goal: string }; Returns: undefined };
+      kiru_reward_request_redeem: { Args: { p_goal: string }; Returns: undefined };
+      kiru_reward_decide: { Args: { p_goal: string; p_approve: boolean; p_note?: string }; Returns: undefined };
+      kiru_reward_resolve_redeem: { Args: { p_goal: string; p_confirm: boolean; p_note?: string }; Returns: undefined };
+      kiru_notifications_mark_read: { Args: { p_ids?: string[] }; Returns: undefined };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
