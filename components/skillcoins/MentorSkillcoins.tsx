@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
-import { correctWeek, errorText, weekLabel, type SkillcoinScores } from "@/lib/skillcoins";
+import { correctWeek, errorText, latestWeekInfo, weekLabel, type SkillcoinScores } from "@/lib/skillcoins";
 import { supabase } from "@/lib/supabase";
 import type { SkillcoinCorrectionRow } from "@/lib/database.types";
 
@@ -22,6 +22,8 @@ const CATEGORIES = [
 export default function MentorSkillcoins({ student, onStatus }: { student?: { id: string; username: string; name: string }; onStatus: (text: string) => void }) {
   const { summary, reload } = useStudentSkillcoins(student?.id ?? null);
   const current = summary.weeks.find((w) => w.week === summary.currentWeek);
+  // Si esta semana aún no tiene registro SC, se enseña la última que haya como referencia.
+  const previous = current ? undefined : latestWeekInfo(summary);
   const [draft, setDraft] = useState<SkillcoinScores | null>(null);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -73,6 +75,12 @@ export default function MentorSkillcoins({ student, onStatus }: { student?: { id
         <p className="text-xs font-bold uppercase tracking-wider text-[#8A775B]">
           {summary.currentWeek ? weekLabel(summary.currentWeek) : "Semana actual"} {current ? (current.corrected ? "· corregida" : "· de la hoja") : "· sin registro todavía"}
         </p>
+        {previous?.week && (
+          <p className="text-xs text-[#6D6962] bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl p-3">
+            Esta semana aún no tiene registro SC. {previous.title} ({weekLabel(previous.week.week)}):{" "}
+            {CATEGORIES.map((cat) => `${cat.label} ${previous.week?.[cat.id] ?? 0}`).join(" · ")} = <strong>{previous.week.total} SC</strong>.
+          </p>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {CATEGORIES.map((cat) => (
             <label key={cat.id} className="p-3.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl space-y-2 block">

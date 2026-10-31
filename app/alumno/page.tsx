@@ -30,7 +30,7 @@ import StudentShop from "@/components/skillcoins/StudentShop";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import ProgressBar from "@/components/skillcoins/ProgressBar";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
-import { weekLabel } from "@/lib/skillcoins";
+import { latestWeekInfo, weekLabel } from "@/lib/skillcoins";
 
 interface Flashcard {
   id: string;
@@ -179,7 +179,7 @@ export default function AlumnoPage() {
   const showMessage = (text: string, type: "success" | "error" = "success") => setToast({ text, type });
   const skillcoins = useStudentSkillcoins(studentId);
   const { summary } = skillcoins;
-  const latestWeek = summary.weeks[summary.weeks.length - 1];
+  const { week: latestWeek, title: latestTitle, note: latestNote } = latestWeekInfo(summary);
   const goTo = (tab: typeof mainTab) => { setMainTab(tab); setMenuOpen(false); window.scrollTo({ top: 0 }); };
   
 
@@ -877,11 +877,11 @@ export default function AlumnoPage() {
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 border-b border-[#EEEAE4] pb-3">
                 <div>
-                  <h2 className="text-2xl font-serif text-[#292825] font-bold">Mi última semana</h2>
+                  <h2 className="text-2xl font-serif text-[#292825] font-bold">{latestTitle === "Sin semanas registradas" ? "Mi última semana" : latestTitle}</h2>
                   <p className="text-xs text-[#77736B]">Cada categoría puntúa de 0 a 10 SC por semana.</p>
                 </div>
                 <span className="text-[11px] text-[#8D887F] font-semibold">
-                  {latestWeek ? weekLabel(latestWeek.week) : "Sin semanas registradas"}
+                  {latestWeek ? latestNote : "Sin semanas registradas"}
                 </span>
               </div>
 
