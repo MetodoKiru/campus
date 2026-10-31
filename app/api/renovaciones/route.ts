@@ -56,6 +56,9 @@ export async function POST(request: Request) {
       subir_precio: body.subirPrecio == null || body.subirPrecio === "" ? "" : Number(body.subirPrecio),
       pago: text(body.pago, 800),
       llamada: /^https:\/\//.test(text(body.llamada, 300)) ? text(body.llamada, 300) : "",
+      // Lo que ya estuviera apuntado en la hoja para este periodo.
+      plan: ["mantener", "subir", "no_renueva"].includes(text(body.plan, 20)) ? text(body.plan, 20) : "",
+      pagado: body.pagado === true,
     };
     const upOk = data.subir_etiqueta === "" || (typeof data.subir_precio === "number" && Number.isFinite(data.subir_precio) && data.subir_precio >= 0);
     if (!data.email || !data.alumno || !DATE.test(data.fin) || !data.mantener_etiqueta || !Number.isFinite(data.mantener_precio) || data.mantener_precio < 0 || !upOk) {

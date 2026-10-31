@@ -201,6 +201,11 @@ DECLARE
   fin date := (p_data ->> 'fin')::date;
   r public.kiru_renewals;
   student_name text;
+  -- Lo que ya estuviera apuntado en la hoja (al conectar con el campus a mitad de mes).
+  sheet_plan text := CASE WHEN p_data ->> 'plan' IN ('mantener', 'no_renueva')
+                            OR (p_data ->> 'plan' = 'subir' AND nullif(p_data ->> 'subir_etiqueta', '') IS NOT NULL)
+                          THEN p_data ->> 'plan' END;
+  sheet_paid boolean := coalesce((p_data ->> 'pagado')::boolean, false);
 BEGIN
   IF sid IS NULL THEN
     RETURN jsonb_build_object('found', false);
@@ -209,18 +214,26 @@ BEGIN
   WHERE student_id = sid AND period_end < fin AND closed_at IS NULL;
 
   INSERT INTO public.kiru_renewals AS k (student_id, period_end, sheet_student, guardian_email, mentor_name,
-    keep_label, keep_price, up_label, up_price, payment_info, call_url)
+    keep_label, keep_price, up_label, up_price, payment_info, call_url,
+    plan, plan_source, plan_at, paid_reported_at, paid_source)
   VALUES (sid, fin, trim(p_data ->> 'alumno'), lower(trim(p_data ->> 'email')), coalesce(p_data ->> 'mentor', ''),
     p_data ->> 'mantener_etiqueta', (p_data ->> 'mantener_precio')::numeric,
     nullif(p_data ->> 'subir_etiqueta', ''), nullif(p_data ->> 'subir_precio', '')::numeric,
-    coalesce(p_data ->> 'pago', ''), coalesce(p_data ->> 'llamada', ''))
+    coalesce(p_data ->> 'pago', ''), coalesce(p_data ->> 'llamada', ''),
+    sheet_plan, CASE WHEN sheet_plan IS NOT NULL THEN 'correo' END, CASE WHEN sheet_plan IS NOT NULL THEN now() END,
+    CASE WHEN sheet_paid THEN now() END, CASE WHEN sheet_paid THEN 'correo' END)
   ON CONFLICT (student_id, period_end) DO UPDATE
   SET sheet_student = excluded.sheet_student, guardian_email = excluded.guardian_email,
       mentor_name = excluded.mentor_name, keep_label = excluded.keep_label, keep_price = excluded.keep_price,
       -- Si ya eligió «un día más», no se le quita la opción aunque cambie la hoja.
       up_label = CASE WHEN k.plan = 'subir' THEN k.up_label ELSE excluded.up_label END,
       up_price = CASE WHEN k.plan = 'subir' THEN k.up_price ELSE excluded.up_price END,
-      payment_info = excluded.payment_info, call_url = excluded.call_url
+      payment_info = excluded.payment_info, call_url = excluded.call_url,
+      plan = coalesce(k.plan, excluded.plan),
+      plan_source = coalesce(k.plan_source, excluded.plan_source),
+      plan_at = coalesce(k.plan_at, excluded.plan_at),
+      paid_reported_at = coalesce(k.paid_reported_at, excluded.paid_reported_at),
+      paid_source = coalesce(k.paid_source, excluded.paid_source)
   RETURNING * INTO r;
 
   SELECT full_name INTO student_name FROM public.profiles WHERE id = sid;
