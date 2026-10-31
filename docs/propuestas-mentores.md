@@ -93,7 +93,7 @@ también en `OfertaMentor.js` (`textoWhatsAppNueva_`).
 
 ## Archivos
 
-- Migración `20261031120000_assignment_offers_followup_and_privacy.sql`: solo
+- Migración `20261031130000_assignment_offers_followup_and_privacy.sql`: solo
   añade columnas a `kiru_assignment_offers`, la tabla de historial y cambia su
   política de lectura. No toca otras tablas.
 - `app/api/propuestas` (GET) y `app/api/propuestas/[id]` (POST): panel y acciones.

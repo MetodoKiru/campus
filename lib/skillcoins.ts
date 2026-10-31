@@ -166,3 +166,27 @@ export function weekLabel(week: string): string {
   if (!week) return "";
   return "Semana del " + new Date(week + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 }
+
+/** Lunes anterior a una semana (AAAA-MM-DD). */
+function previousMonday(week: string): string {
+  const d = new Date(week + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Qué semana enseñar y cómo llamarla. Si esta semana ya tiene registro SC, se
+ * enseña «Esta semana»; si no, la última que haya, avisando de que la de esta
+ * semana aún no ha llegado.
+ */
+export function latestWeekInfo(summary: Pick<SkillcoinSummary, "weeks" | "currentWeek">): {
+  week: SkillcoinWeek | undefined; title: string; note: string;
+} {
+  const week = summary.weeks[summary.weeks.length - 1];
+  const current = summary.currentWeek;
+  if (!week) return { week, title: "Sin semanas registradas", note: "" };
+  if (week.week === current) return { week, title: "Esta semana", note: weekLabel(week.week) };
+  const pending = current ? "Aún falta el registro SC de esta semana" : "";
+  if (current && week.week === previousMonday(current)) return { week, title: "Semana pasada", note: [weekLabel(week.week), pending].filter(Boolean).join(" · ") };
+  return { week, title: "Última semana registrada", note: [weekLabel(week.week), pending].filter(Boolean).join(" · ") };
+}

@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
-import { weekLabel } from "@/lib/skillcoins";
+import { latestWeekInfo } from "@/lib/skillcoins";
 
 interface Child {
   id: string;
@@ -96,13 +96,12 @@ export default function PadrePage() {
   // SkillCoins del hijo seleccionado: saldo y semanas calculados en la base de datos.
   const childSkillcoins = useStudentSkillcoins(selectedChild?.id ?? null);
   const childSummary = childSkillcoins.summary;
-  const latestWeek = childSummary.weeks[childSummary.weeks.length - 1];
+  const { week: latestWeek, title: latestTitle, note: latestNote } = latestWeekInfo(childSummary);
   const scData = {
     estudios: latestWeek?.estudios ?? 0,
     compromiso: latestWeek?.compromiso ?? 0,
     organizacion: latestWeek?.organizacion ?? 0,
     bienestar: latestWeek?.bienestar ?? 0,
-    updatedAt: latestWeek ? weekLabel(latestWeek.week).replace("Semana del ", "") : "Sin datos",
   };
   const childNeedsAnswer = childSkillcoins.goals.some((g) => g.status === "pendiente" || g.status === "canje_solicitado");
 
@@ -398,9 +397,9 @@ export default function PadrePage() {
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="font-serif text-lg text-[#292825] font-bold">SkillCoins Semanales</h3>
-                  <p className="text-xs text-[#77736B]">Puntuación de la última semana registrada (0 a 10 por categoría).</p>
+                  <p className="text-xs text-[#77736B]">{latestTitle}: puntuación de 0 a 10 por categoría.</p>
                 </div>
-                <span className="text-[10px] font-medium text-[#8D887F]">Semana del {scData.updatedAt}</span>
+                <span className="text-[10px] font-medium text-[#8D887F] text-right">{latestWeek ? latestNote : "Sin datos"}</span>
               </div>
 
               <div className="grid grid-cols-3 gap-3 rounded-2xl bg-[#242321] text-white p-4">

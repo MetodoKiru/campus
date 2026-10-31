@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins/MissingScWeeks";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Compass, LogOut, Users } from "lucide-react";
@@ -57,6 +58,7 @@ export default function CoordinadorPage() {
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const notifyOffers = useCallback((text: string, type: "success" | "error") => setMsg({ text, type }), []);
   const [busy, setBusy] = useState(false);
+  const missingScAll = useMissingScWeeks(!authChecking);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -132,6 +134,8 @@ export default function CoordinadorPage() {
     .sort((a, b) => a.full_name.localeCompare(b.full_name, "es")), [people, coordinatorFilter, coordinatorOf]);
   const mentorIds = useMemo(() => new Set(mentors.map((m) => m.id)), [mentors]);
   const visibleLogs = logs.filter((l) => l.mentorId && mentorIds.has(l.mentorId));
+  // Con el filtro «todos» también salen los registros sin mentor reconocido (solo administración los recibe).
+  const missingSc = missingScAll.filter((r) => (r.mentor_id ? mentorIds.has(r.mentor_id) : coordinatorFilter === "todos"));
 
   const summaries = useMemo(() => mentors.map((mentor) => {
     const students = Object.entries(mentorOf).filter(([, m]) => m === mentor.id).map(([s]) => byId.get(s)).filter((s): s is Person => Boolean(s));
@@ -231,7 +235,7 @@ export default function CoordinadorPage() {
         <div className="flex flex-wrap items-center gap-3">
           <nav className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 shadow-sm text-xs font-semibold w-fit">
             <TabButton active={tab === "mentores"} onClick={() => setTab("mentores")} icon={<Users className="w-3.5 h-3.5" />} label="Mis mentores" />
-            <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length ? ` (${openIncidents.length})` : ""}`} />
+            <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
             <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
             {me.isAdmin && <TabButton active={tab === "sin-asignar"} onClick={() => setTab("sin-asignar")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Sin asignar${unassigned.length ? ` (${unassigned.length})` : ""}`} />}
@@ -334,6 +338,8 @@ export default function CoordinadorPage() {
         {tab === "incidencias" && (
           <section className="space-y-3">
             <p className="text-xs text-slate-500">Lo que el mentor escribe en «Incidencia» al registrar la sesión. Márcala como revisada cuando la hayas hablado; la nota solo la ven coordinación y administración.</p>
+            <CoordinatorMissingSc rows={missingSc} />
+            <h3 className="text-sm font-bold text-slate-800 pt-3">Incidencias escritas por el mentor</h3>
             {incidents.length === 0 && <p className="text-sm text-slate-500">No hay incidencias.</p>}
             {[...openIncidents, ...incidents.filter((l) => reviews[l.id])].map((log) => (
               <IncidentCard key={log.id} log={log} review={reviews[log.id]} reviewer={reviews[log.id]?.reviewedBy ? byId.get(reviews[log.id].reviewedBy as string)?.full_name : undefined}
