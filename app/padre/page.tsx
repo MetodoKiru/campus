@@ -16,6 +16,7 @@ import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
 import { latestWeekInfo } from "@/lib/skillcoins";
+import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renovaciones/RenewalCard";
 
 interface Child {
   id: string;
@@ -84,6 +85,20 @@ export default function PadrePage() {
 
   // Lista de hijos dinámica cargada desde las cuentas de alumnos creadas
   const [childrenList, setChildrenList] = useState<Child[]>(FALLBACK_CHILDREN);
+
+  // Hijos con una renovación de mensualidad esperando respuesta.
+  const [renewalPending, setRenewalPending] = useState<Set<string>>(new Set());
+  const childIds = childrenList.map((c) => c.id).join(",");
+  const reloadRenewals = React.useCallback(async () => {
+    try {
+      const open = await fetchOpenRenewals(childIds ? childIds.split(",") : []);
+      setRenewalPending(new Set(open.filter(needsAnswer).map((r) => r.student_id)));
+    } catch { /* sin conexión: se marca en la próxima carga */ }
+  }, [childIds]);
+  useEffect(() => {
+    const first = window.setTimeout(() => { void reloadRenewals(); }, 0);
+    return () => window.clearTimeout(first);
+  }, [reloadRenewals]);
 
   // Estado de aceptaciones de documentos firmados
   const [acceptedLog, setAcceptedLog] = useState<Record<string, { user: string; date: string }>>({});
@@ -215,7 +230,7 @@ export default function PadrePage() {
               </span>
               <NotificationBell onOpenItem={(n) => {
                 const child = childrenList.find((c) => c.id === n.student_id);
-                if (child) { setSelectedChild(child); setActiveTab("recompensas"); }
+                if (child) { setSelectedChild(child); setActiveTab(n.kind === "renovacion" ? "inicio" : "recompensas"); }
               }} />
             </div>
           </header>
@@ -245,6 +260,11 @@ export default function PadrePage() {
                 <div className="space-y-1">
                   <h3 className="font-serif text-xl font-bold text-[#292825]">{child.name}</h3>
                   <p className="text-xs text-[#77736B] font-medium">{child.level}</p>
+                  {renewalPending.has(child.id) && (
+                    <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-[#806C50] bg-[#F3EEE5] border border-[#E4D8C5] px-2 py-0.5 rounded-full">
+                      Renovación pendiente
+                    </span>
+                  )}
                 </div>
 
                 <div className="relative">
@@ -350,6 +370,7 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
+              <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => void reloadRenewals()} />
               {childNeedsAnswer && (
                 <button
                   onClick={() => setActiveTab("recompensas")}
