@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,7 @@ import Toast from "@/components/Toast";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
+import OffersPanel from "@/components/offers/OffersPanel";
 import { 
   UserPlus, 
   Trash2, 
@@ -122,7 +123,7 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins">("usuarios");
+  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -148,6 +149,7 @@ export default function AdminPage() {
 
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const notifyOffers = useCallback((text: string, type: "success" | "error") => setMsg({ text, type }), []);
 
   // Avisos (con soporte para enlaces y PDFs)
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -596,9 +598,19 @@ export default function AdminPage() {
             <Coins className="w-3.5 h-3.5" />
             <span>SkillCoins y recompensas</span>
           </button>
+          <button
+            onClick={() => setActiveTab("propuestas")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "propuestas" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Propuestas a mentores</span>
+          </button>
         </div>
 
         {activeTab === "skillcoins" && <AdminSkillcoins />}
+        {activeTab === "propuestas" && <OffersPanel notify={notifyOffers} />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}
         {activeTab === "usuarios" && (

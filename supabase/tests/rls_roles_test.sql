@@ -39,7 +39,7 @@ begin
 end $$;
 create function pg_temp.expect_denied(label text, stmt text) returns void language plpgsql as $$
 begin
-  begin execute stmt; exception when insufficient_privilege or check_violation then raise notice 'ok  % (denied)', label; return; end;
+  begin execute stmt; exception when insufficient_privilege or check_violation or unique_violation then raise notice 'ok  % (denied)', label; return; end;
   raise exception 'FAIL %: statement was allowed', label;
 end $$;
 create function pg_temp.expect_allowed(label text, stmt text) returns void language plpgsql as $$
@@ -194,6 +194,33 @@ select pg_temp.expect_denied('mentor no lee su enlace', $q$select 1 from kiru_ac
 select pg_temp.expect_denied('mentor no lee peticiones de PIN', $q$select 1 from kiru_pin_requests$q$);
 select pg_temp.expect_denied('mentor no crea peticiones de PIN', format($q$insert into kiru_pin_requests(profile_id) values (%L)$q$, (select id from ids where k='MN')));
 select pg_temp.expect_denied('mentor no crea enlaces', format($q$insert into kiru_access_links(profile_id,token_hash,expires_at) values (%L,%L,now())$q$, (select id from ids where k='MN'), repeat('b',64)));
+reset role;
+-- propuestas de alumno: el mentor nunca lee la tabla (ni código ni nombre del alumno)
+insert into kiru_assignment_offers(offer_code,mentor_email,mentor_id,student_label) values
+  ('OF-0123456789abcdef0123','m@t.es',(select id from ids where k='M'),'Alumno Uno'),
+  ('OF-0123456789abcdef0123','m2@t.es',(select id from ids where k='M2'),'Alumno Uno');
+insert into kiru_assignment_offer_events(offer_id,action) select id,'recibida' from kiru_assignment_offers;
+select pg_temp.expect_denied('código de oferta con nombre del alumno', $q$insert into kiru_assignment_offers(offer_code,mentor_email) values ('match|alumno uno|123','x@t.es')$q$);
+select pg_temp.expect_denied('dos seleccionados para el mismo alumno', $q$update kiru_assignment_offers set decision='seleccionado', decided_at=now()$q$);
+select pg_temp.as_user('A');
+select pg_temp.expect('admin ve 2 propuestas', (select count(*) from kiru_assignment_offers), 2);
+select pg_temp.expect('admin ve 2 eventos', (select count(*) from kiru_assignment_offer_events), 2);
+select pg_temp.expect_denied('admin no escribe propuestas desde el navegador', $q$update kiru_assignment_offers set decision='no_seleccionado', decided_at=now()$q$);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor no lee propuestas directamente', (select count(*) from kiru_assignment_offers), 0);
+select pg_temp.expect('mentor no lee historial', (select count(*) from kiru_assignment_offer_events), 0);
+select pg_temp.expect_denied('mentor no responde desde el navegador', $q$update kiru_assignment_offers set response='si', responded_at=now()$q$);
+reset role;
+select pg_temp.as_user('C');
+select pg_temp.expect('coordinador ve solo la propuesta de su mentor', (select count(*) from kiru_assignment_offers), 1);
+select pg_temp.expect('coordinador ve solo su historial', (select count(*) from kiru_assignment_offer_events), 1);
+reset role;
+select pg_temp.as_user('F');
+select pg_temp.expect('formador no ve propuestas', (select count(*) from kiru_assignment_offers), 0);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('padre no ve propuestas', (select count(*) from kiru_assignment_offers), 0);
 reset role;
 -- semanas sin SC: S1 (mentor M) tuvo clase la semana pasada sin SkillCoins; S2 (M2) sí las tiene
 insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,answers) values

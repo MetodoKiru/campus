@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { EMAIL_RE } from "@/lib/server/require-staff";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
-import { OFFER_ANSWERS, validScriptLink, type OfferAnswer } from "@/lib/server/assignment-offers";
+import { OFFER_ANSWERS, logOfferEvent, validScriptLink, type OfferAnswer } from "@/lib/server/assignment-offers";
+import { OFFER_CODE_RE } from "@/lib/assignment-offers";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,9 @@ function date(value: unknown): string | null {
  *   mismos datos del correo y los enlaces de sus tres botones.
  * - respuestas: cada botón que un mentor pulsa en el correo.
  * Se puede repetir sin duplicar: una oferta se identifica por código + correo.
+ * El código es opaco («OF-» + 20 hex): un código con el nombre del alumno se
+ * rechaza. «alumno» (nombre para administración), «nombre» y «telefono» del
+ * mentor solo los leen administración y coordinación; el mentor no lee la tabla.
  * El correo, la hoja OFERTAS y el aviso los sigue haciendo el script.
  */
 export async function POST(request: Request) {
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
     const item = (raw ?? {}) as Record<string, unknown>;
     const code = text(item.codigo, 120);
     const email = text(item.correo, 254).toLowerCase();
-    if (!code || !EMAIL_RE.test(email)) { rejected.push(index); continue; }
+    if (!OFFER_CODE_RE.test(code) || !EMAIL_RE.test(email)) { rejected.push(index); continue; }
     const links = (item.enlaces ?? {}) as Record<string, unknown>;
     const responseLinks: Record<string, string> = {};
     for (const answer of OFFER_ANSWERS) {
@@ -68,7 +72,8 @@ export async function POST(request: Request) {
     }
     const mentorId = mentorByEmail.get(email) ?? null;
     if (!mentorId) unmatched += 1;
-    const { error } = await admin.from("kiru_assignment_offers").upsert({
+    const { data: before } = await admin.from("kiru_assignment_offers").select("id").eq("offer_code", code).eq("mentor_email", email).maybeSingle();
+    const { data: row, error } = await admin.from("kiru_assignment_offers").upsert({
       offer_code: code,
       mentor_email: email,
       ...(mentorId ? { mentor_id: mentorId } : {}),
@@ -79,8 +84,13 @@ export async function POST(request: Request) {
       slots: text(item.franjas, 1000),
       sent_at: date(item.enviada) ?? new Date().toISOString(),
       response_links: responseLinks,
-    }, { onConflict: "offer_code,mentor_email", ignoreDuplicates: false });
-    if (error) rejected.push(index); else saved += 1;
+      student_label: text(item.alumno, 200),
+      mentor_name: text(item.nombre, 200),
+      mentor_phone: text(item.telefono, 30),
+    }, { onConflict: "offer_code,mentor_email", ignoreDuplicates: false }).select("id").single();
+    if (error || !row) { rejected.push(index); continue; }
+    saved += 1;
+    if (!before) await logOfferEvent(admin, row.id, "recibida", "Correo de propuesta enviado por el Apps Script");
   }
 
   let answered = 0;
@@ -103,6 +113,7 @@ export async function POST(request: Request) {
       .eq("mentor_email", email)
       .is("response", null)
       .select("id");
+    for (const r of data ?? []) await logOfferEvent(admin, r.id, "respuesta", `${answer} (correo)${answer === "ajustar" && text(item.detalle, 1000) ? `: ${text(item.detalle, 1000)}` : ""}`);
     answered += data?.length ?? 0;
   }
 

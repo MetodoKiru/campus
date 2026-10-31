@@ -92,7 +92,7 @@ export function MentorMenu({ data, active, onSelect, onClose }: {
         <ul className="space-y-1">
           {STEPS.map((step) => {
             const info = data?.steps[step.id];
-            const isNew = step.id === "asignacion" && Boolean(data?.offers.some((o) => !o.response));
+            const isNew = step.id === "asignacion" && Boolean(data?.offers.some((o) => !o.response && !o.closed));
             return (
               <li key={step.id}>
                 <button
@@ -365,8 +365,8 @@ function CertificateUpload({ defaultName, hasPrevious, reload, notify }: {
 }
 
 function OffersView({ data, reload, notify }: { data: MentorPanelData; reload: () => Promise<void>; notify: (text: string) => void }) {
-  const waiting = data.offers.filter((o) => !o.response);
-  const answered = data.offers.filter((o) => o.response);
+  const waiting = data.offers.filter((o) => !o.response && !o.closed);
+  const answered = data.offers.filter((o) => o.response || o.closed);
   return (
     <Section number={4} title="Asignación de alumnos">
       <p className="text-sm text-[#45433F]">Aquí aparecen los alumnos que Método Kiru te propone, con la misma información que te llega por correo. Puedes responder desde aquí o desde el correo: vale cualquiera de las dos.</p>
@@ -376,7 +376,7 @@ function OffersView({ data, reload, notify }: { data: MentorPanelData; reload: (
       {waiting.map((offer) => <OfferCard key={offer.id} offer={offer} reload={reload} notify={notify} />)}
       {answered.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Propuestas respondidas</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Propuestas anteriores</h3>
           {answered.map((offer) => <OfferCard key={offer.id} offer={offer} reload={reload} notify={notify} />)}
         </div>
       )}
@@ -409,9 +409,9 @@ function OfferCard({ offer, reload, notify }: { offer: MentorOffer; reload: () =
   ];
 
   return (
-    <article className={`space-y-4 rounded-2xl border p-4 sm:p-5 ${offer.response ? "border-[#E7E3DC] bg-[#FAF8F5]" : "border-[#D9C8AE] bg-white"}`}>
+    <article className={`space-y-4 rounded-2xl border p-4 sm:p-5 ${offer.response || offer.closed ? "border-[#E7E3DC] bg-[#FAF8F5]" : "border-[#D9C8AE] bg-white"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-[#292825]">{offer.response ? "Posible alumno" : "Nuevo posible alumno para ti"}</p>
+        <p className="text-xs font-bold text-[#292825]">{offer.response || offer.closed ? "Posible alumno" : "Nuevo posible alumno para ti"}</p>
         <p className="text-[11px] text-[#77736B]">{formatDate(offer.sentAt)}</p>
       </div>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
@@ -422,7 +422,9 @@ function OfferCard({ offer, reload, notify }: { offer: MentorOffer; reload: () =
           </div>
         ))}
       </dl>
-      {offer.response ? (
+      {!offer.response && offer.closed ? (
+        <p className="text-xs text-[#555149]">Esta propuesta ya está cerrada. Te avisaremos cuando haya otro alumno que encaje contigo.</p>
+      ) : offer.response ? (
         <p className="text-xs text-[#555149]">
           Respondiste «{OFFER_RESPONSE_LABEL[offer.response]}»{offer.respondedAt ? ` el ${formatDate(offer.respondedAt)}` : ""}.
           {offer.responseDetail ? ` Disponibilidad indicada: ${offer.responseDetail}` : ""}
