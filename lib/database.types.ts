@@ -295,7 +295,7 @@ export type NotificationRow = {
   recipient_id: string;
   student_id: string | null;
   goal_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado";
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion";
   title: string;
   body: string;
   event_key: string;
@@ -303,6 +303,33 @@ export type NotificationRow = {
   email_status: "no_aplica" | "pendiente" | "enviado" | "sin_correo";
   email_sent_at: string | null;
   created_at: string;
+};
+
+export type RenewalRow = {
+  id: string;
+  student_id: string;
+  period_end: string;
+  sheet_student: string;
+  guardian_email: string;
+  mentor_name: string;
+  keep_label: string;
+  keep_price: number;
+  up_label: string | null;
+  up_price: number | null;
+  payment_info: string;
+  call_url: string;
+  plan: "mantener" | "subir" | "no_renueva" | null;
+  plan_source: "correo" | "campus" | null;
+  plan_at: string | null;
+  plan_by: string | null;
+  paid_reported_at: string | null;
+  paid_source: "correo" | "campus" | null;
+  paid_by: string | null;
+  closed_at: string | null;
+  campus_seq: number;
+  sheet_seq: number;
+  created_at: string;
+  updated_at: string;
 };
 
 type Timestamps = "created_at" | "updated_at";
@@ -339,6 +366,7 @@ export type Database = {
       kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
+      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
     };
@@ -356,6 +384,12 @@ export type Database = {
       kiru_reward_decide: { Args: { p_goal: string; p_approve: boolean; p_note?: string }; Returns: undefined };
       kiru_reward_resolve_redeem: { Args: { p_goal: string; p_confirm: boolean; p_note?: string }; Returns: undefined };
       kiru_notifications_mark_read: { Args: { p_ids?: string[] }; Returns: undefined };
+      kiru_renewal_choose: { Args: { p_id: string; p_plan: string }; Returns: Json };
+      kiru_renewal_report_paid: { Args: { p_id: string }; Returns: Json };
+      kiru_renewal_publish: { Args: { p_data: Json }; Returns: Json };
+      kiru_renewal_from_email: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string }; Returns: Json };
+      kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
+      kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
       kiru_missing_sc_weeks: {
         Args: { p_weeks?: number };
         Returns: MissingScWeekRow[];
