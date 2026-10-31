@@ -284,6 +284,12 @@ export type NotificationRow = {
 
 type Timestamps = "created_at" | "updated_at";
 
+/** Una semana terminada en la que un alumno tuvo clase con un mentor y no tiene SkillCoins. */
+export type MissingScWeekRow = {
+  week: string; student_id: string; student_name: string; mentor_id: string | null; mentor_name: string;
+  sessions: number; session_dates: string[]; respondent_email: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -326,6 +332,10 @@ export type Database = {
       kiru_reward_decide: { Args: { p_goal: string; p_approve: boolean; p_note?: string }; Returns: undefined };
       kiru_reward_resolve_redeem: { Args: { p_goal: string; p_confirm: boolean; p_note?: string }; Returns: undefined };
       kiru_notifications_mark_read: { Args: { p_ids?: string[] }; Returns: undefined };
+      kiru_missing_sc_weeks: {
+        Args: { p_weeks?: number };
+        Returns: MissingScWeekRow[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

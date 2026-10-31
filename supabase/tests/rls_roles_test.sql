@@ -195,4 +195,30 @@ select pg_temp.expect_denied('mentor no lee peticiones de PIN', $q$select 1 from
 select pg_temp.expect_denied('mentor no crea peticiones de PIN', format($q$insert into kiru_pin_requests(profile_id) values (%L)$q$, (select id from ids where k='MN')));
 select pg_temp.expect_denied('mentor no crea enlaces', format($q$insert into kiru_access_links(profile_id,token_hash,expires_at) values (%L,%L,now())$q$, (select id from ids where k='MN'), repeat('b',64)));
 reset role;
+-- semanas sin SC: S1 (mentor M) tuvo clase la semana pasada sin SkillCoins; S2 (M2) sí las tiene
+insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,answers) values
+  ('sc-s1',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date - 5,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'[]'),
+  ('sc-s2',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date - 5,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),
+   '[{"q":"SKILLCOINS: estudios (0-10)","a":"7"},{"q":"SKILLCOINS: compromiso(0-10)","a":"6"},{"q":"SKILLCOINS: organización(0-10)","a":"5"},{"q":"SKILLCOINS: bienestar(0-10)","a":"8"}]');
+select pg_temp.as_user('A');
+select pg_temp.expect('admin ve semanas sin SC', (select count(*) from kiru_missing_sc_weeks()), 1);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve su semana sin SC', (select count(*) from kiru_missing_sc_weeks()), 1);
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.expect('mentor con SC no tiene aviso', (select count(*) from kiru_missing_sc_weeks()), 0);
+reset role;
+select pg_temp.as_user('C');
+select pg_temp.expect('coordinador ve la semana sin SC de su mentor', (select count(*) from kiru_missing_sc_weeks()), 1);
+reset role;
+select pg_temp.as_user('C2');
+select pg_temp.expect('otro coordinador no la ve', (select count(*) from kiru_missing_sc_weeks()), 0);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('padre no ve semanas sin SC', (select count(*) from kiru_missing_sc_weeks()), 0);
+reset role;
+set local role anon;
+select pg_temp.expect_denied('anon no ve semanas sin SC', $q$select * from kiru_missing_sc_weeks()$q$);
+reset role;
 rollback;
