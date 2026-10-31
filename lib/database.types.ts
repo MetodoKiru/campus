@@ -282,6 +282,9 @@ export type NotificationRow = {
   created_at: string;
 };
 
+/** Opción de pago por adelantado (precio total de varios meses con descuento). */
+export type PrepayOption = { meses: number; total: number; ahorro: number; pct: number };
+
 export type RenewalRow = {
   id: string;
   student_id: string;
@@ -299,6 +302,8 @@ export type RenewalRow = {
   plan_source: "correo" | "campus" | null;
   plan_at: string | null;
   plan_by: string | null;
+  months: number;
+  prepay: { mantener?: PrepayOption[]; subir?: PrepayOption[] };
   paid_reported_at: string | null;
   paid_source: "correo" | "campus" | null;
   paid_by: string | null;
@@ -343,7 +348,7 @@ export type Database = {
       kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
-      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
+      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error">;
     };
     Views: { [_ in never]: never };
@@ -360,10 +365,10 @@ export type Database = {
       kiru_reward_decide: { Args: { p_goal: string; p_approve: boolean; p_note?: string }; Returns: undefined };
       kiru_reward_resolve_redeem: { Args: { p_goal: string; p_confirm: boolean; p_note?: string }; Returns: undefined };
       kiru_notifications_mark_read: { Args: { p_ids?: string[] }; Returns: undefined };
-      kiru_renewal_choose: { Args: { p_id: string; p_plan: string }; Returns: Json };
+      kiru_renewal_choose: { Args: { p_id: string; p_plan: string; p_months?: number }; Returns: Json };
       kiru_renewal_report_paid: { Args: { p_id: string }; Returns: Json };
       kiru_renewal_publish: { Args: { p_data: Json }; Returns: Json };
-      kiru_renewal_from_email: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string }; Returns: Json };
+      kiru_renewal_from_email: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months?: number }; Returns: Json };
       kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
       kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
       kiru_missing_sc_weeks: {

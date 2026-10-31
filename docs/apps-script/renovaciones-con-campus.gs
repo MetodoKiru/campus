@@ -13,6 +13,16 @@
  * la fecha de fin de la pestaña «Familias» avanza.
  * En modo «borrador» los correos quedan en Borradores de Gmail.
  *
+ * NUEVO (31/10/2026, 2): la mensualidad en curso está siempre en el panel de
+ * la familia, que puede dejar pagado el mes siguiente cuando quiera, o varios
+ * meses por adelantado con los descuentos de la web (3 meses −5 %, 6 meses
+ * −10 %, curso completo −15 %; si quedan menos meses hasta junio, el tramo que
+ * toque). El descuento se calcula sobre la tarifa normal y la familia paga el
+ * precio más bajo: el suyo de siempre o el de pago adelantado (no se suman).
+ * Lo elegido se apunta en «Plan elegido» así: «Mantener plan · 3 meses».
+ * Al apuntar el pago en «Ingresos», pon en «Servicio hasta» la fecha de
+ * fin de esos meses (mismo día del mes): la fecha de fin avanza sola.
+ *
  * NUEVO (31/10/2026): botones «No renovamos» y «Ya he pagado», y conexión
  * con el campus. La familia puede responder en el correo o en el campus y
  * vale la primera respuesta: el campus hace de árbitro, así que no se
@@ -32,12 +42,15 @@ const CFG = {
   DIAS_HISTORIAL: 35, // sesiones que se miran para el resumen del mes
   ZONA: 'Europe/Madrid',
   CAMPUS_URL: 'https://campus.metodokiru.es',
+  FIN_CURSO: { mes: 5, dia: 30 }, // 30 de junio (enero = 0)
+  // Descuentos por pago adelantado (los de la web): [desde N meses, % de descuento]
+  DESCUENTOS_ADELANTADO: [[10, 15], [6, 10], [3, 5]],
 };
 
 // Columnas de «Familias» (A = 1)
 const COL = {
   ALUMNO: 1, MENTOR: 2, PADRE: 3, EMAIL: 4, DIAS: 5, TARIFA: 6, PAGA: 7,
-  FIN: 10, PLAN: 12, NOTAS: 13, PRECIO_SUBE: 14,
+  DESCUENTO: 8, MOTIVO_DESCUENTO: 9, FIN: 10, PLAN: 12, NOTAS: 13, PRECIO_SUBE: 14,
   ENV_AVISO: 15, ENV_RECORDATORIO: 16, ENV_IMPAGO: 17,
   DICE_PAGADO: 18, // NUEVO: «La familia dice que ha pagado»
 };
@@ -47,12 +60,15 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
 
 // Lo que se escribe en «Plan elegido próximo mes» para cada opción.
 const PLAN_HOJA = { mantener: 'Mantener plan', subir: '+1 día', no_renueva: 'No renueva' };
+// Con pago adelantado: «Mantener plan · 3 meses».
+function planHoja_(plan, meses) { return PLAN_HOJA[plan] + (meses > 1 ? ' · ' + meses + ' meses' : ''); }
 
 /* ================= MENÚ ================= */
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Kiru')
     .addItem('Crear borrador de renovación (fila seleccionada)', 'borradorFilaSeleccionada')
+    .addItem('Enviarme una prueba del correo (fila seleccionada)', 'pruebaFilaSeleccionada')
     .addItem('Activar revisión diaria (9:00)', 'instalarRevisionDiaria')
     .addItem('Conectar con el campus (cada 10 min)', 'instalarSincronizacionCampus')
     .addToUi();
@@ -103,6 +119,41 @@ function borradorFilaSeleccionada() {
   ss.toast('Borrador creado para ' + fam.alumno + '. Míralo en Borradores de Gmail.', 'Kiru', 6);
 }
 
+// Manda el correo de renovación de la fila seleccionada a «Email avisos», no a la familia
+function pruebaFilaSeleccionada() {
+  const sh = SpreadsheetApp.getActive().getActiveSheet();
+  if (sh.getName() !== CFG.HOJA_FAMILIAS) {
+    SpreadsheetApp.getUi().alert('Ve a la pestaña «Familias» y selecciona la fila de la familia.');
+    return;
+  }
+  const fila = sh.getActiveRange().getRow();
+  if (fila < 2) { SpreadsheetApp.getUi().alert('Selecciona la fila de una familia.'); return; }
+  enviarPrueba_(fila);
+}
+
+// También se puede ejecutar desde el editor: manda la prueba de la primera familia con datos
+function enviarPruebaRenovacion() {
+  const datos = SpreadsheetApp.getActive().getSheetByName(CFG.HOJA_FAMILIAS).getDataRange().getValues();
+  for (let i = 1; i < datos.length; i++) {
+    const fam = leerFamilia_(datos[i]);
+    if (fam.alumno && fam.fin) return enviarPrueba_(i + 1);
+  }
+}
+
+function enviarPrueba_(fila) {
+  const cfg = config_();
+  const sh = SpreadsheetApp.getActive().getSheetByName(CFG.HOJA_FAMILIAS);
+  const fam = leerFamilia_(sh.getRange(fila, 1, 1, COL.DICE_PAGADO).getValues()[0]);
+  const correo = correoRenovacion_(fam, cfg);
+  MailApp.sendEmail({
+    to: cfg.emailAvisos, name: 'Método Kiru',
+    subject: '[PRUEBA] ' + correo.asunto,
+    htmlBody: '<p style="font-family:Arial,sans-serif;color:#a5650c"><b>Esto es una prueba:</b> así le llegaría a '
+      + esc_(fam.padre || fam.email) + '. A la familia no se le ha enviado nada.</p>' + correo.html,
+  });
+  try { SpreadsheetApp.getActive().toast('Prueba enviada a ' + cfg.emailAvisos, 'Kiru', 6); } catch (e) {}
+}
+
 /* ================= REVISIÓN DIARIA ================= */
 
 function revisarRenovaciones() {
@@ -122,17 +173,22 @@ function revisarRenovaciones() {
 
     // 1) Correo de renovación (si se pasó el día, se manda igualmente antes del fin)
     if (hoy >= diaAviso && hoy < fam.fin && !mismoDia_(fam.envAviso, fam.fin)) {
-      // Mensualidad nueva: se borra la elección del mes anterior.
-      sh.getRange(fila, COL.PLAN).setValue('');
-      sh.getRange(fila, COL.DICE_PAGADO).setValue('');
+      // Mensualidad nueva: se borra la elección del mes anterior...
       fam.plan = ''; fam.dicePagado = '';
-      entregar_(fam, correoRenovacion_(fam, cfg), cfg, 'renovación');
+      // ...salvo que ya hayan respondido para esta en el campus (la tarjeta está siempre visible).
+      const r = campusPublicar_(fam, cfg);
+      if (r && r.found && r.plan) fam.plan = planHoja_(r.plan, r.meses || 1);
+      if (r && r.found && r.paid_reported) fam.dicePagado = fmt_(hoy) + ' · ' + (r.paid_source || 'campus');
+      sh.getRange(fila, COL.PLAN).setValue(fam.plan);
+      sh.getRange(fila, COL.DICE_PAGADO).setValue(fam.dicePagado);
+      // Si ya eligieron, no se les pregunta otra vez: solo se apunta como enviado.
+      if (!fam.plan) entregar_(fam, correoRenovacion_(fam, cfg), cfg, 'renovación');
       sh.getRange(fila, COL.ENV_AVISO).setValue(fam.fin);
-      campusPublicar_(fam, cfg);
+      if (fam.plan === PLAN_HOJA.no_renueva) continue;
     }
     // 2) Recordatorio (solo si ya salió el de renovación y sigue sin pago)
     else if (mismoDia_(hoy, diaRecordatorio) && mismoDia_(fam.envAviso, fam.fin)
-             && !mismoDia_(fam.envRecordatorio, fam.fin)) {
+             && !mismoDia_(fam.envRecordatorio, fam.fin) && !fam.dicePagado) {
       entregar_(fam, correoRecordatorio_(fam, cfg), cfg, 'recordatorio');
       sh.getRange(fila, COL.ENV_RECORDATORIO).setValue(fam.fin);
     }
@@ -191,7 +247,7 @@ function correoRenovacion_(fam, cfg) {
   }
 
   h += '<p style="margin:18px 0 6px"><b>¿Cómo seguimos?</b></p><ul style="margin:0 0 12px 18px;padding:0">';
-  h += '<li style="margin:4px 0"><b>' + op.mantener.etiqueta + ':</b> ' + euros_(op.mantener.precio) + '/mes.</li>';
+  h += '<li style="margin:4px 0"><b>' + op.mantener.etiqueta + ':</b> ' + precioConDescuento_(fam, op.mantener.precio) + '/mes.</li>';
   if (op.subir) {
     const area = d.trabajando ? minus_(d.trabajando) : 'la organización y la rutina de estudio';
     h += '<li style="margin:4px 0"><b>' + op.subir.etiqueta + ' (recomendado):</b> ' + euros_(op.subir.precio)
@@ -201,6 +257,7 @@ function correoRenovacion_(fam, cfg) {
   }
   h += '</ul>';
   h += botones_(fam, op, cfg, false);
+  h += bloqueAdelantado_(fam, cfg);
 
   if (cfg.datosPagoEnCorreo) h += p_(bloquePago_(cfg, nombre, mesSig));
   else h += p_('Al elegir tu opción verás el importe y los datos para el pago.');
@@ -222,9 +279,15 @@ function correoRecordatorio_(fam, cfg) {
   const asunto = 'Recordatorio: la mensualidad de ' + nombre + ' acaba el ' + fechaLarga_(fam.fin);
   let h = estiloInicio_();
   h += p_('Hola, ' + esc_(primerNombre_(fam.padre)) + ':');
-  h += p_('Te recordamos que la mensualidad de ' + esc_(nombre) + ' termina el ' + fechaLarga_(fam.fin)
-    + '. Para que no se interrumpan las sesiones, elige cómo queréis seguir:');
-  h += botones_(fam, op, cfg, true);
+  if (fam.plan) {
+    h += p_('Te recordamos que la mensualidad de ' + esc_(nombre) + ' termina el ' + fechaLarga_(fam.fin)
+      + '. Ya nos dijisteis cómo seguir (<b>' + esc_(fam.plan) + '</b>), ¡gracias! Solo falta el pago.');
+  } else {
+    h += p_('Te recordamos que la mensualidad de ' + esc_(nombre) + ' termina el ' + fechaLarga_(fam.fin)
+      + '. Para que no se interrumpan las sesiones, elige cómo queréis seguir:');
+    h += botones_(fam, op, cfg, true);
+    h += bloqueAdelantado_(fam, cfg);
+  }
   if (cfg.datosPagoEnCorreo) h += p_(bloquePago_(cfg, nombre, MESES[fam.fin.getMonth()]));
   h += pieBotones_(fam, cfg);
   h += p_('Si ya lo habéis pagado, ¡gracias! Puedes ignorar este correo.');
@@ -247,6 +310,22 @@ function pieBotones_(fam, cfg) {
   h += p_('<span style="color:#555">¿No vais a seguir? <a href="' + esc_(enlacePlan_(fam, 'no', cfg)) + '">No renovamos</a>.'
     + ' También podéis responder desde vuestro panel del campus: <a href="' + CFG.CAMPUS_URL + '">' + CFG.CAMPUS_URL.replace('https://', '') + '</a>.</span>');
   return h;
+}
+
+// Pago por adelantado: un enlace por opción (plan y meses), con el ahorro.
+function bloqueAdelantado_(fam, cfg) {
+  const op = opciones_(fam, cfg);
+  const ad = adelantado_(fam, cfg);
+  const lineas = [];
+  ['mantener', 'subir'].forEach(plan => {
+    if (!op[plan] || !ad[plan].length) return;
+    const enlaces = ad[plan].map(o => '<a href="' + esc_(enlacePlan_(fam, plan, cfg, o.meses)) + '">' + o.meses + ' meses: '
+      + euros_(o.total) + '</a>' + (o.ahorro > 0 ? ' (ahorráis ' + euros_(o.ahorro) + ')' : ''));
+    lineas.push('<li style="margin:4px 0"><b>' + op[plan].etiqueta + ':</b> ' + enlaces.join(' · ') + '</li>');
+  });
+  if (!lineas.length) return '';
+  return '<p style="margin:14px 0 6px"><b>¿Preferís dejar pagados varios meses?</b> Con descuento:</p>'
+    + '<ul style="margin:0 0 12px 18px;padding:0">' + lineas.join('') + '</ul>';
 }
 
 function bloquePago_(cfg, nombre, mes) {
@@ -313,6 +392,7 @@ function datosDelMes_(alumno, desde, hasta) {
 
 function doGet(e) {
   const a = (e && e.parameter.a) || '', p = (e && e.parameter.p) || '', t = (e && e.parameter.t) || '';
+  const m = Number((e && e.parameter.m) || 1);
   if (!a || t !== token_(a) || ['mantener', 'subir', 'no', 'pagado'].indexOf(p) < 0) {
     return pagina_('Enlace no válido', 'Este enlace no es válido. Escríbenos a metodokiru@gmail.com y lo vemos.');
   }
@@ -325,7 +405,7 @@ function doGet(e) {
     for (let i = 1; i < datos.length; i++) {
       const fam = leerFamilia_(datos[i]);
       if (norm_(fam.alumno) !== norm_(a)) continue;
-      return p === 'pagado' ? respuestaPagado_(sh, i + 1, fam, cfg) : respuestaPlan_(sh, i + 1, fam, p === 'no' ? 'no_renueva' : p, cfg);
+      return p === 'pagado' ? respuestaPagado_(sh, i + 1, fam, cfg) : respuestaPlan_(sh, i + 1, fam, p === 'no' ? 'no_renueva' : p, cfg, m);
     }
     return pagina_('No encontrado', 'No hemos encontrado la ficha. Escríbenos a metodokiru@gmail.com.');
   } finally {
@@ -333,14 +413,22 @@ function doGet(e) {
   }
 }
 
-function respuestaPlan_(sh, fila, fam, plan, cfg) {
+function respuestaPlan_(sh, fila, fam, plan, cfg, meses) {
   const ops = opciones_(fam, cfg);
   const nombre = primerNombre_(fam.alumno);
+  // Meses por adelantado: solo los que se ofrecen para ese plan.
+  let opcion = null;
+  if (plan !== 'no_renueva' && meses > 1) {
+    opcion = (adelantado_(fam, cfg)[plan] || []).find(o => o.meses === meses) || null;
+    if (!opcion) return pagina_('Enlace no válido', 'Esta opción de pago ya no está disponible. Escríbenos a ' + esc_(cfg.emailAvisos) + '.');
+  }
+  const n = opcion ? opcion.meses : 1;
   // El campus decide si ya habían respondido (aquí o en la plataforma).
-  const r = campusElegir_(fam, plan);
+  const r = campusElegir_(fam, plan, n);
   if (r && r.found && r.already && r.plan) {
     return pagina_('Ya teníamos vuestra respuesta',
-      'Para ' + esc_(nombre) + ' ya habíais elegido: <b>' + esc_(etiquetaPlan_(r.plan, ops)) + '</b>'
+      'Para ' + esc_(nombre) + ' ya habíais elegido: <b>' + esc_(etiquetaPlan_(r.plan, ops))
+      + (r.meses > 1 ? ', ' + r.meses + ' meses por adelantado' : '') + '</b>'
       + (r.plan_source === 'campus' ? ' (desde el campus)' : '') + '. No hemos cambiado nada.'
       + '<br><br>Si queréis cambiarlo, escríbenos a ' + esc_(cfg.emailAvisos) + '.');
   }
@@ -349,16 +437,20 @@ function respuestaPlan_(sh, fila, fam, plan, cfg) {
     return pagina_('Ya teníamos vuestra respuesta',
       'Para ' + esc_(nombre) + ' ya habíais elegido: <b>' + esc_(fam.plan) + '</b>. No hemos cambiado nada.');
   }
-  sh.getRange(fila, COL.PLAN).setValue(PLAN_HOJA[plan]);
-  avisarEleccion_(fam, plan, ops, cfg, 'el correo');
+  sh.getRange(fila, COL.PLAN).setValue(planHoja_(plan, n));
+  avisarEleccion_(fam, plan, ops, cfg, 'el correo', n, opcion ? opcion.total : null);
   if (plan === 'no_renueva') {
     return pagina_('Gracias por este tiempo',
       'Hemos registrado que no renováis la mensualidad de ' + esc_(nombre) + '. ¡Gracias por confiar en Método Kiru!'
       + (cfg.calendly ? '<br><br>Si quieres contarnos algo, <a href="' + esc_(cfg.calendly) + '">reserva una llamada</a>.' : ''));
   }
   const op = ops[plan] || ops.mantener;
+  const importe = opcion
+    ? n + ' meses por adelantado (hasta el ' + fechaLarga_(sumarMeses_(fam.fin, n)) + '): <b>' + euros_(opcion.total) + '</b>'
+      + (opcion.ahorro > 0 ? ', ahorráis ' + euros_(opcion.ahorro) : '')
+    : euros_(op.precio) + '/mes';
   return pagina_('¡Gracias!',
-    'Hemos registrado tu elección para ' + esc_(nombre) + ': <b>' + op.etiqueta + '</b>, ' + euros_(op.precio) + '/mes.<br><br>'
+    'Hemos registrado tu elección para ' + esc_(nombre) + ': <b>' + op.etiqueta + '</b>, ' + importe + '.<br><br>'
     + bloquePago_(cfg, nombre, MESES[fam.fin.getMonth()])
     + (cfg.calendly ? '<br><br>Si quieres hablarlo, <a href="' + esc_(cfg.calendly) + '">reserva una llamada</a>.' : ''));
 }
@@ -378,11 +470,14 @@ function respuestaPagado_(sh, fila, fam, cfg) {
   return pagina_('¡Gracias!', 'Hemos recibido tu aviso de pago para ' + esc_(nombre) + '. Lo comprobamos y, si falta algo, te escribimos.');
 }
 
-function avisarEleccion_(fam, plan, ops, cfg, desde) {
+function avisarEleccion_(fam, plan, ops, cfg, desde, meses, total) {
   const op = ops[plan];
-  const etiqueta = etiquetaPlan_(plan, ops);
+  const etiqueta = etiquetaPlan_(plan, ops) + (meses > 1 ? ', ' + meses + ' meses por adelantado' : '');
+  const importe = meses > 1 && total != null
+    ? ' (' + euros_(total) + ' en total; en «Ingresos» pon «Servicio hasta» el ' + fmt_(sumarMeses_(fam.fin, meses)) + ')'
+    : (op ? ' (' + euros_(op.precio) + '/mes)' : '');
   MailApp.sendEmail(cfg.emailAvisos, 'Kiru · ' + fam.alumno + ' ha elegido: ' + etiqueta,
-    fam.padre + ' ha elegido «' + etiqueta + '»' + (op ? ' (' + euros_(op.precio) + '/mes)' : '')
+    fam.padre + ' ha elegido «' + etiqueta + '»' + importe
     + ' para la próxima mensualidad de ' + fam.alumno + ' (fin actual: ' + fmt_(fam.fin) + '). Respondido desde ' + desde + '.');
 }
 
@@ -398,13 +493,13 @@ function pagina_(titulo, cuerpo) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-function enlacePlan_(fam, plan, cfg) {
+function enlacePlan_(fam, plan, cfg, meses) {
   let url = '';
   try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
-  if (url) return url + '?a=' + encodeURIComponent(fam.alumno) + '&p=' + plan + '&t=' + token_(fam.alumno);
+  if (url) return url + '?a=' + encodeURIComponent(fam.alumno) + '&p=' + plan + (meses > 1 ? '&m=' + meses : '') + '&t=' + token_(fam.alumno);
   // Si la aplicación web no está publicada, el botón abre un correo de respuesta
   const op = opciones_(fam, cfg)[plan];
-  const texto = op ? op.etiqueta : (plan === 'no' ? 'No renovamos' : 'Ya he pagado');
+  const texto = op ? op.etiqueta + (meses > 1 ? ', ' + meses + ' meses por adelantado' : '') : (plan === 'no' ? 'No renovamos' : 'Ya he pagado');
   return 'mailto:' + cfg.emailAvisos + '?subject=' + encodeURIComponent(primerNombre_(fam.alumno) + ': ' + texto);
 }
 
@@ -414,6 +509,15 @@ function token_(alumno) {
   if (!s) { s = Utilities.getUuid(); props.setProperty('SECRETO', s); }
   return Utilities.computeHmacSha256Signature(norm_(alumno), s)
     .map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+// Si la familia tiene descuento (columnas «Descuento (€)» y «Motivo descuento»), se ve tachado el precio normal
+function precioConDescuento_(fam, precio) {
+  const tarifa = Number(fam.tarifa) || 0;
+  const desc = Number(fam.descuento) || 0;
+  if (!desc || !tarifa || tarifa <= precio) return euros_(precio);
+  return '<s style="color:#888">' + euros_(tarifa) + '</s> <b>' + euros_(precio) + '</b>'
+    + ' (descuento de ' + euros_(desc) + (fam.motivoDescuento ? ': ' + esc_(minus_(fam.motivoDescuento)) : '') + ')';
 }
 
 /* ================= CAMPUS ================= */
@@ -438,26 +542,41 @@ function campus_(cuerpo) {
 
 function ymd_(d) { return Utilities.formatDate(d, CFG.ZONA, 'yyyy-MM-dd'); }
 
-function campusPublicar_(fam, cfg) {
+// Lo que ve la familia en el campus: planes, precios y pago por adelantado.
+function datosCampus_(fam, cfg) {
   const op = opciones_(fam, cfg);
-  const r = campus_({
-    accion: 'publicar', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), mentor: fam.mentor,
+  return {
+    email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), mentor: fam.mentor,
     mantenerEtiqueta: op.mantener.etiqueta, mantenerPrecio: op.mantener.precio,
     subirEtiqueta: op.subir ? op.subir.etiqueta : '', subirPrecio: op.subir ? op.subir.precio : '',
     pago: textoPlano_(bloquePago_(cfg, primerNombre_(fam.alumno), MESES[fam.fin.getMonth()])),
     llamada: cfg.calendly,
-    plan: planDeHoja_(fam.plan), pagado: !!fam.dicePagado,
-  });
+    adelantado: adelantado_(fam, cfg),
+  };
+}
+
+function campusPublicar_(fam, cfg) {
+  const d = datosCampus_(fam, cfg);
+  d.accion = 'publicar';
+  d.plan = planDeHoja_(fam.plan);
+  d.meses = mesesDeHoja_(fam.plan);
+  d.pagado = !!fam.dicePagado;
+  const r = campus_(d);
   if (r && r.found === false) console.log('Sin cuenta en el campus para ' + fam.alumno + ' (' + fam.email + '): solo por correo.');
   return r;
 }
 
 function planDeHoja_(texto) {
-  const t = norm_(texto);
+  const t = norm_(String(texto || '').split('·')[0]);
   if (t === norm_(PLAN_HOJA.mantener)) return 'mantener';
   if (t === norm_(PLAN_HOJA.subir)) return 'subir';
   if (t === norm_(PLAN_HOJA.no_renueva)) return 'no_renueva';
   return '';
+}
+
+function mesesDeHoja_(texto) {
+  const m = String(texto || '').match(/·\s*(\d{1,2})\s*mes/);
+  return m ? Number(m[1]) : 1;
 }
 
 // Al conectar por primera vez: lleva al campus las renovaciones de este mes
@@ -477,8 +596,8 @@ function publicarRenovacionesEnCurso_() {
   return n;
 }
 
-function campusElegir_(fam, accion) {
-  return campus_({ accion: 'elegir', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), opcion: accion });
+function campusElegir_(fam, accion, meses) {
+  return campus_({ accion: 'elegir', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), opcion: accion, meses: meses || 1 });
 }
 
 // Cada 10 minutos: cierra en el campus los periodos ya pagados y apunta en la
@@ -491,9 +610,14 @@ function sincronizarRenovacionesCampus() {
     const sh = SpreadsheetApp.getActive().getSheetByName(CFG.HOJA_FAMILIAS);
     const datos = sh.getRange(1, 1, sh.getLastRow(), Math.max(sh.getLastColumn(), COL.DICE_PAGADO)).getValues();
     const familias = [];
+    const desde = sumarDias_(hoy_(), -5);
     for (let i = 1; i < datos.length; i++) {
       const fam = leerFamilia_(datos[i]);
-      if (fam.alumno && fam.email && fam.fin) familias.push({ alumno: fam.alumno, email: fam.email, fin: ymd_(fam.fin) });
+      if (!fam.alumno || !fam.email || !fam.fin) continue;
+      const item = { alumno: fam.alumno, email: fam.email, fin: ymd_(fam.fin) };
+      // Mensualidad en curso: siempre visible en el panel de la familia (sin campanita).
+      if (fam.fin >= desde) item.datos = datosCampus_(fam, cfg);
+      familias.push(item);
     }
     const r = campus_({ accion: 'sincronizar', familias: familias });
     if (!r) return;
@@ -504,15 +628,16 @@ function sincronizarRenovacionesCampus() {
         if (norm_(fam.alumno) !== norm_(pend.alumno) || norm_(fam.email) !== norm_(pend.email)) continue;
         if (fam.fin && ymd_(fam.fin) === pend.fin) {
           const ops = opciones_(fam, cfg);
-          if (pend.plan && pend.plan_source === 'campus' && fam.plan !== PLAN_HOJA[pend.plan]) {
-            sh.getRange(i + 1, COL.PLAN).setValue(PLAN_HOJA[pend.plan]);
-            avisarEleccion_(fam, pend.plan, ops, cfg, 'el campus');
+          const texto = pend.plan ? planHoja_(pend.plan, pend.meses || 1) : '';
+          if (pend.plan && pend.plan_source === 'campus' && fam.plan !== texto) {
+            sh.getRange(i + 1, COL.PLAN).setValue(texto);
+            avisarEleccion_(fam, pend.plan, ops, cfg, 'el campus', pend.meses || 1, pend.total);
           }
           if (pend.paid_reported_at && pend.paid_source === 'campus' && !fam.dicePagado) {
             sh.getRange(i + 1, COL.DICE_PAGADO).setValue(fmt_(hoy_()) + ' · campus');
             MailApp.sendEmail(cfg.emailAvisos, 'Kiru · ' + fam.alumno + ' dice que ha pagado',
               fam.padre + ' dice que ya ha pagado la próxima mensualidad de ' + fam.alumno + ' (fin actual: ' + fmt_(fam.fin) + ')'
-              + (pend.plan ? ', plan: ' + etiquetaPlan_(pend.plan, ops) : ', sin plan elegido') + '. Respondido desde el campus.\n\n'
+              + (pend.plan ? ', plan: ' + etiquetaPlan_(pend.plan, ops) + (pend.meses > 1 ? ', ' + pend.meses + ' meses por adelantado (' + euros_(pend.total) + ')' : '') : ', sin plan elegido') + '. Respondido desde el campus.\n\n'
               + 'Comprueba el ingreso y apúntalo en «Ingresos»: así la fecha de fin avanza y el aviso se cierra en el campus.');
           }
         }
@@ -538,6 +663,46 @@ function opciones_(fam, cfg) {
   }
   return r;
 }
+
+// Pago por adelantado de cada plan: 3 y 6 meses, y hasta final de curso.
+// Descuento sobre la tarifa normal; si la familia ya paga menos, paga lo suyo.
+function adelantado_(fam, cfg) {
+  const op = opciones_(fam, cfg);
+  const dias = Number(fam.dias) || 0;
+  const r = { mantener: [], subir: [] };
+  const curso = mesesHastaFinCurso_(fam.fin);
+  if (curso < 3) return r;
+  const plazos = [3, 6].filter(n => n < curso).concat([curso]);
+  const pct = n => { const t = CFG.DESCUENTOS_ADELANTADO.find(x => n >= x[0]); return t ? t[1] : 0; };
+  const normal = {
+    mantener: Number(cfg.tarifas[dias]) || Number(fam.tarifa) || op.mantener.precio,
+    subir: op.subir ? (Number(cfg.tarifas[dias + 1]) || op.subir.precio) : 0,
+  };
+  ['mantener', 'subir'].forEach(plan => {
+    if (!op[plan] || !op[plan].precio) return;
+    const actual = Number(op[plan].precio);
+    plazos.forEach(n => {
+      const p = pct(n);
+      const alMes = Math.min(actual, redondear_(normal[plan] * (1 - p / 100)));
+      const total = redondear_(alMes * n);
+      r[plan].push({ meses: n, total: total, ahorro: Math.max(0, redondear_(actual * n - total)), pct: alMes < actual ? p : 0 });
+    });
+  });
+  return r;
+}
+
+// Meses desde el fin actual hasta el final del curso (30 de junio), al más cercano.
+function mesesHastaFinCurso_(fin) {
+  const anio = fin.getMonth() > CFG.FIN_CURSO.mes ? fin.getFullYear() + 1 : fin.getFullYear();
+  const objetivo = new Date(anio, CFG.FIN_CURSO.mes, CFG.FIN_CURSO.dia);
+  let mejor = 0;
+  for (let n = 1; n <= 12; n++) {
+    if (Math.abs(sumarMeses_(fin, n) - objetivo) < Math.abs(sumarMeses_(fin, mejor) - objetivo)) mejor = n;
+  }
+  return mejor;
+}
+
+function redondear_(n) { return Math.round(n * 100) / 100; }
 
 function config_() {
   const filas = SpreadsheetApp.getActive().getSheetByName(CFG.HOJA_CONFIG).getDataRange().getValues();
@@ -565,6 +730,7 @@ function leerFamilia_(r) {
     alumno: String(v(COL.ALUMNO) || '').trim(), mentor: String(v(COL.MENTOR) || '').trim(),
     padre: String(v(COL.PADRE) || '').trim(), email: String(v(COL.EMAIL) || '').trim(),
     dias: v(COL.DIAS), tarifa: v(COL.TARIFA), paga: v(COL.PAGA), fin: aFecha_(v(COL.FIN)),
+    descuento: v(COL.DESCUENTO), motivoDescuento: String(v(COL.MOTIVO_DESCUENTO) || '').trim(),
     plan: String(v(COL.PLAN) || '').trim(), precioSube: v(COL.PRECIO_SUBE),
     envAviso: aFecha_(v(COL.ENV_AVISO)), envRecordatorio: aFecha_(v(COL.ENV_RECORDATORIO)),
     envImpago: aFecha_(v(COL.ENV_IMPAGO)),
@@ -586,12 +752,17 @@ function aFecha_(v) {
 }
 function mismoDia_(a, b) { return !!(a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()); }
 function sumarDias_(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+// Mismo día del mes N meses después (o el último día si ese mes es más corto).
+function sumarMeses_(d, n) {
+  const ultimo = new Date(d.getFullYear(), d.getMonth() + n + 1, 0).getDate();
+  return new Date(d.getFullYear(), d.getMonth() + n, Math.min(d.getDate(), ultimo));
+}
 function fmt_(d) { return d ? ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear() : ''; }
 function fechaLarga_(d) { return d.getDate() + ' de ' + MESES[d.getMonth()]; }
 function norm_(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
 function primerNombre_(s) { const n = String(s || '').trim().split(/\s+/)[0] || ''; return n.charAt(0).toUpperCase() + n.slice(1); }
 function minus_(s) { return s ? s.charAt(0).toLowerCase() + s.slice(1) : s; }
-function euros_(n) { return Number(n).toLocaleString('es-ES') + ' €'; }
+function euros_(n) { const x = Number(n); return x.toLocaleString('es-ES', { minimumFractionDigits: x % 1 ? 2 : 0, maximumFractionDigits: 2 }) + ' €'; }
 function esc_(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function p_(t) { return '<p style="margin:12px 0">' + t + '</p>'; }
 function estiloInicio_() { return '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px">'; }

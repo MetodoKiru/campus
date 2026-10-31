@@ -266,6 +266,28 @@ reset role;
 select pg_temp.as_user('P');
 select pg_temp.expect('cerrado no admite respuesta', (select (kiru_renewal_report_paid((select id from ren))->>'already')::boolean::int), 1);
 reset role;
+-- Mensualidad siempre visible y pago por adelantado.
+set local role service_role;
+select pg_temp.expect('sincronizar con datos crea la mensualidad sin campanita', (select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","datos":{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":350,"subir_etiqueta":"Pasar a 3 días por semana","subir_precio":500,"adelantado":{"mantener":[{"meses":3,"total":997.5,"ahorro":52.5,"pct":5},{"meses":"x","total":1}],"subir":[{"meses":3,"total":1425,"ahorro":75,"pct":5}]}}}]')->'pendientes')), 0);
+select pg_temp.expect('periodo anterior cerrado y uno nuevo abierto', (select count(*) from kiru_renewals where period_end='2027-01-19' and closed_at is null and jsonb_array_length(prepay->'mantener')=1), 1);
+select pg_temp.expect('sin aviso en la campanita', (select count(*) from kiru_notifications where kind='renovacion'), 2);
+reset role;
+create temp table ren2 as select id from kiru_renewals where period_end='2027-01-19';
+grant select on ren2 to authenticated;
+select pg_temp.as_user('P');
+do $$ begin
+  perform kiru_renewal_choose((select id from ren2), 'mantener', 6);
+  raise exception 'FAIL meses no ofrecidos: allowed';
+exception when invalid_parameter_value then raise notice 'ok  meses no ofrecidos (denied)';
+end $$;
+select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal_choose((select id from ren2), 'mantener', 3)->>'total')::numeric * 10)::bigint, 9975);
+reset role;
+set local role service_role;
+select pg_temp.expect('la hoja recibe meses y total', (select count(*) from jsonb_array_elements(kiru_renewal_sync('[]')->'pendientes') x where (x->>'meses')::int=3 and (x->>'total')::numeric=997.5), 1);
+select pg_temp.expect('sincronizar otra vez no cambia lo elegido', (select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","datos":{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":400,"adelantado":{}}}]')->'pendientes')), 1);
+select pg_temp.expect('precio y meses se mantienen', (select count(*) from kiru_renewals where period_end='2027-01-19' and months=3 and keep_price=350 and prepay ? 'mantener'), 1);
+select pg_temp.expect('el correo ve el pago adelantado', (select (kiru_renewal_from_email('p@t','Álvaro','2027-01-19','subir',3)->>'meses')::int), 3);
+reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve renovaciones', $q$select * from kiru_renewals$q$);
 reset role;
