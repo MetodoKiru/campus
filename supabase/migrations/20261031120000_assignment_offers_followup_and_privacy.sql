@@ -18,9 +18,7 @@
 -- Todas las escrituras siguen pasando por rutas del servidor.
 
 -- 1. Privacidad ----------------------------------------------------------------
-DROP POLICY IF EXISTS kiru_assignment_offers_read ON public.kiru_assignment_offers;
-CREATE POLICY kiru_assignment_offers_read ON public.kiru_assignment_offers
-FOR SELECT TO authenticated
+ALTER POLICY kiru_assignment_offers_read ON public.kiru_assignment_offers
 USING (
   (SELECT kiru_private.is_admin())
   OR (SELECT kiru_private.coordinates_mentor(mentor_id))
