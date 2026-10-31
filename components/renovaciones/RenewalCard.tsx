@@ -140,7 +140,7 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
   };
 
   const choose = (plan: Plan, months: number, ok: string) =>
-    act(() => supabase.rpc("kiru_renewal_choose", { p_id: renewal!.id, p_plan: plan, p_months: months }), ok);
+    act(() => supabase.rpc("kiru_renewal_choose_months", { p_id: renewal!.id, p_plan: plan, p_months: months }), ok);
   const reportPaid = () => act(() => supabase.rpc("kiru_renewal_report_paid", { p_id: renewal!.id }), "Gracias. Comprobaremos el pago y se cerrará este aviso.");
 
   if (!renewal) return toast ? <Toast text={toast.text} type={toast.type} onClose={() => setToast(null)} /> : null;

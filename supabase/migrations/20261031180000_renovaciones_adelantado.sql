@@ -171,8 +171,8 @@ AS $$
 $$;
 
 -- La familia elige en el campus: plan y, si quiere, varios meses por adelantado.
-DROP FUNCTION public.kiru_renewal_choose(uuid, text);
-CREATE FUNCTION public.kiru_renewal_choose(p_id uuid, p_plan text, p_months integer DEFAULT 1)
+-- (Funciones nuevas con otro nombre; las de antes siguen y llaman a estas.)
+CREATE OR REPLACE FUNCTION public.kiru_renewal_choose_months(p_id uuid, p_plan text, p_months integer)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -207,9 +207,17 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.kiru_renewal_choose(p_id uuid, p_plan text)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT public.kiru_renewal_choose_months(p_id, p_plan, 1)
+$$;
+
 -- Botón del correo (también con meses por adelantado).
-DROP FUNCTION public.kiru_renewal_from_email(text, text, date, text);
-CREATE FUNCTION public.kiru_renewal_from_email(p_email text, p_student text, p_period_end date, p_action text, p_months integer DEFAULT 1)
+CREATE OR REPLACE FUNCTION public.kiru_renewal_from_email_months(p_email text, p_student text, p_period_end date, p_action text, p_months integer)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -249,6 +257,15 @@ BEGIN
   END IF;
   RETURN kiru_private.renewal_json(r, false) || jsonb_build_object('found', true);
 END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.kiru_renewal_from_email(p_email text, p_student text, p_period_end date, p_action text)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT public.kiru_renewal_from_email_months(p_email, p_student, p_period_end, p_action, 1)
 $$;
 
 -- Sincronización: además de cerrar los periodos pagados, deja visible la
@@ -296,14 +313,17 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION
-  public.kiru_renewal_choose(uuid, text, integer),
+  public.kiru_renewal_choose_months(uuid, text, integer),
+  public.kiru_renewal_choose(uuid, text),
   public.kiru_renewal_publish(jsonb),
-  public.kiru_renewal_from_email(text, text, date, text, integer),
+  public.kiru_renewal_from_email_months(text, text, date, text, integer),
+  public.kiru_renewal_from_email(text, text, date, text),
   public.kiru_renewal_sync(jsonb)
 FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.kiru_renewal_choose(uuid, text, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.kiru_renewal_choose_months(uuid, text, integer), public.kiru_renewal_choose(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION
   public.kiru_renewal_publish(jsonb),
-  public.kiru_renewal_from_email(text, text, date, text, integer),
+  public.kiru_renewal_from_email_months(text, text, date, text, integer),
+  public.kiru_renewal_from_email(text, text, date, text),
   public.kiru_renewal_sync(jsonb)
 TO service_role;

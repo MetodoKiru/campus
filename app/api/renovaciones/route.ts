@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       || !Number.isInteger(months) || months < 1 || months > 12) {
       return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
     }
-    const { data: result, error } = await admin.rpc("kiru_renewal_from_email", {
+    const { data: result, error } = await admin.rpc("kiru_renewal_from_email_months", {
       p_email: text(body.email, 254), p_student: text(body.alumno, 120), p_period_end: fin, p_action: choice, p_months: months,
     });
     if (error) return NextResponse.json({ error: "No se pudo registrar la elección." }, { status: 500 });

@@ -303,17 +303,17 @@ create temp table ren2 as select id from kiru_renewals where period_end='2027-01
 grant select on ren2 to authenticated;
 select pg_temp.as_user('P');
 do $$ begin
-  perform kiru_renewal_choose((select id from ren2), 'mantener', 6);
+  perform kiru_renewal_choose_months((select id from ren2), 'mantener', 6);
   raise exception 'FAIL meses no ofrecidos: allowed';
 exception when invalid_parameter_value then raise notice 'ok  meses no ofrecidos (denied)';
 end $$;
-select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal_choose((select id from ren2), 'mantener', 3)->>'total')::numeric * 10)::bigint, 9975);
+select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal_choose_months((select id from ren2), 'mantener', 3)->>'total')::numeric * 10)::bigint, 9975);
 reset role;
 set local role service_role;
 select pg_temp.expect('la hoja recibe meses y total', (select count(*) from jsonb_array_elements(kiru_renewal_sync('[]')->'pendientes') x where (x->>'meses')::int=3 and (x->>'total')::numeric=997.5), 1);
 select pg_temp.expect('sincronizar otra vez no cambia lo elegido', (select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","datos":{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":400,"adelantado":{}}}]')->'pendientes')), 1);
 select pg_temp.expect('precio y meses se mantienen', (select count(*) from kiru_renewals where period_end='2027-01-19' and months=3 and keep_price=350 and prepay ? 'mantener'), 1);
-select pg_temp.expect('el correo ve el pago adelantado', (select (kiru_renewal_from_email('p@t','Álvaro','2027-01-19','subir',3)->>'meses')::int), 3);
+select pg_temp.expect('el correo ve el pago adelantado', (select (kiru_renewal_from_email_months('p@t','Álvaro','2027-01-19','subir',3)->>'meses')::int), 3);
 reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve renovaciones', $q$select * from kiru_renewals$q$);

@@ -389,10 +389,12 @@ export type Database = {
       kiru_reward_decide: { Args: { p_goal: string; p_approve: boolean; p_note?: string }; Returns: undefined };
       kiru_reward_resolve_redeem: { Args: { p_goal: string; p_confirm: boolean; p_note?: string }; Returns: undefined };
       kiru_notifications_mark_read: { Args: { p_ids?: string[] }; Returns: undefined };
-      kiru_renewal_choose: { Args: { p_id: string; p_plan: string; p_months?: number }; Returns: Json };
+      kiru_renewal_choose: { Args: { p_id: string; p_plan: string }; Returns: Json };
+      kiru_renewal_choose_months: { Args: { p_id: string; p_plan: string; p_months: number }; Returns: Json };
       kiru_renewal_report_paid: { Args: { p_id: string }; Returns: Json };
       kiru_renewal_publish: { Args: { p_data: Json }; Returns: Json };
-      kiru_renewal_from_email: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months?: number }; Returns: Json };
+      kiru_renewal_from_email: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string }; Returns: Json };
+      kiru_renewal_from_email_months: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months: number }; Returns: Json };
       kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
       kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
       kiru_missing_sc_weeks: {
