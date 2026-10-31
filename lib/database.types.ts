@@ -202,8 +202,31 @@ export type AssignmentOfferRow = {
   response_source: "correo" | "campus" | null;
   forwarded_at: string | null;
   forward_error: string;
+  student_label: string;
+  mentor_name: string;
+  mentor_phone: string;
+  reminder_sent_at: string | null;
+  call_requested_at: string | null;
+  call_done_at: string | null;
+  call_notes: string;
+  decision: "seleccionado" | "sustituto" | "no_seleccionado" | null;
+  decision_note: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  closed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AssignmentOfferEventRow = {
+  id: string;
+  offer_id: string;
+  action:
+    | "recibida" | "respuesta" | "recordatorio" | "llamada_solicitada" | "llamada_hecha"
+    | "seleccionado" | "sustituto" | "no_seleccionado" | "decision_quitada" | "cerrada" | "reabierta";
+  detail: string;
+  actor_id: string | null;
+  created_at: string;
 };
 
 export type RewardRow = {
@@ -344,7 +367,8 @@ export type Database = {
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
       kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
-      kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error">;
+      kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
+      kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
     };
     Views: { [_ in never]: never };
     Functions: {

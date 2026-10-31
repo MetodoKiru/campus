@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { UUID_RE, requireStaff } from "@/lib/server/require-staff";
-import { OFFER_ANSWERS, forwardAnswerToScript, validScriptLink, type OfferAnswer } from "@/lib/server/assignment-offers";
+import { OFFER_ANSWERS, forwardAnswerToScript, logOfferEvent, validScriptLink, type OfferAnswer } from "@/lib/server/assignment-offers";
 
 export const runtime = "nodejs";
 
@@ -27,12 +27,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   const { data: offer, error } = await admin
     .from("kiru_assignment_offers")
-    .select("id,mentor_id,response,response_links")
+    .select("id,mentor_id,response,response_links,closed_at")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: "No se pudo cargar la propuesta." }, { status: 500 });
   if (!offer || offer.mentor_id !== user.id) return NextResponse.json({ error: "No se encontró la propuesta." }, { status: 404 });
   if (offer.response) return NextResponse.json({ error: "No se puede cambiar: ya respondiste a esta propuesta." }, { status: 409 });
+  if (offer.closed_at) return NextResponse.json({ error: "Esta propuesta ya está cerrada." }, { status: 409 });
 
   const now = new Date().toISOString();
   // La condición «response is null» evita dos respuestas si pulsa dos veces o responde a la vez desde el correo.
@@ -41,10 +42,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .update({ response: answer, response_detail: detail, responded_at: now, response_source: "campus" })
     .eq("id", id)
     .is("response", null)
+    .is("closed_at", null)
     .select("id")
     .maybeSingle();
   if (saveError) return NextResponse.json({ error: "No se pudo guardar tu respuesta." }, { status: 500 });
   if (!saved) return NextResponse.json({ error: "No se puede cambiar: ya respondiste a esta propuesta." }, { status: 409 });
+
+  await logOfferEvent(admin, id, "respuesta", `${answer} (campus)${detail ? `: ${detail}` : ""}`, user.id);
 
   const links = (offer.response_links ?? {}) as Record<string, unknown>;
   const link = validScriptLink(links[answer]);
