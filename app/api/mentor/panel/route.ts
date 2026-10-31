@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     admin.from("kiru_mentor_steps").select("step,status,submitted_at,reviewed_at,review_note,holder_name,document_path").eq("mentor_id", user.id),
     admin.from("kiru_mentor_onboarding").select("certificate_checked_at").eq("profile_id", user.id).is("archived_at", null).maybeSingle(),
     admin.from("kiru_assignment_offers")
-      .select("id,course,student_profile,zone,intensity,slots,sent_at,response,response_detail,responded_at")
+      .select("id,course,student_profile,zone,intensity,slots,sent_at,response,response_detail,responded_at,closed_at")
       .eq("mentor_id", user.id)
       .order("sent_at", { ascending: false })
       .limit(50),
@@ -63,8 +63,9 @@ export async function GET(request: Request) {
     response: o.response,
     responseDetail: o.response_detail,
     respondedAt: o.responded_at,
+    closed: Boolean(o.closed_at),
   }));
-  const waiting = offers.filter((o) => !o.response);
+  const waiting = offers.filter((o) => !o.response && !o.closed);
   const asignacion = waiting.length
     ? { status: "pendiente" as StepStatus, date: waiting[0].sentAt, note: waiting.length === 1 ? "Tienes una propuesta nueva" : `Tienes ${waiting.length} propuestas nuevas` }
     : offers.length

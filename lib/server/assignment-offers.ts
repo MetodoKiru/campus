@@ -13,7 +13,8 @@ export async function linkOffersToMentor(admin: SupabaseClient<Database>, mentor
     .eq("mentor_email", email.toLowerCase());
 }
 
-export type OfferAnswer = "si" | "ajustar" | "no";
+export type { OfferAnswer } from "@/lib/assignment-offers";
+import type { OfferAnswer } from "@/lib/assignment-offers";
 export const OFFER_ANSWERS: readonly OfferAnswer[] = ["si", "ajustar", "no"];
 
 /** Solo se siguen enlaces del Apps Script de Método Kiru, nunca otra web. */
@@ -38,4 +39,12 @@ export async function forwardAnswerToScript(link: string, detail: string): Promi
   } catch {
     return { ok: false, error: "No se pudo contactar con el script." };
   }
+}
+
+type Admin = SupabaseClient<Database>;
+type EventAction = Database["public"]["Tables"]["kiru_assignment_offer_events"]["Row"]["action"];
+
+/** Apunta un cambio en el historial de la propuesta. Un fallo aquí no deshace el cambio. */
+export async function logOfferEvent(admin: Admin, offerId: string, action: EventAction, detail = "", actorId: string | null = null): Promise<void> {
+  await admin.from("kiru_assignment_offer_events").insert({ offer_id: offerId, action, detail: detail.slice(0, 2000), actor_id: actorId });
 }

@@ -41,6 +41,8 @@ export type MentorOffer = {
   response: OfferResponse | null;
   responseDetail: string;
   respondedAt: string | null;
+  /** Administración la cerró: ya no se puede responder. */
+  closed: boolean;
 };
 
 export type MentorPanelData = {
