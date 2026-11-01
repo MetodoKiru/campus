@@ -369,6 +369,36 @@ export default function AdminPage() {
     }
   };
 
+  // Quitar el mentor de un alumno (p. ej. un alumno de prueba). No borra la cuenta ni sus registros.
+  const handleRemoveMentor = async () => {
+    const student = users.find((u) => u.username === selectedStudent && u.role === "alumno");
+    if (!student) { setMsg({ text: "Elige el alumno.", type: "error" }); return; }
+    if (!window.confirm(`¿Quitar el mentor de ${student.name}? El alumno se queda sin mentor, pero no se borra nada más.`)) return;
+    try {
+      const { error } = await supabase.from("student_mentors").delete().eq("student_id", student.id);
+      if (error) throw error;
+      setLinks((current) => current.filter((l) => l.studentUsername !== selectedStudent));
+      setMsg({ text: `${student.name} se ha quedado sin mentor.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo quitar el mentor.", type: "error" });
+    }
+  };
+
+  // Quitar la familia de un alumno. No borra ninguna cuenta.
+  const handleRemoveParent = async () => {
+    const student = alumnos.find((u) => u.username === selectedChild);
+    if (!student) { setMsg({ text: "Elige el alumno.", type: "error" }); return; }
+    if (!window.confirm(`¿Quitar la familia de ${student.name}? El alumno se queda sin familia enlazada, pero no se borra ninguna cuenta.`)) return;
+    try {
+      const { error } = await supabase.from("student_guardians").delete().eq("student_id", student.id);
+      if (error) throw error;
+      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: undefined } : u));
+      setMsg({ text: `${student.name} se ha quedado sin familia enlazada.`, type: "success" });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "No se pudo quitar la familia.", type: "error" });
+    }
+  };
+
   // Coordinador <-> Mentor: cada mentor tiene un solo coordinador; la base de datos
   // no deja pasar de 5 mentores por coordinador.
   const handleAssignCoordinator = async (e: React.FormEvent) => {
@@ -681,6 +711,9 @@ export default function AdminPage() {
                   <button type="submit" disabled={!selectedStudent || !selectedMentor} className="w-full py-3 bg-blue-700 text-white text-xs font-semibold rounded-2xl hover:bg-blue-800 transition shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-40">
                     <Link2 className="w-4 h-4" /> Asignar Mentor
                   </button>
+                  <button type="button" onClick={() => void handleRemoveMentor()} disabled={!selectedStudent || !links.some((l) => l.studentUsername === selectedStudent)} className="w-full py-2.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-2xl hover:bg-slate-50 transition disabled:opacity-40">
+                    Quitar mentor de este alumno
+                  </button>
                 </form>
               </div>
 
@@ -736,6 +769,9 @@ export default function AdminPage() {
                   </div>
                   <button type="submit" disabled={!selectedChild || !selectedParent} className="w-full py-3 bg-amber-700 text-white text-xs font-semibold rounded-2xl hover:bg-amber-800 transition shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-40">
                     <Link2 className="w-4 h-4" /> Asignar Familia
+                  </button>
+                  <button type="button" onClick={() => void handleRemoveParent()} disabled={!selectedChild || !alumnos.find((a) => a.username === selectedChild)?.assignedParent} className="w-full py-2.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-2xl hover:bg-slate-50 transition disabled:opacity-40">
+                    Quitar familia de este alumno
                   </button>
                 </form>
               </div>
