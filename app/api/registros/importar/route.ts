@@ -119,6 +119,16 @@ export async function POST(request: Request) {
 
   // La misma fila puede venir dos veces en un envío; se queda la última.
   const unique = [...new Map(records.map((r) => [r.source_key, r])).values()];
+
+  // Lo que administración adjudicó o archivó a mano no se pisa al reimportar.
+  const { data: manualRows, error: manualError } = await admin.from("kiru_session_logs")
+    .select("source_key,mentor_id,student_id").not("manual_status", "is", null);
+  if (manualError) return NextResponse.json({ error: "No se pudieron cargar los registros ajustados a mano." }, { status: 500 });
+  const manual = new Map((manualRows ?? []).map((m) => [m.source_key, m]));
+  for (const record of unique) {
+    const fixed = manual.get(record.source_key);
+    if (fixed) { record.mentor_id = fixed.mentor_id; record.student_id = fixed.student_id; }
+  }
   for (let i = 0; i < unique.length; i += 500) {
     const { error } = await admin.from("kiru_session_logs").upsert(unique.slice(i, i + 500), { onConflict: "source_key" });
     if (error) return NextResponse.json({ error: "No se pudieron guardar los registros." }, { status: 500 });
@@ -134,6 +144,6 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: "Los registros se guardaron, pero no se pudieron recalcular las SkillCoins." }, { status: 500 });
   }
 
-  const unmatched = unique.filter((r) => !r.mentor_id || !r.student_id).map((r) => `${r.mentor_name} / ${r.student_name}`);
+  const unmatched = unique.filter((r) => !manual.has(r.source_key) && (!r.mentor_id || !r.student_id)).map((r) => `${r.mentor_name} / ${r.student_name}`);
   return NextResponse.json({ ok: true, saved: unique.length, skipped, unmatched: [...new Set(unmatched)] });
 }

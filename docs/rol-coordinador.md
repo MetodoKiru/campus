@@ -45,7 +45,10 @@ su marca temporal, mentor y alumno.
 El mentor y el alumno se reconocen por el correo de quien envía (si coincide con
 la cuenta del mentor) o por el nombre escrito, que basta con que sea el nombre
 de pila de la cuenta («Paula» → «Paula Ybarra»). Lo que no se reconoce aparece en
-«Sin asignar» para administración. La columna «Estado de pago» no se copia.
+«Sin asignar» para administración. Desde ahí administración elige a mano el mentor y
+el alumno de cada registro (o lo archiva si el mentor ya no tiene cuenta); la
+importación respeta esa elección (`manual_status`) y «Deshacer» la devuelve a
+automático. Ruta: `/api/registros/asignar`, solo admin. La columna «Estado de pago» no se copia.
 
 Elegimos esto en lugar de la cuenta de servicio de Google del Sprint 3 porque no
 hay que crear nada en Google Cloud y los datos llegan al momento.

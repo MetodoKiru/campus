@@ -21,6 +21,7 @@ interface SessionLog {
   studentId: string | null;
   incident: string;
   answers: SessionAnswer[];
+  manualStatus: "asignado" | "archivado" | null;
 }
 interface Review { note: string; reviewedBy: string | null; reviewedAt: string }
 interface ActivityRow { owner_id: string; record_type: string; created_by: string | null; updated_at: string }
@@ -69,7 +70,7 @@ export default function CoordinadorPage() {
       supabase.from("student_mentors").select("student_id,mentor_id"),
       supabase.from("student_guardians").select("student_id,guardian_id"),
       supabase.from("kiru_session_logs")
-        .select("id,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident,answers")
+        .select("id,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident,answers,manual_status")
         .order("session_date", { ascending: false, nullsFirst: false })
         .limit(2000),
       supabase.from("kiru_incident_reviews").select("log_id,note,reviewed_by,reviewed_at"),
@@ -88,6 +89,7 @@ export default function CoordinadorPage() {
     setLogs((logRows.data ?? []).map((l) => ({
       id: l.id, submittedAt: l.submitted_at, sessionDate: l.session_date, mentorName: l.mentor_name, studentName: l.student_name,
       mentorId: l.mentor_id, studentId: l.student_id, incident: l.incident, answers: parseAnswers(l.answers),
+      manualStatus: l.manual_status,
     })));
     setReviews(Object.fromEntries((reviewRows.data ?? []).map((r) => [r.log_id, { note: r.note, reviewedBy: r.reviewed_by, reviewedAt: r.reviewed_at }])));
     setLastSignIn(access as Record<string, string | null>);
@@ -168,7 +170,10 @@ export default function CoordinadorPage() {
 
   const incidents = visibleLogs.filter((l) => l.incident);
   const openIncidents = incidents.filter((l) => !reviews[l.id]);
-  const unassigned = logs.filter((l) => !l.mentorId || !l.studentId);
+  const unassigned = logs.filter((l) => !l.manualStatus && (!l.mentorId || !l.studentId));
+  const adjusted = logs.filter((l) => l.manualStatus);
+  const allMentors = people.filter((p) => p.role === "mentor").sort((a, b) => a.full_name.localeCompare(b.full_name, "es"));
+  const allStudents = people.filter((p) => p.role === "alumno").sort((a, b) => a.full_name.localeCompare(b.full_name, "es"));
   const selected = summaries.find((s) => s.mentor.id === selectedMentor) ?? null;
 
   const run = async (action: () => Promise<void>) => {
@@ -187,6 +192,23 @@ export default function CoordinadorPage() {
   const reopen = (log: SessionLog) => run(async () => {
     const { error } = await supabase.from("kiru_incident_reviews").delete().eq("log_id", log.id);
     if (error) throw new Error(`No se pudo reabrir: ${error.message}`);
+  });
+
+  // Adjudicar a mano un registro de «Sin asignar» (solo administración; lo guarda el servidor).
+  const assign = (log: SessionLog, action: "asignar" | "archivar" | "automatico", mentorId?: string, studentId?: string) => run(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("La sesión ha caducado. Vuelve a entrar.");
+    const response = await fetch("/api/registros/asignar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ logId: log.id, action, mentorId, studentId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "No se pudo guardar el cambio.");
+    setMsg({
+      text: action === "asignar" ? "Registro adjudicado." : action === "archivar" ? "Registro archivado." : "El registro vuelve a enlazarse solo.",
+      type: "success",
+    });
   });
 
   const logout = async () => { await supabase.auth.signOut(); router.replace("/"); };
@@ -358,9 +380,29 @@ export default function CoordinadorPage() {
 
         {tab === "sin-asignar" && me.isAdmin && (
           <section className="space-y-2">
-            <p className="text-xs text-slate-500">Registros cuyo mentor o alumno no se ha podido reconocer. Suele ser porque el nombre del formulario no coincide con el de la cuenta del campus: corrige el nombre de la cuenta y en la siguiente importación se enlazan solos.</p>
+            <p className="text-xs text-slate-500">Registros cuyo mentor o alumno no se ha podido reconocer (el nombre del formulario no coincide con ninguna cuenta). Elige a quién pertenece y pulsa «Guardar»: pasa a contar para ese mentor y ese alumno, y la importación ya no lo cambia. Si el mentor ya no tiene cuenta, «Archivar» lo quita de esta lista.</p>
+            <p className="text-xs text-slate-500">Esto ordena el campus. El pago al mentor se lleva en la hoja «Registro de sesión» → «Pagos».</p>
             {unassigned.length === 0 && <p className="text-sm text-slate-500">Todos los registros están enlazados.</p>}
-            {unassigned.slice(0, 100).map((log) => <LogCard key={log.id} log={log} review={reviews[log.id]} showMentor />)}
+            {unassigned.slice(0, 100).map((log) => (
+              <AssignCard key={log.id} log={log} review={reviews[log.id]} mentors={allMentors} students={allStudents} busy={busy}
+                onAssign={(m, st) => void assign(log, "asignar", m, st)} onArchive={() => void assign(log, "archivar")} />
+            ))}
+            {adjusted.length > 0 && (
+              <>
+                <h3 className="text-sm font-bold text-slate-800 pt-4">Ajustados a mano ({adjusted.length})</h3>
+                {adjusted.slice(0, 100).map((log) => (
+                  <div key={log.id} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0"><LogCard log={log} review={reviews[log.id]} showMentor /></div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[10px] text-slate-500">
+                        {log.manualStatus === "archivado" ? "Archivado" : `→ ${byId.get(log.mentorId ?? "")?.full_name ?? "?"} · ${byId.get(log.studentId ?? "")?.full_name ?? "?"}`}
+                      </p>
+                      <button disabled={busy} onClick={() => void assign(log, "automatico")} className="text-[11px] text-slate-400 hover:text-slate-700">Deshacer</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </section>
         )}
       </main>
@@ -420,6 +462,34 @@ function LogCard({ log, review, showMentor }: { log: SessionLog; review?: Review
         </dl>
       )}
     </article>
+  );
+}
+
+function AssignCard({ log, review, mentors, students, busy, onAssign, onArchive }: {
+  log: SessionLog; review?: Review; mentors: Person[]; students: Person[]; busy: boolean;
+  onAssign: (mentorId: string, studentId: string) => void; onArchive: () => void;
+}) {
+  const [mentorId, setMentorId] = useState(log.mentorId ?? "");
+  const [studentId, setStudentId] = useState(log.studentId ?? "");
+  return (
+    <div className="space-y-2 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
+      <LogCard log={log} review={review} showMentor />
+      <p className="text-[11px] text-amber-900 px-1">
+        En el formulario pone: mentor «{log.mentorName || "vacío"}»{log.mentorId ? " (reconocido)" : " (no reconocido)"} · alumno «{log.studentName || "vacío"}»{log.studentId ? " (reconocido)" : " (no reconocido)"}
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <select value={mentorId} onChange={(e) => setMentorId(e.target.value)} aria-label="Mentor" className="flex-1 p-2.5 rounded-xl border border-slate-200 bg-white text-xs">
+          <option value="">Elige el mentor…</option>
+          {mentors.map((m) => <option key={m.id} value={m.id}>{m.full_name}{m.username ? ` (${m.username})` : ""}</option>)}
+        </select>
+        <select value={studentId} onChange={(e) => setStudentId(e.target.value)} aria-label="Alumno" className="flex-1 p-2.5 rounded-xl border border-slate-200 bg-white text-xs">
+          <option value="">Elige el alumno…</option>
+          {students.map((st) => <option key={st.id} value={st.id}>{st.full_name}{st.username ? ` (${st.username})` : ""}</option>)}
+        </select>
+        <button disabled={busy || !mentorId || !studentId} onClick={() => onAssign(mentorId, studentId)} className="rounded-xl bg-cyan-800 px-3 py-2.5 text-[11px] font-semibold text-white hover:bg-cyan-900 disabled:opacity-50">Guardar</button>
+        <button disabled={busy} onClick={onArchive} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Archivar</button>
+      </div>
+    </div>
   );
 }
 
