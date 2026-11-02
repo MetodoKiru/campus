@@ -15,7 +15,8 @@ const NOTICE_DAYS = 7;
 
 type Plan = "mantener" | "subir" | "no_renueva";
 type Option = PrepayOption;
-type Sessions = { desde: string | null; hasta: string; previstas: number | null; hechas: number | null };
+type SessionItem = { fecha: string; mentor: string | null; trabajado: string | null; sustitucion: boolean };
+type Sessions = { desde: string | null; hasta: string; previstas: number | null; hechas: number | null; sesiones?: SessionItem[] };
 type Result = { plan: Plan | null; plan_source: "correo" | "campus" | null; paid_reported: boolean; closed: boolean; already: boolean };
 
 export function longDate(iso: string): string {
@@ -108,6 +109,7 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
   const [confirmNo, setConfirmNo] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [sessions, setSessions] = useState<Sessions | null>(null);
+  const [showSessions, setShowSessions] = useState(false);
   const firstName = studentName.split(" ")[0] || studentName;
 
   const reload = useCallback(async () => {
@@ -122,7 +124,7 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
     return () => { window.clearTimeout(first); document.removeEventListener("visibilitychange", onFocus); };
   }, [reload]);
 
-  // Sesiones del periodo pagado (solo el número; el registro es del mentor).
+  // Sesiones del periodo pagado: número y, de cada una, día, quién, sustitución y qué se trabajó.
   const renewalId = renewal?.id;
   const paidFrom = renewal?.paid_from;
   useEffect(() => {
@@ -232,6 +234,30 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
             </>
           ) : (
             <p className="text-sm text-[#45433F]"><strong>{sessions.hechas}</strong> {sessions.hechas === 1 ? "sesión hecha" : "sesiones hechas"} en este periodo.</p>
+          )}
+          {sessions.sesiones && sessions.sesiones.length > 0 && (
+            <div className="pt-1">
+              <button type="button" onClick={() => setShowSessions(v => !v)} aria-expanded={showSessions}
+                className="text-xs font-bold text-[#806C50] hover:underline">
+                {showSessions ? "Ocultar sesiones" : `Ver las ${sessions.sesiones.length === 1 ? "sesión" : `${sessions.sesiones.length} sesiones`}`}
+              </button>
+              {showSessions && (
+                <ul className="mt-2 divide-y divide-[#F1ECE3]">
+                  {sessions.sesiones.map((s, i) => (
+                    <li key={`${s.fecha}-${i}`} className="py-2 text-sm text-[#45433F]">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <strong className="text-[#292825]">{longDate(s.fecha)}</strong>
+                        {s.mentor && <span>· con {s.mentor}</span>}
+                        {s.sustitucion && (
+                          <span className="rounded-full bg-[#F7EBDD] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#8A5A2B]">Sustitución</span>
+                        )}
+                      </p>
+                      {s.trabajado && <p className="text-xs text-[#6B675F] mt-0.5">Trabajado: {s.trabajado}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
       )}

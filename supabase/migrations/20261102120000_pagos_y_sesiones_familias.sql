@@ -10,16 +10,17 @@
 -- · Sesiones: el script manda el inicio del periodo pagado (paid_from, la
 --   columna «Servicio desde») y las sesiones previstas según el horario, sin
 --   clase y recuperaciones. Las hechas se cuentan aquí, con los registros de
---   sesión del alumno en ese periodo (sin enseñar su contenido a la familia).
+--   sesión del alumno en ese periodo; de cada una la familia ve solo el día,
+--   quién la dio, si fue sustitución y qué se trabajó.
 --
--- Sin DROP: solo se añaden columnas, índices y funciones.
+-- Sin DROP ni borrados: solo se añaden columnas, índices y funciones.
 
 ALTER TABLE public.kiru_renewals
   ADD COLUMN paid_from date,
   ADD COLUMN sessions_planned smallint CHECK (sessions_planned BETWEEN 0 AND 400);
 
 ALTER TABLE public.kiru_payments
-  ADD COLUMN renewal_id uuid REFERENCES public.kiru_renewals(id) ON DELETE SET NULL;
+  ADD COLUMN renewal_id uuid; -- id de kiru_renewals (sin clave externa: así borrar un alumno no se bloquea)
 CREATE UNIQUE INDEX kiru_payments_renewal_uidx ON public.kiru_payments (renewal_id) WHERE renewal_id IS NOT NULL;
 -- Para saber qué pagos se han editado a mano en administración.
 CREATE TRIGGER kiru_payments_touch
@@ -180,6 +181,9 @@ BEGIN
     v_concept := CASE WHEN desde IS NOT NULL AND hasta IS NOT NULL
       THEN 'Mensualidad del ' || kiru_private.fecha_corta(desde) || ' al ' || kiru_private.fecha_corta(hasta)
       ELSE 'Pago del ' || kiru_private.fecha_corta(fecha) END;
+    -- Si se había anulado porque desapareció de la hoja y ha vuelto, se recupera.
+    UPDATE public.kiru_payments SET status = 'paid', notes = 'Cobro apuntado en Contabilidad.'
+    WHERE external_reference = ref AND status = 'cancelled' AND notes = 'Ya no está en Contabilidad.';
     CONTINUE WHEN EXISTS (SELECT 1 FROM public.kiru_payments WHERE external_reference = ref);
     -- ¿Había un aviso «ya he pagado» de esta familia sin confirmar?
     -- (primero el del mismo periodo: «Servicio desde» = fin de la mensualidad avisada)
@@ -199,9 +203,11 @@ BEGIN
       VALUES (p_student, v_concept, cents, desde, 'paid', fecha, ref, 'Cobro apuntado en Contabilidad.', author);
     END IF;
   END LOOP;
-  -- Filas que ya no están en la hoja (solo las que nadie ha editado en el campus).
-  DELETE FROM public.kiru_payments
-  WHERE student_id = p_student AND external_reference LIKE 'ingresos:%' AND renewal_id IS NULL
+  -- Filas que ya no están en la hoja (solo las que nadie ha editado en el campus):
+  -- se anulan y dejan de verse en el panel de la familia.
+  UPDATE public.kiru_payments
+  SET status = 'cancelled', notes = 'Ya no está en Contabilidad.'
+  WHERE student_id = p_student AND external_reference LIKE 'ingresos:%' AND renewal_id IS NULL AND status <> 'cancelled'
     AND NOT (external_reference = ANY (refs)) AND updated_at <= created_at + interval '2 seconds';
 END;
 $$;
@@ -278,8 +284,9 @@ BEGIN
 END;
 $$;
 
--- Sesiones del periodo pagado para la familia: solo el número, sin el
--- contenido de los registros (que es del mentor y de administración).
+-- Sesiones del periodo pagado para la familia: el número y, de cada una,
+-- solo el día, quién la dio, si fue sustitución y qué se trabajó (el resto
+-- del registro es del mentor y de administración; va en el informe).
 CREATE OR REPLACE FUNCTION public.kiru_family_sessions(p_renewal uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -290,19 +297,37 @@ AS $$
 DECLARE
   r public.kiru_renewals;
   done int;
+  list jsonb;
+  assigned uuid;
+  assigned_name text;
 BEGIN
   SELECT * INTO r FROM public.kiru_renewals WHERE id = p_renewal;
   IF NOT FOUND OR NOT ((SELECT kiru_private.is_admin()) OR kiru_private.is_guardian_of(r.student_id)) THEN
     RAISE EXCEPTION 'No encontramos esta mensualidad.' USING ERRCODE = '42501';
   END IF;
   IF r.paid_from IS NULL THEN
-    RETURN jsonb_build_object('desde', NULL, 'hasta', r.period_end, 'previstas', r.sessions_planned, 'hechas', NULL);
+    RETURN jsonb_build_object('desde', NULL, 'hasta', r.period_end, 'previstas', r.sessions_planned, 'hechas', NULL, 'sesiones', '[]'::jsonb);
   END IF;
-  SELECT count(DISTINCT l.session_date) INTO done
-  FROM public.kiru_session_logs l
-  WHERE l.student_id = r.student_id AND l.session_date >= r.paid_from AND l.session_date < r.period_end
-    AND l.manual_status IS DISTINCT FROM 'archivado';
-  RETURN jsonb_build_object('desde', r.paid_from, 'hasta', r.period_end, 'previstas', r.sessions_planned, 'hechas', done);
+  SELECT sm.mentor_id, lower(split_part(trim(coalesce(p.full_name, '')), ' ', 1)) INTO assigned, assigned_name
+  FROM public.student_mentors sm LEFT JOIN public.profiles p ON p.id = sm.mentor_id
+  WHERE sm.student_id = r.student_id;
+  WITH s AS (
+    SELECT l.session_date, l.mentor_id, nullif(trim(coalesce(l.mentor_name, '')), '') AS mentor,
+      (SELECT nullif(trim(e ->> 'a'), '') FROM jsonb_array_elements(CASE WHEN jsonb_typeof(l.answers) = 'array' THEN l.answers ELSE '[]'::jsonb END) e
+        WHERE e ->> 'q' ILIKE '%se ha trabajado hoy%' LIMIT 1) AS trabajado
+    FROM public.kiru_session_logs l
+    WHERE l.student_id = r.student_id AND l.session_date >= r.paid_from AND l.session_date < r.period_end
+      AND l.manual_status IS DISTINCT FROM 'archivado'
+  )
+  SELECT count(DISTINCT session_date),
+    coalesce(jsonb_agg(jsonb_build_object(
+      'fecha', session_date, 'mentor', mentor, 'trabajado', left(trabajado, 300),
+      'sustitucion', assigned IS NOT NULL AND CASE WHEN mentor_id IS NOT NULL THEN mentor_id <> assigned
+                                                   ELSE lower(split_part(coalesce(mentor, ''), ' ', 1)) <> assigned_name END
+    ) ORDER BY session_date), '[]'::jsonb)
+  INTO done, list
+  FROM s;
+  RETURN jsonb_build_object('desde', r.paid_from, 'hasta', r.period_end, 'previstas', r.sessions_planned, 'hechas', done, 'sesiones', list);
 END;
 $$;
 

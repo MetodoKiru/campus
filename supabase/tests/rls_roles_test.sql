@@ -316,16 +316,18 @@ select pg_temp.expect('precio y meses se mantienen', (select count(*) from kiru_
 select pg_temp.expect('el correo ve el pago adelantado', (select (kiru_renewal_from_email_months('p@t','Álvaro','2027-01-19','subir',3)->>'meses')::int), 3);
 reset role;
 -- Historial de pagos y sesiones del periodo.
-insert into kiru_session_logs (source_key, submitted_at, session_date, student_id, answers) values
-  ('t1', now(), '2027-01-05', (select id from ids where k='S1'), '{"nota":"privada"}'),
-  ('t2', now(), '2027-01-12', (select id from ids where k='S1'), '{}'),
-  ('t3', now(), '2026-12-10', (select id from ids where k='S1'), '{}');
+insert into kiru_session_logs (source_key, submitted_at, session_date, student_id, mentor_name, answers) values
+  ('t1', now(), '2027-01-05', (select id from ids where k='S1'), 'Paula', '[{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones"},{"q":"Observaciones","a":"privada"}]'),
+  ('t2', now(), '2027-01-12', (select id from ids where k='S1'), 'Otra Persona', '{}'),
+  ('t3', now(), '2026-12-10', (select id from ids where k='S1'), 'Paula', '{}');
 set local role service_role;
 select pg_temp.expect('sync con periodo pagado', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","datos":{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","desde":"2026-12-19","sesiones_previstas":8,"mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":350}}]')->'pendientes')) >= 0)::int, 1);
 reset role;
 select pg_temp.as_user('P');
 select pg_temp.expect('familia ve sesiones hechas', (select (kiru_family_sessions((select id from ren2))->>'hechas')::int), 2);
 select pg_temp.expect('y previstas', (select (kiru_family_sessions((select id from ren2))->>'previstas')::int), 8);
+select pg_temp.expect('lista de sesiones con lo trabajado', (select count(*) from jsonb_array_elements(kiru_family_sessions((select id from ren2))->'sesiones') x where x->>'trabajado' = 'Fracciones' and x->>'mentor' = 'Paula'), 1);
+select pg_temp.expect('sin el resto del registro', (select (kiru_family_sessions((select id from ren2))::text like '%privada%')::int), 0);
 select pg_temp.expect('familia no ve los registros', (select count(*) from kiru_session_logs), 0);
 reset role;
 select pg_temp.as_user('M');
@@ -349,10 +351,11 @@ select pg_temp.expect('el otro cobro entra nuevo', (select count(*) from kiru_pa
 select pg_temp.expect('repetir no duplica', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","pagos":[{"ref":"aaaaaaaa11","fecha":"2027-02-18","importe":"350"},{"ref":"bbbbbbbb22","fecha":"2027-01-18","importe":"350"},{"ref":"cccccccc33","fecha":"2026-12-18","importe":"350"}]}]')->'pendientes')) >= 0)::int, 1);
 select pg_temp.expect('tres cobros de la hoja', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 3);
 select pg_temp.expect('fila borrada en la hoja se quita', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","pagos":[{"ref":"aaaaaaaa11","fecha":"2027-02-18","importe":"350"},{"ref":"bbbbbbbb22","fecha":"2027-01-18","importe":"350"}]}]')->'pendientes')) >= 0)::int, 1);
-select pg_temp.expect('quedan los dos', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 2);
+select pg_temp.expect('quedan los dos', (select count(*) from kiru_payments where external_reference like 'ingresos:%' and status <> 'cancelled'), 2);
+select pg_temp.expect('la quitada queda anulada, no borrada', (select count(*) from kiru_payments where external_reference='ingresos:cccccccc33' and status='cancelled'), 1);
 reset role;
 select pg_temp.as_user('P');
-select pg_temp.expect('la familia ve su historial', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 2);
+select pg_temp.expect('la familia ve su historial', (select count(*) from kiru_payments where external_reference like 'ingresos:%' and status <> 'cancelled'), 2);
 select pg_temp.expect_denied('la familia no edita pagos', $q$insert into kiru_payments (student_id, concept, amount_cents, created_by) values ((select id from ids where k='S1'),'x',1,(select id from ids where k='P'))$q$);
 reset role;
 set local role anon;

@@ -167,7 +167,7 @@ export default function PadrePage() {
         }));
         setDocs(mappedDocs);
         setNotices((noticesResult.data || []).filter((notice) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) ?? "" : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url ?? undefined, linkTitle: notice.link_title ?? undefined })));
-        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment): PaymentRecord => ({
+        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id) && payment.status !== "cancelled" && payment.status !== "refunded").map((payment): PaymentRecord => ({
           id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100,
           // Pagados: el día del cobro. El resto: la fecha límite.
           dueDate: shortDate(payment.status === "paid" ? payment.paid_at || payment.due_date : payment.due_date),
