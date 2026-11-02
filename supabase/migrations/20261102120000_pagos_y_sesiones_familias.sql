@@ -13,7 +13,7 @@
 --   sesión del alumno en ese periodo; de cada una la familia ve solo el día,
 --   quién la dio, si fue sustitución y qué se trabajó.
 --
--- Sin DROP ni borrados: solo se añaden columnas, índices y funciones.
+-- Solo se añaden columnas, índices y funciones (nada se quita).
 
 ALTER TABLE public.kiru_renewals
   ADD COLUMN paid_from date,
