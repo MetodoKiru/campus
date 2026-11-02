@@ -315,6 +315,46 @@ select pg_temp.expect('sincronizar otra vez no cambia lo elegido', (select jsonb
 select pg_temp.expect('precio y meses se mantienen', (select count(*) from kiru_renewals where period_end='2027-01-19' and months=3 and keep_price=350 and prepay ? 'mantener'), 1);
 select pg_temp.expect('el correo ve el pago adelantado', (select (kiru_renewal_from_email_months('p@t','Álvaro','2027-01-19','subir',3)->>'meses')::int), 3);
 reset role;
+-- Historial de pagos y sesiones del periodo.
+insert into kiru_session_logs (source_key, submitted_at, session_date, student_id, answers) values
+  ('t1', now(), '2027-01-05', (select id from ids where k='S1'), '{"nota":"privada"}'),
+  ('t2', now(), '2027-01-12', (select id from ids where k='S1'), '{}'),
+  ('t3', now(), '2026-12-10', (select id from ids where k='S1'), '{}');
+set local role service_role;
+select pg_temp.expect('sync con periodo pagado', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","datos":{"email":"P@t","alumno":"Álvaro","fin":"2027-01-19","desde":"2026-12-19","sesiones_previstas":8,"mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":350}}]')->'pendientes')) >= 0)::int, 1);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('familia ve sesiones hechas', (select (kiru_family_sessions((select id from ren2))->>'hechas')::int), 2);
+select pg_temp.expect('y previstas', (select (kiru_family_sessions((select id from ren2))->>'previstas')::int), 8);
+select pg_temp.expect('familia no ve los registros', (select count(*) from kiru_session_logs), 0);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect_denied('mentor no ve sesiones de la familia', $q$select kiru_family_sessions((select id from ren2))$q$);
+reset role;
+-- «Ya he pagado» en una renovación nueva: va al historial como por confirmar.
+set local role service_role;
+select pg_temp.expect('nueva mensualidad', (select (kiru_renewal_publish('{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","mantener_etiqueta":"Mantener 2 días por semana","mantener_precio":350}')->>'found')::boolean::int), 1);
+reset role;
+create temp table ren3 as select id from kiru_renewals where period_end='2027-02-19';
+grant select on ren3 to authenticated, service_role;
+select pg_temp.as_user('P');
+select pg_temp.expect('familia avisa del pago', (select (kiru_renewal_report_paid((select id from ren3))->>'already')::boolean::int), 0);
+select pg_temp.expect('aparece por confirmar en su historial', (select count(*) from kiru_payments where renewal_id=(select id from ren3) and status='pending' and amount_cents=35000), 1);
+select pg_temp.expect('segundo aviso no duplica', (select (kiru_renewal_report_paid((select id from ren3))->>'already')::boolean::int), 1);
+reset role;
+set local role service_role;
+select pg_temp.expect('el cobro de Ingresos confirma el aviso', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","pagos":[{"ref":"aaaaaaaa11","fecha":"2027-02-18","importe":"350","desde":"2027-02-19","hasta":"2027-03-19"},{"ref":"bbbbbbbb22","fecha":"2027-01-18","importe":"350","desde":"2027-01-19","hasta":"2027-02-19"}]}]')->'pendientes')) >= 0)::int, 1);
+select pg_temp.expect('aviso convertido en cobro, sin duplicar', (select count(*) from kiru_payments where renewal_id=(select id from ren3) and status='paid' and external_reference='ingresos:aaaaaaaa11'), 1);
+select pg_temp.expect('el otro cobro entra nuevo', (select count(*) from kiru_payments where external_reference='ingresos:bbbbbbbb22' and status='paid'), 1);
+select pg_temp.expect('repetir no duplica', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","pagos":[{"ref":"aaaaaaaa11","fecha":"2027-02-18","importe":"350"},{"ref":"bbbbbbbb22","fecha":"2027-01-18","importe":"350"},{"ref":"cccccccc33","fecha":"2026-12-18","importe":"350"}]}]')->'pendientes')) >= 0)::int, 1);
+select pg_temp.expect('tres cobros de la hoja', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 3);
+select pg_temp.expect('fila borrada en la hoja se quita', ((select jsonb_array_length(kiru_renewal_sync('[{"email":"P@t","alumno":"Álvaro","fin":"2027-02-19","pagos":[{"ref":"aaaaaaaa11","fecha":"2027-02-18","importe":"350"},{"ref":"bbbbbbbb22","fecha":"2027-01-18","importe":"350"}]}]')->'pendientes')) >= 0)::int, 1);
+select pg_temp.expect('quedan los dos', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 2);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('la familia ve su historial', (select count(*) from kiru_payments where external_reference like 'ingresos:%'), 2);
+select pg_temp.expect_denied('la familia no edita pagos', $q$insert into kiru_payments (student_id, concept, amount_cents, created_by) values ((select id from ids where k='S1'),'x',1,(select id from ids where k='P'))$q$);
+reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve renovaciones', $q$select * from kiru_renewals$q$);
 reset role;

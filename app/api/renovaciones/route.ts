@@ -25,6 +25,21 @@ function prepayOptions(value: unknown) {
   });
 }
 
+/** Cobros de «Ingresos» de una familia (para su historial de pagos). */
+function sheetPayments(items: unknown[]) {
+  return items.slice(0, 200).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const p = item as Record<string, unknown>;
+    const ref = text(p.ref, 64);
+    const fecha = text(p.fecha, 10);
+    const importe = money(p.importe);
+    if (!/^[0-9a-f]{8,64}$/.test(ref) || !DATE.test(fecha) || importe === null) return [];
+    const desde = DATE.test(text(p.desde, 10)) ? text(p.desde, 10) : "";
+    const hasta = DATE.test(text(p.hasta, 10)) ? text(p.hasta, 10) : "";
+    return [{ ref, fecha, importe: String(importe), desde, hasta }];
+  });
+}
+
 /** Datos de la mensualidad que manda el script (al publicar y en cada sincronización). */
 function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
   const prepay = body.adelantado && typeof body.adelantado === "object" ? body.adelantado as Record<string, unknown> : {};
@@ -40,6 +55,10 @@ function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
     pago: text(body.pago, 800),
     llamada: /^https:\/\//.test(text(body.llamada, 300)) ? text(body.llamada, 300) : "",
     adelantado: { mantener: prepayOptions(prepay.mantener), subir: prepayOptions(prepay.subir) },
+    // Periodo pagado en curso: «Servicio desde» y sesiones previstas según el horario.
+    desde: DATE.test(text(body.desde, 10)) ? text(body.desde, 10) : "",
+    sesiones_previstas: Number.isInteger(Number(body.sesionesPrevistas)) && Number(body.sesionesPrevistas) >= 0 && body.sesionesPrevistas !== "" && body.sesionesPrevistas != null
+      ? Math.min(Number(body.sesionesPrevistas), 400) : "",
     // Lo que ya estuviera apuntado en la hoja para este periodo (solo al publicar).
     plan: fromSheet && ["mantener", "subir", "no_renueva"].includes(text(body.plan, 20)) ? text(body.plan, 20) : "",
     meses: fromSheet && Number.isInteger(Number(body.meses)) ? Number(body.meses) : 1,
@@ -119,7 +138,8 @@ export async function POST(request: Request) {
       if (!text(f.email) || !text(f.alumno) || !DATE.test(fin)) return [];
       // Con «datos», la mensualidad en curso queda siempre visible en el panel (sin campanita).
       const datos = f.datos && typeof f.datos === "object" && !Array.isArray(f.datos) ? renewalData(f.datos as Record<string, unknown>, false) : null;
-      return [{ email: text(f.email, 254), alumno: text(f.alumno, 120), fin, ...(datos ? { datos } : {}) }];
+      const pagos = Array.isArray(f.pagos) ? sheetPayments(f.pagos) : null;
+      return [{ email: text(f.email, 254), alumno: text(f.alumno, 120), fin, ...(datos ? { datos } : {}), ...(pagos ? { pagos } : {}) }];
     });
     const { data: result, error } = await admin.rpc("kiru_renewal_sync", { p_families: families as unknown as Json });
     if (error) return NextResponse.json({ error: "No se pudo sincronizar." }, { status: 500 });
