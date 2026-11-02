@@ -100,6 +100,7 @@ export type PaymentRow = {
   external_reference: string | null;
   notes: string | null;
   created_by: string;
+  renewal_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -329,6 +330,8 @@ export type RenewalRow = {
   plan_at: string | null;
   plan_by: string | null;
   months: number;
+  paid_from: string | null;
+  sessions_planned: number | null;
   prepay: { mantener?: PrepayOption[]; subir?: PrepayOption[] };
   paid_reported_at: string | null;
   paid_source: "correo" | "campus" | null;
@@ -359,7 +362,7 @@ export type Database = {
       kiru_notices: Table<NoticeRow, Timestamps | "id" | "published_at" | "target_student_id" | "link_url" | "link_title" | "attachment_path">;
       kiru_documents: Table<DocumentRow, Timestamps | "id" | "document_type" | "target_student_id" | "file_size" | "requires_acceptance">;
       kiru_document_acceptances: Table<DocumentAcceptanceRow, "id" | "accepted_at">;
-      kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes">;
+      kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes" | "renewal_id">;
       kiru_flashcard_sets: Table<FlashcardSetRow, Timestamps | "id" | "subject" | "source_file_name" | "source_storage_path" | "source_mime_type" | "source_size_bytes" | "generation_method" | "status">;
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
       kiru_coordinator_mentors: Table<CoordinatorMentorRow, "assigned_at">;
@@ -374,7 +377,7 @@ export type Database = {
       kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
-      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
+      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "paid_from" | "sessions_planned" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
     };
@@ -400,6 +403,7 @@ export type Database = {
       kiru_renewal_from_email_months: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months: number }; Returns: Json };
       kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
       kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
+      kiru_family_sessions: { Args: { p_renewal: string }; Returns: Json };
       kiru_missing_sc_weeks: {
         Args: { p_weeks?: number };
         Returns: MissingScWeekRow[];

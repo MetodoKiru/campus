@@ -13,6 +13,14 @@
  * la fecha de fin de la pestaña «Familias» avanza.
  * En modo «borrador» los correos quedan en Borradores de Gmail.
  *
+ * NUEVO (02/11/2026): en el panel de la familia también se ven
+ *  - su historial de pagos: los cobros de «Ingresos» cuyo concepto lleva el
+ *    nombre del alumno (los mismos que hacen avanzar la fecha de fin), y lo
+ *    que avisen con «Ya he pagado» («por confirmar» hasta que entra el cobro);
+ *  - las sesiones del periodo pagado: hechas (Registro de sesión) y previstas
+ *    según su horario («Horarios»), quitando «Sin clase» y contando
+ *    «Recuperaciones». Del periodo vale «Servicio desde» hasta la fecha de fin.
+ *
  * NUEVO (31/10/2026, 2): la mensualidad en curso está siempre en el panel de
  * la familia, que puede dejar pagado el mes siguiente cuando quiera, o varios
  * meses por adelantado con los descuentos de la web (3 meses −5 %, 6 meses
@@ -552,6 +560,8 @@ function datosCampus_(fam, cfg) {
     pago: textoPlano_(bloquePago_(cfg, primerNombre_(fam.alumno), MESES[fam.fin.getMonth()])),
     llamada: cfg.calendly,
     adelantado: adelantado_(fam, cfg),
+    desde: fam.desde ? ymd_(fam.desde) : '',
+    sesionesPrevistas: fam.sesionesPrevistas === '' || fam.sesionesPrevistas == null ? '' : fam.sesionesPrevistas,
   };
 }
 
@@ -611,12 +621,23 @@ function sincronizarRenovacionesCampus() {
     const datos = sh.getRange(1, 1, sh.getLastRow(), Math.max(sh.getLastColumn(), COL.DICE_PAGADO)).getValues();
     const familias = [];
     const desde = sumarDias_(hoy_(), -5);
+    const ingresos = ingresos_();
+    const cal = calendarioRegistro_();
     for (let i = 1; i < datos.length; i++) {
       const fam = leerFamilia_(datos[i]);
       if (!fam.alumno || !fam.email || !fam.fin) continue;
       const item = { alumno: fam.alumno, email: fam.email, fin: ymd_(fam.fin) };
-      // Mensualidad en curso: siempre visible en el panel de la familia (sin campanita).
-      if (fam.fin >= desde) item.datos = datosCampus_(fam, cfg);
+      const suyos = ingresosDe_(ingresos, fam.alumno);
+      // Historial de pagos de la familia (cobros de «Ingresos»).
+      if (ingresos) item.pagos = suyos.map(pagoCampus_);
+      // Mensualidad en curso: siempre visible en el panel de la familia (sin campanita),
+      // con el periodo pagado y las sesiones previstas en él.
+      if (fam.fin >= desde) {
+        const vigente = suyos.filter(x => x.hasta && mismoDia_(x.hasta, fam.fin) && x.desde)[0];
+        fam.desde = vigente ? vigente.desde : null;
+        fam.sesionesPrevistas = fam.desde ? sesionesPrevistas_(cal, fam.alumno, fam.desde, fam.fin) : '';
+        item.datos = datosCampus_(fam, cfg);
+      }
       familias.push(item);
     }
     const r = campus_({ accion: 'sincronizar', familias: familias });
@@ -649,6 +670,82 @@ function sincronizarRenovacionesCampus() {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ================= PAGOS Y SESIONES (panel de la familia) ================= */
+
+// Cobros de la pestaña «Ingresos» (o null si no se puede leer).
+function ingresos_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Ingresos');
+  if (!sh) return null;
+  const filas = sh.getDataRange().getValues();
+  const cab = filas[0].map(norm_);
+  const col = t => cab.indexOf(norm_(t));
+  const iF = col('Fecha'), iC = col('Concepto'), iI = col('Importe'), iE = col('estado'), iD = col('Servicio desde'), iH = col('Servicio hasta');
+  if (iF < 0 || iC < 0 || iI < 0) return null;
+  return filas.slice(1).map(r => ({
+    fecha: aFecha_(r[iF]), concepto: String(r[iC] || ''), importe: numero_(r[iI]),
+    estado: iE >= 0 ? norm_(r[iE]) : '', desde: iD >= 0 ? aFecha_(r[iD]) : null, hasta: iH >= 0 ? aFecha_(r[iH]) : null,
+  })).filter(x => x.fecha && x.importe > 0);
+}
+
+// Los del alumno: el concepto lleva su nombre (igual que la fórmula de la fecha de fin).
+// Solo cobrados (o sin estado); no los marcados como pendientes, anulados o devueltos.
+function ingresosDe_(ingresos, alumno) {
+  if (!ingresos) return [];
+  const a = norm_(alumno);
+  return ingresos.filter(x => a && norm_(x.concepto).indexOf(a) >= 0
+    && !/^(pendiente|anulad|cancelad|devuelt)/.test(x.estado));
+}
+
+function pagoCampus_(x) {
+  const clave = [ymd_(x.fecha), x.importe, x.desde ? ymd_(x.desde) : '', x.hasta ? ymd_(x.hasta) : '', norm_(x.concepto)].join('|');
+  const ref = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, clave, Utilities.Charset.UTF_8)
+    .map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('').slice(0, 32);
+  return { ref: ref, fecha: ymd_(x.fecha), importe: x.importe, desde: x.desde ? ymd_(x.desde) : '', hasta: x.hasta ? ymd_(x.hasta) : '' };
+}
+
+function numero_(v) {
+  if (typeof v === 'number') return v;
+  return parseFloat(String(v || '').replace(/[€\s.]/g, '').replace(',', '.')) || 0;
+}
+
+// Horario, días sin clase y recuperaciones del Registro de sesión.
+function calendarioRegistro_() {
+  let ss;
+  try { ss = SpreadsheetApp.openById(CFG.REGISTRO_ID); } catch (e) { return null; }
+  const leer = nombre => { const h = ss.getSheetByName(nombre); return h ? h.getDataRange().getValues().slice(1) : []; };
+  return {
+    horarios: leer('Horarios').map(r => ({ mentor: norm_(r[0]), alumno: norm_(r[2]), dia: norm_(r[3]), activo: norm_(r[6]).indexOf('s') === 0 }))
+      .filter(h => h.alumno && h.dia && h.activo),
+    sinClase: leer('Sin clase').map(r => ({ fecha: aFecha_(r[0]), mentor: norm_(r[1]), alumno: norm_(r[2]) })).filter(x => x.fecha),
+    recuperaciones: leer('Recuperaciones').map(r => ({ original: aFecha_(r[0]), mentor: norm_(r[1]), alumno: norm_(r[2]), nueva: aFecha_(r[3]) })),
+  };
+}
+
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+// Sesiones previstas entre «desde» (incluido) y «hasta» (no incluido):
+// las del horario, menos los días sin clase, más las recuperaciones.
+function sesionesPrevistas_(cal, alumno, desde, hasta) {
+  if (!cal) return '';
+  const a = norm_(alumno);
+  const esSuyo = n => !!n && (n === a || n.indexOf(a + ' ') === 0 || a.indexOf(n + ' ') === 0);
+  const horario = cal.horarios.filter(h => esSuyo(h.alumno));
+  if (!horario.length) return '';
+  const dentro = d => d && d >= desde && d < hasta;
+  let n = 0;
+  for (let d = new Date(desde); d < hasta; d = sumarDias_(d, 1)) {
+    horario.forEach(h => {
+      if (h.dia !== DIAS_SEMANA[d.getDay()]) return;
+      const sinClase = cal.sinClase.some(x => mismoDia_(x.fecha, d) && (!x.mentor || x.mentor === h.mentor) && (!x.alumno || esSuyo(x.alumno)));
+      const movida = cal.recuperaciones.some(x => x.original && mismoDia_(x.original, d) && esSuyo(x.alumno));
+      if (!sinClase && !movida) n++;
+    });
+  }
+  // Recuperaciones (y clases extra) dentro del periodo.
+  n += cal.recuperaciones.filter(x => esSuyo(x.alumno) && dentro(x.nueva)).length;
+  return n;
 }
 
 /* ================= PLANES Y CONFIGURACIÓN ================= */

@@ -51,8 +51,14 @@ interface PaymentRecord {
   concept: string;
   amount: number;
   dueDate: string;
-  status: "Pagado" | "Pendiente";
+  status: "Pagado" | "Pendiente" | "Por confirmar";
   payLink: string;
+}
+
+/** Fecha corta para el historial (aaaa-mm-dd → dd/mm/aaaa). */
+function shortDate(value: string | null): string {
+  const m = (value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
 
 const FALLBACK_CHILDREN: Child[] = [];
@@ -161,7 +167,14 @@ export default function PadrePage() {
         }));
         setDocs(mappedDocs);
         setNotices((noticesResult.data || []).filter((notice) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) ?? "" : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url ?? undefined, linkTitle: notice.link_title ?? undefined })));
-        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
+        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id) && payment.status !== "cancelled" && payment.status !== "refunded").map((payment): PaymentRecord => ({
+          id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100,
+          // Pagados: el día del cobro. El resto: la fecha límite.
+          dueDate: shortDate(payment.status === "paid" ? payment.paid_at || payment.due_date : payment.due_date),
+          // «Ya he pagado» desde la renovación: lo ve como avisado hasta que se confirma el cobro.
+          status: payment.status === "paid" ? "Pagado" : payment.renewal_id ? "Por confirmar" : "Pendiente",
+          payLink: payment.payment_url || "",
+        })));
         const accepted: Record<string, { user: string; date: string }> = {};
         for (const row of acceptanceResult.data || []) if (allowedIds.has(row.student_id)) accepted[row.document_id] = { user: "Familia", date: new Date(row.accepted_at).toLocaleString("es-ES") };
         setAcceptedLog(accepted);
@@ -561,7 +574,7 @@ export default function PadrePage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Mis pagos</h3>
-                <p className="text-xs text-[#77736B]">Historial de facturación y cuotas de acompañamiento.</p>
+                <p className="text-xs text-[#77736B]">Historial de facturación y cuotas de acompañamiento. Cuando nos avisáis con «Ya he pagado», el pago aparece aquí «por confirmar» hasta que lo comprobamos.</p>
               </div>
 
               {pendingPayment && (
@@ -603,6 +616,9 @@ export default function PadrePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#EEEAE3]">
+                      {!currentChildPayments.length && (
+                        <tr><td colSpan={4} className="py-4 text-center text-[#8D887F]">Todavía no hay pagos registrados.</td></tr>
+                      )}
                       {currentChildPayments.map((pay) => (
                         <tr key={pay.id}>
                           <td className="py-3 text-[#77736B]">{pay.dueDate}</td>

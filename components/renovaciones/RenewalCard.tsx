@@ -15,6 +15,8 @@ const NOTICE_DAYS = 7;
 
 type Plan = "mantener" | "subir" | "no_renueva";
 type Option = PrepayOption;
+type SessionItem = { fecha: string; mentor: string | null; trabajado: string | null; sustitucion: boolean };
+type Sessions = { desde: string | null; hasta: string; previstas: number | null; hechas: number | null; sesiones?: SessionItem[] };
 type Result = { plan: Plan | null; plan_source: "correo" | "campus" | null; paid_reported: boolean; closed: boolean; already: boolean };
 
 export function longDate(iso: string): string {
@@ -106,6 +108,8 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
   const [expanded, setExpanded] = useState(false);
   const [confirmNo, setConfirmNo] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [sessions, setSessions] = useState<Sessions | null>(null);
+  const [showSessions, setShowSessions] = useState(false);
   const firstName = studentName.split(" ")[0] || studentName;
 
   const reload = useCallback(async () => {
@@ -119,6 +123,18 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
     document.addEventListener("visibilitychange", onFocus);
     return () => { window.clearTimeout(first); document.removeEventListener("visibilitychange", onFocus); };
   }, [reload]);
+
+  // Sesiones del periodo pagado: número y, de cada una, día, quién, sustitución y qué se trabajó.
+  const renewalId = renewal?.id;
+  const paidFrom = renewal?.paid_from;
+  useEffect(() => {
+    if (!renewalId || !paidFrom) { const t = window.setTimeout(() => setSessions(null), 0); return () => window.clearTimeout(t); }
+    let active = true;
+    void supabase.rpc("kiru_family_sessions", { p_renewal: renewalId }).then(({ data, error }) => {
+      if (active) setSessions(error ? null : (data as Sessions));
+    });
+    return () => { active = false; };
+  }, [renewalId, paidFrom]);
 
   const act = async (call: () => PromiseLike<{ data: unknown; error: unknown }>, ok: string) => {
     if (!renewal) return;
@@ -199,6 +215,52 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
           </p>
         </div>
       </div>
+
+      {sessions && sessions.desde && sessions.hechas !== null && (
+        <div className="rounded-2xl bg-white border border-[#EADFCF] px-4 py-3 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8D887F]">
+            Sesiones del {longDate(sessions.desde)} al {longDate(sessions.hasta)}
+          </p>
+          {sessions.previstas !== null && sessions.previstas > 0 ? (
+            <>
+              <p className="text-sm text-[#45433F]">
+                <strong className="font-serif text-lg text-[#292825]">{Math.min(sessions.hechas, sessions.previstas)}</strong> de {sessions.previstas} hechas
+                {" · "}quedan <strong>{Math.max(sessions.previstas - sessions.hechas, 0)}</strong>
+              </p>
+              <div className="h-1.5 rounded-full bg-[#F1ECE3] overflow-hidden" aria-hidden="true">
+                <div className="h-full bg-[#806C50]" style={{ width: `${Math.min(100, Math.round((sessions.hechas / sessions.previstas) * 100))}%` }} />
+              </div>
+              <p className="text-[11px] text-[#8D887F]">Según vuestro horario, sin contar festivos ni vacaciones acordadas. Las recuperaciones también cuentan.</p>
+            </>
+          ) : (
+            <p className="text-sm text-[#45433F]"><strong>{sessions.hechas}</strong> {sessions.hechas === 1 ? "sesión hecha" : "sesiones hechas"} en este periodo.</p>
+          )}
+          {sessions.sesiones && sessions.sesiones.length > 0 && (
+            <div className="pt-1">
+              <button type="button" onClick={() => setShowSessions(v => !v)} aria-expanded={showSessions}
+                className="text-xs font-bold text-[#806C50] hover:underline">
+                {showSessions ? "Ocultar sesiones" : `Ver las ${sessions.sesiones.length === 1 ? "sesión" : `${sessions.sesiones.length} sesiones`}`}
+              </button>
+              {showSessions && (
+                <ul className="mt-2 divide-y divide-[#F1ECE3]">
+                  {sessions.sesiones.map((s, i) => (
+                    <li key={`${s.fecha}-${i}`} className="py-2 text-sm text-[#45433F]">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <strong className="text-[#292825]">{longDate(s.fecha)}</strong>
+                        {s.mentor && <span>· con {s.mentor}</span>}
+                        {s.sustitucion && (
+                          <span className="rounded-full bg-[#F7EBDD] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#8A5A2B]">Sustitución</span>
+                        )}
+                      </p>
+                      {s.trabajado && <p className="text-xs text-[#6B675F] mt-0.5">Trabajado: {s.trabajado}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!open && (
         <div className="space-y-2">
