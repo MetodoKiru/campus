@@ -9,6 +9,8 @@ import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
 import OffersPanel from "@/components/offers/OffersPanel";
+import AdminOpportunities from "@/components/growth/AdminOpportunities";
+import AdminOnboardingExceptions from "@/components/growth/AdminOnboardingExceptions";
 import { 
   UserPlus, 
   Trash2, 
@@ -26,7 +28,9 @@ import {
   Download,
   GraduationCap,
   Compass,
-  Coins
+  Coins,
+  Sprout,
+  UserCheck
 } from "lucide-react";
 
 interface UserAccount {
@@ -123,7 +127,7 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas">("usuarios");
+  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -637,10 +641,30 @@ export default function AdminPage() {
             <Users className="w-3.5 h-3.5" />
             <span>Propuestas a mentores</span>
           </button>
+          <button
+            onClick={() => setActiveTab("incorporacion")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "incorporacion" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Autorizaciones de mentores</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("crece")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "crece" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Sprout className="w-3.5 h-3.5" />
+            <span>Crece con Kiru</span>
+          </button>
         </div>
 
         {activeTab === "skillcoins" && <AdminSkillcoins />}
         {activeTab === "propuestas" && <OffersPanel notify={notifyOffers} />}
+        {activeTab === "incorporacion" && <AdminOnboardingExceptions notify={notifyOffers} />}
+        {activeTab === "crece" && <AdminOpportunities notify={notifyOffers} />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}
         {activeTab === "usuarios" && (

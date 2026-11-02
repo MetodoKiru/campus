@@ -2,6 +2,10 @@
 
 export type StepId = "certificado" | "nuestro_equipo" | "llamadas" | "asignacion";
 
+/** Apartados del menú ☰ que se abren al completar la incorporación. */
+export type MentorSection = "reuniones" | "crece";
+export const MENTOR_SECTIONS: MentorSection[] = ["reuniones", "crece"];
+
 /** Estados que se enseñan al mentor. Cada uno sale de un dato real de la base. */
 export type StepStatus = "pendiente" | "en_curso" | "enviado" | "en_revision" | "completado" | "requiere_correccion";
 
@@ -56,4 +60,10 @@ export type MentorPanelData = {
   teamFormUrl: string;
   /** Formulario de llamadas en Jotform: vacío hasta que se definan sus campos. */
   callsFormUrl: string;
+  /**
+   * «Reuniones con tu coordinador» y «Crece con Kiru» se abren con la
+   * incorporación completa o con una autorización expresa de administración
+   * (que no cambia el estado de los pasos).
+   */
+  growth: { unlocked: boolean; onboardingComplete: boolean; viaException: boolean };
 };

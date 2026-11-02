@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/server/require-staff";
 import { linkOffersToMentor } from "@/lib/server/assignment-offers";
+import { mentorGrowthAccess } from "@/lib/server/growth";
 import type { MentorPanelData, MentorOffer, StepStatus } from "@/lib/mentor-steps";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   // Propuestas que llegaron antes de que el correo del mentor tuviera cuenta.
   if (user.email) await linkOffersToMentor(admin, user.id, user.email);
 
-  const [stepsResult, onboardingResult, offersResult, profileResult] = await Promise.all([
+  const [stepsResult, onboardingResult, offersResult, profileResult, access] = await Promise.all([
     admin.from("kiru_mentor_steps").select("step,status,submitted_at,reviewed_at,review_note,holder_name,document_path").eq("mentor_id", user.id),
     admin.from("kiru_mentor_onboarding").select("certificate_checked_at").eq("profile_id", user.id).is("archived_at", null).maybeSingle(),
     admin.from("kiru_assignment_offers")
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
       .order("sent_at", { ascending: false })
       .limit(50),
     admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    mentorGrowthAccess(admin, user.id),
   ]);
   if (stepsResult.error || onboardingResult.error || offersResult.error || profileResult.error) {
     return NextResponse.json({ error: "No se pudo cargar tu progreso." }, { status: 500 });
@@ -89,6 +91,7 @@ export async function GET(request: Request) {
     certificate: { holderName: certificateRow?.holder_name ?? "", hasDocument: Boolean(certificateRow?.document_path) },
     teamFormUrl: TEAM_FORM_URL,
     callsFormUrl,
+    growth: { unlocked: access.unlocked, onboardingComplete: access.onboardingComplete, viaException: !access.onboardingComplete && access.exceptionActive },
   };
   return NextResponse.json(data);
 }
