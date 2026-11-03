@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, Chev
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import OffersPanel from "@/components/offers/OffersPanel";
+import CoordinatorReportsPanel from "@/components/reports/CoordinatorReportsPanel";
 import CoordinatorMeetings from "@/components/coordination/CoordinatorMeetings";
 import CoordinatorRecommendations from "@/components/coordination/CoordinatorRecommendations";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
@@ -55,7 +56,7 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece">("mentores");
+  const [tab, setTab] = useState<"mentores" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes">("mentores");
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState("todos");
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -261,6 +262,7 @@ export default function CoordinadorPage() {
             <TabButton active={tab === "mentores"} onClick={() => setTab("mentores")} icon={<Users className="w-3.5 h-3.5" />} label="Mis mentores" />
             <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
             <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
+            <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
             <TabButton active={tab === "reuniones"} onClick={() => setTab("reuniones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Reuniones de coordinación" />
             {!me.isAdmin && <TabButton active={tab === "crece"} onClick={() => setTab("crece")} icon={<Sprout className="w-3.5 h-3.5" />} label="Crece con Kiru" />}
@@ -276,6 +278,7 @@ export default function CoordinadorPage() {
         </div>
 
         {tab === "propuestas" && <OffersPanel notify={notifyOffers} />}
+        {tab === "informes" && <CoordinatorReportsPanel />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}
         {tab === "crece" && !me.isAdmin && <CoordinatorRecommendations notify={notifyOffers} />}
 
