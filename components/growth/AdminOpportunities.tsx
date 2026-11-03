@@ -14,9 +14,9 @@ type Data = { opportunities: AdminOpportunity[]; applications: Application[]; re
 
 type Form = {
   title: string; area: OpportunityArea | ""; description: string; functions: string; requirements: string;
-  dedication: string; modality: string; remuneration: string; remunerationAuthorized: boolean; deadline: string;
+  dedication: string; modality: string; remuneration: string; remunerationAuthorized: boolean; positionsCount: string; deadline: string;
 };
-const EMPTY: Form = { title: "", area: "", description: "", functions: "", requirements: "", dedication: "", modality: "", remuneration: "", remunerationAuthorized: false, deadline: "" };
+const EMPTY: Form = { title: "", area: "", description: "", functions: "", requirements: "", dedication: "", modality: "", remuneration: "", remunerationAuthorized: false, positionsCount: "", deadline: "" };
 
 const input = "w-full rounded-2xl border border-slate-200 bg-[#F7F6F3] p-3 text-xs text-slate-900 focus:outline-none";
 const label = "block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1";
@@ -27,6 +27,7 @@ const STATUS_STYLE: Record<OpportunityStatus, string> = {
   borrador: "bg-slate-100 text-slate-600",
   publicada: "bg-emerald-100 text-emerald-800",
   cerrada: "bg-rose-50 text-rose-700",
+  completada: "bg-slate-200 text-slate-700",
 };
 
 /**
@@ -79,7 +80,7 @@ export default function AdminOpportunities({ notify }: { notify: Notify }) {
       : await run(() => api("/api/admin/oportunidades", { method: "POST", body: { ...editing.form, publish } }), publish ? "Oportunidad publicada. Ya la ven los mentores." : "Guardada como borrador (no la ve nadie).");
     if (ok) setEditing(null);
   };
-  const act = (o: AdminOpportunity, action: "publicar" | "cerrar" | "reabrir", ok: string) =>
+  const act = (o: AdminOpportunity, action: "publicar" | "cerrar" | "reabrir" | "completar", ok: string) =>
     run(() => api(`/api/admin/oportunidades/${o.id}`, { method: "PATCH", body: { action } }), ok);
 
   if (!data) return <p className="rounded-3xl border border-slate-100 bg-white p-5 text-sm text-slate-500">Cargando…</p>;
@@ -108,6 +109,7 @@ export default function AdminOpportunities({ notify }: { notify: Notify }) {
                   <p className="text-sm font-bold text-slate-900">{o.title}</p>
                   <p className="text-[11px] text-slate-500">
                     {AREA_LABEL[o.area] ?? o.area}
+                    {o.positionsCount === null ? " · personas buscadas sin definir" : ` · ${o.positionsCount} ${o.positionsCount === 1 ? "persona" : "personas"} buscadas`}
                     {o.deadline ? ` · plazo hasta el ${formatDay(o.deadline)}` : " · sin fecha límite"}
                     {o.status === "publicada" && !o.open ? " · fuera de plazo (ya no admite candidaturas)" : ""}
                   </p>
@@ -115,10 +117,11 @@ export default function AdminOpportunities({ notify }: { notify: Notify }) {
                 <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLE[o.status]}`}>{OPPORTUNITY_STATUS_LABEL[o.status]}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={busy} onClick={() => setEditing({ id: o.id, form: { title: o.title, area: o.area, description: o.description, functions: o.functions, requirements: o.requirements, dedication: o.dedication, modality: o.modality, remuneration: o.remuneration, remunerationAuthorized: o.remunerationAuthorized, deadline: o.deadline ?? "" } })} className={button}>Editar</button>
+                <button type="button" disabled={busy} onClick={() => setEditing({ id: o.id, form: { title: o.title, area: o.area, description: o.description, functions: o.functions, requirements: o.requirements, dedication: o.dedication, modality: o.modality, remuneration: o.remuneration, remunerationAuthorized: o.remunerationAuthorized, positionsCount: o.positionsCount === null ? "" : String(o.positionsCount), deadline: o.deadline ?? "" } })} className={button}>Editar</button>
                 {o.status === "borrador" && <button type="button" disabled={busy} onClick={() => act(o, "publicar", "Oportunidad publicada.")} className={darkButton}>Publicar</button>}
                 {o.status === "publicada" && <button type="button" disabled={busy} onClick={() => act(o, "cerrar", "Oportunidad cerrada.")} className={button}>Cerrar</button>}
                 {o.status === "cerrada" && <button type="button" disabled={busy} onClick={() => act(o, "reabrir", "Oportunidad publicada de nuevo.")} className={button}>Volver a publicar</button>}
+                {(o.status === "publicada" || o.status === "cerrada") && <button type="button" disabled={busy} onClick={() => { if (window.confirm("¿Marcar esta oportunidad como completada? Se conservarán sus candidaturas e historial.")) void act(o, "completar", "Oportunidad marcada como completada."); }} className={button}>Marcar completada</button>}
                 {o.status === "borrador" && applications.length === 0 && (
                   <button type="button" disabled={busy} onClick={() => { if (window.confirm("¿Borrar este borrador?")) void run(() => api(`/api/admin/oportunidades/${o.id}`, { method: "DELETE" }), "Borrador eliminado."); }} className={button}>Borrar borrador</button>
                 )}
@@ -185,7 +188,8 @@ function OpportunityForm({ value, isNew, busy, onChange, onSave, onCancel }: {
         <div><label className={label}>Funciones</label><textarea value={value.functions} onChange={set("functions")} rows={3} maxLength={4000} className={input} /></div>
         <div><label className={label}>Requisitos</label><textarea value={value.requirements} onChange={set("requirements")} rows={3} maxLength={4000} className={input} /></div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div><label className={label}>Personas buscadas</label><input type="number" min={1} max={100} step={1} value={value.positionsCount} onChange={set("positionsCount")} placeholder="Sin definir" className={input} /></div>
         <div><label className={label}>Dedicación aproximada</label><input value={value.dedication} onChange={set("dedication")} maxLength={200} className={input} /></div>
         <div><label className={label}>Modalidad</label><input value={value.modality} onChange={set("modality")} maxLength={200} className={input} /></div>
         <div><label className={label}>Fecha límite para candidaturas</label><input type="date" value={value.deadline} onChange={set("deadline")} className={input} /></div>
