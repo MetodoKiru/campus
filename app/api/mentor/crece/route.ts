@@ -5,7 +5,7 @@ import { isOpportunityOpen, type MentorApplication, type MentorGrowthData } from
 
 export const runtime = "nodejs";
 
-const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
+const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,positions_count,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
 
 /**
  * «Crece con Kiru»: oportunidades publicadas por administración (nunca
