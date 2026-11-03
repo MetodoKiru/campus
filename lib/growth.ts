@@ -91,11 +91,12 @@ export const OPPORTUNITY_AREAS = [
 export type OpportunityArea = (typeof OPPORTUNITY_AREAS)[number]["id"];
 export const AREA_LABEL = Object.fromEntries(OPPORTUNITY_AREAS.map((a) => [a.id, a.label])) as Record<OpportunityArea, string>;
 
-export type OpportunityStatus = "borrador" | "publicada" | "cerrada";
+export type OpportunityStatus = "borrador" | "publicada" | "cerrada" | "completada";
 export const OPPORTUNITY_STATUS_LABEL: Record<OpportunityStatus, string> = {
   borrador: "Borrador (no se ve)",
   publicada: "Publicada",
   cerrada: "Cerrada",
+  completada: "Completada",
 };
 
 export type ApplicationStatus = "enviada" | "en_revision" | "entrevista" | "aceptada" | "no_seleccionada";
@@ -119,6 +120,7 @@ export type Opportunity = {
   modality: string;
   /** Vacía salvo que administración la haya marcado como autorizada. */
   remuneration: string;
+  positionsCount: number | null;
   deadline: string | null;
   status: OpportunityStatus;
   /** Publicada y dentro de plazo: se puede presentar candidatura. */
