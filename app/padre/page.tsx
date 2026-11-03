@@ -17,6 +17,7 @@ import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
 import { latestWeekInfo } from "@/lib/skillcoins";
 import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renovaciones/RenewalCard";
+import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 
 interface Child {
   id: string;
@@ -81,7 +82,7 @@ export default function PadrePage() {
   }, [router]);
 
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
-  const [activeTab, setActiveTab] = useState<"inicio" | "progreso" | "recompensas" | "documentos" | "pagos">("inicio");
+  const [activeTab, setActiveTab] = useState<"inicio" | "progreso" | "recompensas" | "documentos" | "pagos" | "informes">("inicio");
 
   // Lista de hijos dinámica cargada desde las cuentas de alumnos creadas
   const [childrenList, setChildrenList] = useState<Child[]>(FALLBACK_CHILDREN);
@@ -171,6 +172,20 @@ export default function PadrePage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    const reportId = new URLSearchParams(window.location.search).get("informe");
+    if (!reportId || !childrenList.length) return;
+    let active = true;
+    void supabase.from("kiru_family_progress_reports").select("student_id")
+      .eq("id", reportId).eq("status", "publicado").maybeSingle()
+      .then(({ data }) => {
+        if (!active || !data) return;
+        const child = childrenList.find((item) => item.id === data.student_id);
+        if (child) { setSelectedChild(child); setActiveTab("informes"); }
+      });
+    return () => { active = false; };
+  }, [childrenList]);
+
   const handleConfirmDoc = async (docId: string) => {
     if (!selectedChild) return;
     try {
@@ -230,7 +245,15 @@ export default function PadrePage() {
               </span>
               <NotificationBell onOpenItem={(n) => {
                 const child = childrenList.find((c) => c.id === n.student_id);
-                if (child) { setSelectedChild(child); setActiveTab(n.kind === "renovacion" ? "inicio" : "recompensas"); }
+                if (child) {
+                  setSelectedChild(child);
+                  setActiveTab(n.kind === "renovacion" ? "inicio" : n.kind === "informe_progreso" ? "informes" : "recompensas");
+                  if (n.kind === "informe_progreso" && n.event_key.startsWith("informe_progreso:")) {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set("informe", n.event_key.slice("informe_progreso:".length));
+                    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+                  }
+                }
               }} />
             </div>
           </header>
@@ -305,6 +328,12 @@ export default function PadrePage() {
               >
                 Recompensas
                 {childNeedsAnswer && <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#806C50]" aria-label="Hay algo pendiente" />}
+              </button>
+              <button
+                onClick={() => setActiveTab("informes")}
+                className={`px-3 py-1.5 rounded-xl transition shrink-0 ${activeTab === "informes" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"}`}
+              >
+                Informes
               </button>
               <button
                 onClick={() => setActiveTab("documentos")}
@@ -464,6 +493,7 @@ export default function PadrePage() {
           {activeTab === "recompensas" && (
             <FamilyRewards students={[{ id: selectedChild.id, name: selectedChild.name }]} onChanged={() => void childSkillcoins.reload()} />
           )}
+          {activeTab === "informes" && <PublishedProgressReports studentId={selectedChild.id} reportId={new URLSearchParams(window.location.search).get("informe")} />}
 
           {activeTab === "documentos" && (
             <div className="space-y-4">
