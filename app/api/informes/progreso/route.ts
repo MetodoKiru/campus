@@ -6,7 +6,7 @@ import { findAnswer, parseAnswers, type SessionAnswer } from "@/lib/session-logs
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const SUBJECTS = ["ingles", "lengua", "calculalo"] as const;
+const SUBJECTS = ["ingles", "lengua"] as const;
 type Subject = (typeof SUBJECTS)[number];
 type StaffAuth = Extract<Awaited<ReturnType<typeof requireStaff>>, { ok: true }>;
 type Fields = {
@@ -205,7 +205,6 @@ export async function POST(request: Request) {
   const subjectHistory: Subject[] = [];
   if (englishTasks.length || progress.some((row) => (row.data as Record<string, unknown>)?.module === "english_report")) subjectHistory.push("ingles");
   if (lenguaAttempts.length || lenguaTasks.length || activity.some((row) => String(row.record_key).startsWith("lengua_profile_"))) subjectHistory.push("lengua");
-  if (activity.some((row) => (row.data as Record<string, unknown>)?.module === "calculalo")) subjectHistory.push("calculalo");
   const requestedSubjects = Array.isArray(body.subjects) ? body.subjects.filter((item): item is Subject => SUBJECTS.includes(item as Subject)) : subjectHistory;
   // El coordinador confirma la selección disponible para ese alumno; cuando el cliente omite
   // el campo se conservan las asignaturas detectadas automáticamente.
@@ -231,7 +230,7 @@ export async function POST(request: Request) {
     academics: {
       ingles: subjects.includes("ingles") ? { assigned: englishAssigned, completed: englishRows.length, weekly: weeklyAccuracy(englishRows), tasks: englishRows } : null,
       lengua: subjects.includes("lengua") ? { attempts: lenguaAttempts.length, weekly: weeklyAccuracy(lenguaAttempts), attemptsDetail: lenguaAttempts } : null,
-      calculalo: subjects.includes("calculalo") ? { available: false, note: "El informe de Calculalo todavía no se ha importado a este periodo." } : null,
+      calculalo: { available: false, note: "El informe de Calculalo está pendiente de incorporación." },
     },
     mentorFamilyAdvice: recommendationsFromMentor,
     coordinator: fields,
