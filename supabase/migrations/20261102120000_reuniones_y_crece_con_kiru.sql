@@ -435,3 +435,21 @@ USING (
 -- Nada de esto es público.
 REVOKE ALL ON public.kiru_onboarding_exceptions, public.kiru_mentor_availability, public.kiru_coordination_meetings,
   public.kiru_opportunities, public.kiru_opportunity_applications, public.kiru_opportunity_recommendations FROM anon;
+
+-- Supabase 2026: las tablas nuevas no reciben permisos de Data API por defecto.
+-- Las rutas del servidor usan service_role; authenticated solo tiene lectura,
+-- siempre filtrada por las políticas RLS definidas arriba.
+GRANT SELECT ON public.kiru_onboarding_exceptions,
+  public.kiru_mentor_availability,
+  public.kiru_coordination_meetings,
+  public.kiru_opportunities,
+  public.kiru_opportunity_applications,
+  public.kiru_opportunity_recommendations
+TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.kiru_onboarding_exceptions,
+  public.kiru_mentor_availability,
+  public.kiru_coordination_meetings,
+  public.kiru_opportunities,
+  public.kiru_opportunity_applications,
+  public.kiru_opportunity_recommendations
+TO service_role;
