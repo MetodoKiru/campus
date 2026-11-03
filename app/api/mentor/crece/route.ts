@@ -35,7 +35,8 @@ export async function GET(request: Request) {
   ]);
   if (published.error || appliedClosed.error) return NextResponse.json({ error: "No se pudieron cargar las oportunidades." }, { status: 500 });
 
-  const byId = new Map([...(published.data ?? []), ...(appliedClosed.data ?? [])].map((row) => [row.id, row]));
+  const publishedOpen = (published.data ?? []).filter((row) => isOpportunityOpen(row.status, row.deadline));
+  const byId = new Map([...publishedOpen, ...(appliedClosed.data ?? [])].map((row) => [row.id, row]));
   const applications: MentorApplication[] = (applicationsResult.data ?? []).flatMap((a) => {
     const opportunity = byId.get(a.opportunity_id);
     return opportunity ? [{
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   });
 
   const data: MentorGrowthData = {
-    opportunities: (published.data ?? []).map(toOpportunity),
+    opportunities: publishedOpen.map(toOpportunity),
     applications,
   };
   return NextResponse.json(data);
