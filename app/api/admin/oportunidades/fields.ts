@@ -14,6 +14,9 @@ export function readOpportunityFields(body: Record<string, unknown>) {
   const remuneration = text(body.remuneration, 300);
   const remunerationAuthorized = body.remunerationAuthorized === true;
   if (remunerationAuthorized && !remuneration) return "Si la remuneración está autorizada, indica cuál es.";
+  const rawPositions = body.positionsCount;
+  const positionsCount = rawPositions === null || rawPositions === undefined || rawPositions === "" ? null : Number(rawPositions);
+  if (positionsCount !== null && (!Number.isInteger(positionsCount) || positionsCount < 1 || positionsCount > 100)) return "Indica entre 1 y 100 personas buscadas, o deja el campo vacío si aún no está definido.";
   const description = text(body.description, 4000);
   if (!description) return "Escribe una descripción.";
   return {
@@ -26,6 +29,7 @@ export function readOpportunityFields(body: Record<string, unknown>) {
     modality: text(body.modality, 200),
     remuneration,
     remuneration_authorized: remunerationAuthorized,
+    positions_count: positionsCount,
     deadline,
   };
 }
