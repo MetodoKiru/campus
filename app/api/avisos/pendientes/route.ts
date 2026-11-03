@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const since = new Date(Date.now() - PENDING_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const { data: pending, error } = await admin
     .from("kiru_notifications")
-    .select("id,recipient_id,student_id,goal_id,kind,title")
+    .select("id,recipient_id,student_id,goal_id,kind,title,event_key")
     .eq("email_status", "pendiente")
     .gt("created_at", since)
     .order("created_at")
@@ -62,14 +62,26 @@ export async function POST(request: Request) {
 
   const avisos: {
     email: string; familyName: string; studentName: string; kind: string; title: string;
-    reward: string; category: string; cost: number; balance: number; missing: number; loginUrl: string;
+    reward?: string; category?: string; cost?: number; balance?: number; missing?: number; loginUrl: string; reportUrl?: string;
   }[] = [];
   const noEmail: string[] = [];
 
   for (const n of pending) {
     if (!claimedIds.has(n.id)) continue;
-    const goal = n.goal_id ? goals.get(n.goal_id) : undefined;
     const family = names.get(n.recipient_id);
+    if (n.kind === "informe_progreso") {
+      const reportId = n.event_key.startsWith("informe_progreso:") ? n.event_key.slice("informe_progreso:".length) : "";
+      const { data: report } = reportId
+        ? await admin.from("kiru_family_progress_reports").select("id,student_id,status").eq("id", reportId).maybeSingle()
+        : { data: null };
+      const { data: authUser } = await admin.auth.admin.getUserById(n.recipient_id);
+      const email = authUser.user?.email ?? "";
+      if (!family?.is_active || !report || report.status !== "publicado" || report.student_id !== n.student_id || !email || email.endsWith(".invalid")) { noEmail.push(n.id); continue; }
+      avisos.push({ email, familyName: family.full_name, studentName: names.get(n.student_id!)?.full_name ?? "Tu hijo/a", kind: n.kind, title: n.title,
+        loginUrl, reportUrl: new URL(`/padre?informe=${encodeURIComponent(report.id)}`, request.url).toString() });
+      continue;
+    }
+    const goal = n.goal_id ? goals.get(n.goal_id) : undefined;
     // Si el alumno ya retiró la elección o la familia ya respondió, no se manda.
     const stillOpen = goal && (n.kind === "objetivo_pendiente" ? goal.status === "pendiente" : goal.status === "canje_solicitado");
     if (!goal || !family?.is_active || !n.student_id || !stillOpen) { noEmail.push(n.id); continue; }

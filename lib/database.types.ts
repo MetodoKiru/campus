@@ -298,7 +298,7 @@ export type NotificationRow = {
   recipient_id: string;
   student_id: string | null;
   goal_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion";
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso";
   title: string;
   body: string;
   event_key: string;
@@ -365,6 +365,12 @@ export type OpportunityApplicationRow = {
 };
 export type OpportunityRecommendationRow = { id: string; opportunity_id: string; mentor_id: string; coordinator_id: string; note: string; created_at: string };
 
+export type FamilyProgressReportRow = {
+  id: string; student_id: string; period_start: string; period_end: string; due_date: string;
+  status: "borrador" | "publicado"; content: Json; created_by: string; updated_by: string;
+  published_by: string | null; published_at: string | null; created_at: string; updated_at: string;
+};
+
 type Timestamps = "created_at" | "updated_at";
 
 /** Una semana terminada en la que un alumno tuvo clase con un mentor y no tiene SkillCoins. */
@@ -399,6 +405,7 @@ export type Database = {
       kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
+      kiru_family_progress_reports: Table<FamilyProgressReportRow, "id" | "status" | "content" | "published_by" | "published_at" | "created_at" | "updated_at">;
       kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
