@@ -37,6 +37,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // La guía «Crecer en Kiru» se sirve desde una ruta con sesión, no desde public/.
+  outputFileTracingIncludes: {
+    "/api/mentor/crece/guia": ["./content/crecer-en-kiru/**/*"],
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

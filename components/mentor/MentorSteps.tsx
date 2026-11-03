@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Upload } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Sprout, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -9,6 +9,7 @@ import {
   STEPS,
   type MentorOffer,
   type MentorPanelData,
+  type MentorSection,
   type OfferResponse,
   type StepId,
   type StepStatus,
@@ -16,7 +17,7 @@ import {
 
 const MAX_CERTIFICATE_BYTES = 4 * 1024 * 1024;
 
-async function call<T>(path: string, init?: { method: string; body: unknown }): Promise<T> {
+export async function call<T>(path: string, init?: { method: string; body: unknown }): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Tu sesión ha caducado. Vuelve a entrar.");
   const isFile = init?.body instanceof FormData;
@@ -70,18 +71,27 @@ export function useMentorPanel() {
   return { data, error, reload };
 }
 
-/** Desplegable del icono ☰: los cuatro pasos con su estado. */
+const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [
+  { id: "reuniones", title: "Reuniones con tu coordinador", hint: "Reunión mensual y tu disponibilidad", icon: CalendarDays },
+  { id: "crece", title: "Crece con Kiru", hint: "Guía de desarrollo y oportunidades", icon: Sprout },
+];
+
+/**
+ * Desplegable del icono ☰: los cuatro pasos con su estado y, cuando el mentor
+ * ha completado la incorporación (o administración le ha autorizado
+ * expresamente), «Reuniones con tu coordinador» y «Crece con Kiru».
+ */
 export function MentorMenu({ data, active, onSelect, onClose }: {
   data: MentorPanelData | null;
-  active: StepId | null;
-  onSelect: (step: StepId | null) => void;
+  active: StepId | MentorSection | null;
+  onSelect: (step: StepId | MentorSection | null) => void;
   onClose: () => void;
 }) {
   const done = data ? STEPS.filter((s) => s.id !== "asignacion" && data.steps[s.id].status === "completado").length : 0;
   return (
     <>
       <button type="button" aria-label="Cerrar menú" onClick={onClose} className="fixed inset-0 z-30 cursor-default bg-black/10" />
-      <nav aria-label="Mis pasos como mentor" className="absolute left-0 top-full z-40 mt-2 w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-[#E7E3DC] bg-white p-2 shadow-lg">
+      <nav aria-label="Menú del mentor" className="absolute left-0 top-full z-40 mt-2 max-h-[calc(100vh-6rem)] w-[calc(100vw-2rem)] max-w-sm overflow-y-auto rounded-2xl border border-[#E7E3DC] bg-white p-2 shadow-lg">
         <div className="px-3 pb-2 pt-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Mi incorporación</p>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#F3F0EA]" aria-hidden>
@@ -112,6 +122,32 @@ export function MentorMenu({ data, active, onSelect, onClose }: {
             );
           })}
         </ul>
+        {data?.growth.unlocked && (
+          <>
+            <div className="mx-3 my-2 border-t border-[#E7E3DC]" />
+            <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Tu día a día en Kiru</p>
+            <ul className="space-y-1">
+              {SECTIONS.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <li key={section.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(section.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${active === section.id ? "bg-[#F3EEE5]" : "hover:bg-[#FAF8F5]"}`}
+                    >
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E7E3DC] text-[#806C50]"><Icon className="h-3.5 w-3.5" aria-hidden /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-[#292825]">{section.title}</span>
+                        <span className="block text-[11px] text-[#77736B]">{section.hint}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
         {active && (
           <button type="button" onClick={() => onSelect(null)} className="mt-1 w-full rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-[#6D6962] hover:bg-[#FAF8F5]">
             Volver a mi panel de alumnos

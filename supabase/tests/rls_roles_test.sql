@@ -318,4 +318,105 @@ reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve renovaciones', $q$select * from kiru_renewals$q$);
 reset role;
+-- Reuniones con tu coordinador y Crece con Kiru ------------------------------
+-- M (grupo de C) completa la incorporación; M2 (grupo de C2) no la tiene completa.
+insert into kiru_mentor_steps(mentor_id,step,status) select id, st, 'completado' from ids, unnest(array['certificado','nuestro_equipo','llamadas']) st where k='M';
+insert into kiru_mentor_steps(mentor_id,step,status) values ((select id from ids where k='M2'),'nuestro_equipo','enviado');
+select pg_temp.expect('M tiene la incorporación completa', (select kiru_private.mentor_can_grow((select id from ids where k='M'))::int), 1);
+select pg_temp.expect('M2 no tiene acceso todavía', (select kiru_private.mentor_can_grow((select id from ids where k='M2'))::int), 0);
+insert into kiru_mentor_availability(mentor_id,days,slots) values ((select id from ids where k='M'),'{lunes,martes}','{tarde}'),((select id from ids where k='M2'),'{jueves}','{noche}');
+insert into kiru_coordination_meetings(coordinator_id,scheduled_at,status,zoom_url,confirmed_at) values
+  ((select id from ids where k='C'),'2026-11-20 17:00+01','confirmada','https://zoom.us/j/1',now()),
+  ((select id from ids where k='C'),'2026-12-18 17:00+01','borrador','',null),
+  ((select id from ids where k='C2'),'2026-11-21 17:00+01','confirmada','https://zoom.us/j/2',now());
+insert into kiru_opportunities(title,area,status,published_at,deadline) values
+  ('Abierta','formacion','publicada',now(),null),
+  ('Vencida','campus','publicada',now(),current_date - 1),
+  ('Cerrada','operaciones','cerrada',now(),null),
+  ('Borrador','comunicacion','borrador',null,null);
+create temp table opp as select title, id from kiru_opportunities;
+grant select on opp to authenticated, service_role;
+grant select on ids to service_role;
+do $$ begin
+  insert into kiru_coordination_meetings(coordinator_id,scheduled_at,status,zoom_url,confirmed_at) values ((select id from ids where k='C'),'2026-11-05 17:00+01','confirmada','https://zoom.us/j/3',now());
+  raise exception 'FAIL dos reuniones el mismo mes: allowed';
+exception when unique_violation then raise notice 'ok  una reunión al mes por coordinador (denied)';
+end $$;
+select pg_temp.expect_denied('no se confirma sin enlace de Zoom', format($q$insert into kiru_coordination_meetings(coordinator_id,scheduled_at,status,confirmed_at) values (%L,'2027-01-15 17:00+01','confirmada',now())$q$, (select id from ids where k='C')));
+select pg_temp.expect_denied('reunión de alguien que no es coordinador', format($q$insert into kiru_coordination_meetings(coordinator_id,scheduled_at) values (%L,'2027-02-15 17:00+01')$q$, (select id from ids where k='M')));
+
+-- mentor M: su grupo, nada de otros grupos ni borradores
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve la reunión confirmada de su grupo (no el borrador ni otros grupos)', (select count(*) from kiru_coordination_meetings), 1);
+select pg_temp.expect('mentor ve solo su disponibilidad', (select count(*) from kiru_mentor_availability), 1);
+select pg_temp.expect('mentor ve publicadas (no borrador ni cerradas ajenas)', (select count(*) from kiru_opportunities), 2);
+select pg_temp.expect_denied('mentor no escribe su disponibilidad directamente', format($q$update kiru_mentor_availability set notes='x' where mentor_id=%L$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('mentor no se presenta saltándose el servidor', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Abierta'),%L)$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('mentor no crea oportunidades', $q$insert into kiru_opportunities(title,area) values ('Falsa','campus')$q$);
+select pg_temp.expect_denied('mentor no se autoriza una excepción', format($q$insert into kiru_onboarding_exceptions(mentor_id,reason,granted_by) values (%L,'porque sí',%L)$q$, (select id from ids where k='M'), (select id from ids where k='M')));
+select pg_temp.expect('mentor no ve el registro de excepciones', (select count(*) from kiru_onboarding_exceptions), 0);
+reset role;
+-- mentor M2 sin incorporación: no ve reuniones ni oportunidades
+select pg_temp.as_user('M2');
+select pg_temp.expect('mentor sin incorporación no ve reuniones', (select count(*) from kiru_coordination_meetings), 0);
+select pg_temp.expect('mentor sin incorporación no ve oportunidades', (select count(*) from kiru_opportunities), 0);
+reset role;
+-- candidaturas (las crea el servidor con service role; los disparadores mandan)
+set local role service_role;
+select pg_temp.expect_allowed('M se presenta a la abierta', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id,motivation,status) values ((select id from opp where title='Abierta'),%L,'Me interesa','aceptada')$q$, (select id from ids where k='M')));
+select pg_temp.expect('la candidatura nace como enviada aunque se pida otro estado', (select count(*) from kiru_opportunity_applications where status='enviada'), 1);
+select pg_temp.expect_denied('candidatura duplicada', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Abierta'),%L)$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('candidatura fuera de plazo', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Vencida'),%L)$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('candidatura a oportunidad cerrada', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Cerrada'),%L)$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('candidatura a borrador', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Borrador'),%L)$q$, (select id from ids where k='M')));
+select pg_temp.expect_denied('mentor sin incorporación no se presenta', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Abierta'),%L)$q$, (select id from ids where k='M2')));
+select pg_temp.expect_denied('no se cambia la motivación desde fuera', $q$update kiru_opportunity_applications set motivation='otra'$q$);
+select pg_temp.expect_allowed('se cambia el estado', $q$update kiru_opportunity_applications set status='en_revision'$q$);
+select pg_temp.expect_allowed('C recomienda a su mentor', format($q$insert into kiru_opportunity_recommendations(opportunity_id,mentor_id,coordinator_id,note) values ((select id from opp where title='Abierta'),%L,%L,'Muy constante')$q$, (select id from ids where k='M'), (select id from ids where k='C')));
+select pg_temp.expect_denied('C no recomienda a un mentor de otro grupo', format($q$insert into kiru_opportunity_recommendations(opportunity_id,mentor_id,coordinator_id,note) values ((select id from opp where title='Abierta'),%L,%L,'x x x')$q$, (select id from ids where k='M2'), (select id from ids where k='C')));
+select pg_temp.expect_denied('no se recomienda para una oportunidad cerrada', format($q$insert into kiru_opportunity_recommendations(opportunity_id,mentor_id,coordinator_id,note) values ((select id from opp where title='Cerrada'),%L,%L,'x x x')$q$, (select id from ids where k='M'), (select id from ids where k='C')));
+-- excepción: solo un admin, no toca los pasos, no se reescribe
+select pg_temp.expect_denied('la excepción la tiene que dar un admin', format($q$insert into kiru_onboarding_exceptions(mentor_id,reason,granted_by) values (%L,'Empieza ya',%L)$q$, (select id from ids where k='M2'), (select id from ids where k='C')));
+select pg_temp.expect_denied('la excepción necesita motivo', format($q$insert into kiru_onboarding_exceptions(mentor_id,reason,granted_by) values (%L,'',%L)$q$, (select id from ids where k='M2'), (select id from ids where k='A')));
+select pg_temp.expect_allowed('admin autoriza a M2 con motivo', format($q$insert into kiru_onboarding_exceptions(mentor_id,reason,granted_by) values (%L,'Certificado pedido, llega la semana que viene',%L)$q$, (select id from ids where k='M2'), (select id from ids where k='A')));
+select pg_temp.expect('la excepción no completa ningún paso', (select count(*) from kiru_mentor_steps where mentor_id=(select id from ids where k='M2') and status='completado'), 0);
+reset role;
+select pg_temp.expect('pero da acceso a M2', (select kiru_private.mentor_can_grow((select id from ids where k='M2'))::int), 1);
+set local role service_role;
+select pg_temp.expect('y la incorporación sigue incompleta', (select (onboarding_complete)::int from kiru_mentor_growth_access((select id from ids where k='M2'))), 0);
+select pg_temp.expect_denied('una sola excepción en vigor por mentor', format($q$insert into kiru_onboarding_exceptions(mentor_id,reason,granted_by) values (%L,'Otra vez lo mismo',%L)$q$, (select id from ids where k='M2'), (select id from ids where k='A')));
+select pg_temp.expect_denied('el motivo no se reescribe', $q$update kiru_onboarding_exceptions set reason='otro motivo'$q$);
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.expect('con la excepción M2 ve la reunión de su grupo', (select count(*) from kiru_coordination_meetings), 1);
+reset role;
+-- coordinador C: su grupo y nada más
+select pg_temp.as_user('C');
+select pg_temp.expect('coordinador ve sus reuniones (también el borrador)', (select count(*) from kiru_coordination_meetings), 2);
+select pg_temp.expect('coordinador ve la disponibilidad solo de su grupo', (select count(*) from kiru_mentor_availability), 1);
+select pg_temp.expect('coordinador ve publicadas y cerradas, no borradores', (select count(*) from kiru_opportunities), 3);
+select pg_temp.expect('coordinador no ve candidaturas', (select count(*) from kiru_opportunity_applications), 0);
+select pg_temp.expect('coordinador ve su recomendación', (select count(*) from kiru_opportunity_recommendations), 1);
+select pg_temp.expect('coordinador no ve excepciones', (select count(*) from kiru_onboarding_exceptions), 0);
+select pg_temp.expect_denied('coordinador no publica oportunidades', $q$update kiru_opportunities set status='publicada', published_at=now()$q$);
+select pg_temp.expect_denied('coordinador no acepta candidaturas', $q$update kiru_opportunity_applications set status='aceptada'$q$);
+select pg_temp.expect_denied('coordinador no escribe reuniones directamente', $q$update kiru_coordination_meetings set zoom_url='https://x.y/z'$q$);
+reset role;
+select pg_temp.as_user('C2');
+select pg_temp.expect('otro coordinador no ve reuniones de C', (select count(*) from kiru_coordination_meetings), 1);
+select pg_temp.expect('otro coordinador ve la disponibilidad de su grupo', (select count(*) from kiru_mentor_availability), 1);
+select pg_temp.expect('otro coordinador no ve la recomendación de C', (select count(*) from kiru_opportunity_recommendations), 0);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('familia no ve reuniones', (select count(*) from kiru_coordination_meetings), 0);
+select pg_temp.expect('familia no ve oportunidades', (select count(*) from kiru_opportunities), 0);
+reset role;
+select pg_temp.as_user('A');
+select pg_temp.expect('admin ve todas las oportunidades', (select count(*) from kiru_opportunities), 4);
+select pg_temp.expect('admin ve las excepciones', (select count(*) from kiru_onboarding_exceptions), 1);
+select pg_temp.expect('admin ve todas las reuniones', (select count(*) from kiru_coordination_meetings), 3);
+reset role;
+set local role anon;
+select pg_temp.expect_denied('anon no ve oportunidades', $q$select * from kiru_opportunities$q$);
+reset role;
 rollback;

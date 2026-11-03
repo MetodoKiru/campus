@@ -340,6 +340,31 @@ export type RenewalRow = {
   updated_at: string;
 };
 
+/** Autorización expresa de administración para acceder sin incorporación completa. */
+export type OnboardingExceptionRow = {
+  id: string; mentor_id: string; reason: string; granted_by: string | null; granted_at: string;
+  revoked_at: string | null; revoked_by: string | null; revoke_reason: string;
+};
+export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
+export type CoordinationMeetingRow = {
+  id: string; coordinator_id: string; scheduled_at: string; duration_minutes: number; zoom_url: string;
+  status: "borrador" | "confirmada" | "realizada" | "cancelada"; agenda: string;
+  confirmed_at: string | null; held_at: string | null; cancelled_at: string | null; cancel_reason: string;
+  report_sent_at: string | null; created_by: string | null; created_at: string; updated_at: string;
+};
+export type OpportunityRow = {
+  id: string; title: string; area: string; description: string; functions: string; requirements: string;
+  dedication: string; modality: string; remuneration: string; remuneration_authorized: boolean; deadline: string | null;
+  status: "borrador" | "publicada" | "cerrada"; published_at: string | null; closed_at: string | null;
+  created_by: string | null; updated_by: string | null; created_at: string; updated_at: string;
+};
+export type OpportunityApplicationRow = {
+  id: string; opportunity_id: string; mentor_id: string; motivation: string;
+  status: "enviada" | "en_revision" | "entrevista" | "aceptada" | "no_seleccionada";
+  submitted_at: string; status_changed_at: string; status_changed_by: string | null;
+};
+export type OpportunityRecommendationRow = { id: string; opportunity_id: string; mentor_id: string; coordinator_id: string; note: string; created_at: string };
+
 type Timestamps = "created_at" | "updated_at";
 
 /** Una semana terminada en la que un alumno tuvo clase con un mentor y no tiene SkillCoins. */
@@ -377,6 +402,12 @@ export type Database = {
       kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
+      kiru_onboarding_exceptions: Table<OnboardingExceptionRow, "id" | "granted_by" | "granted_at" | "revoked_at" | "revoked_by" | "revoke_reason">;
+      kiru_mentor_availability: Table<MentorAvailabilityRow, "days" | "slots" | "notes" | "updated_at">;
+      kiru_coordination_meetings: Table<CoordinationMeetingRow, Timestamps | "id" | "duration_minutes" | "zoom_url" | "status" | "agenda" | "confirmed_at" | "held_at" | "cancelled_at" | "cancel_reason" | "report_sent_at" | "created_by">;
+      kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
+      kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;
+      kiru_opportunity_recommendations: Table<OpportunityRecommendationRow, "id" | "created_at">;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -400,6 +431,7 @@ export type Database = {
       kiru_renewal_from_email_months: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months: number }; Returns: Json };
       kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
       kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
+      kiru_mentor_growth_access: { Args: { p_mentor: string }; Returns: { onboarding_complete: boolean; exception_active: boolean }[] };
       kiru_missing_sc_weeks: {
         Args: { p_weeks?: number };
         Returns: MissingScWeekRow[];

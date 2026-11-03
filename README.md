@@ -16,6 +16,8 @@ Campus online de Método Kiru para alumnos, mentores, familias y administración
 | `app/api/admin/users` | Alta, edición y borrado de cuentas (solo admin, usa la service role) |
 | `app/api/registros/importar` | Recibe los registros de sesión del Apps Script de la hoja (clave `KIRU_REGISTROS_SECRET`) |
 | `app/api/mentores/acceso`, `app/acceso` | Alta del mentor nuevo desde el correo de bienvenida y página «Crea tu PIN» (clave `KIRU_ALTA_SECRET`, ver `docs/acceso-mentores.md`) |
+| `app/api/mentor/reuniones`, `app/api/mentor/crece`, `app/api/coordinador/reuniones`, `app/api/admin/oportunidades`, `app/api/admin/excepciones` | «Reuniones con tu coordinador» y «Crece con Kiru» del menú ☰ del mentor (ver `docs/reuniones-y-crece-con-kiru.md`) |
+| `content/crecer-en-kiru/` | Guía «Crecer en Kiru» (PDF de dirección), servida solo a mentores con acceso |
 | `app/api/admin/bootstrap` | Crea el primer admin; desactivado en cuanto existe uno |
 | `lib/` | Cliente de Supabase y acceso a datos |
 | `supabase/migrations/` | Historial completo del esquema y las políticas RLS |
