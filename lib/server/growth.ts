@@ -50,6 +50,7 @@ export function toOpportunity(row: OpportunityRow): Opportunity {
     dedication: row.dedication,
     modality: row.modality,
     remuneration: row.remuneration_authorized ? row.remuneration : "",
+    positionsCount: row.positions_count,
     deadline: row.deadline,
     status: row.status,
     open: isOpportunityOpen(row.status, row.deadline),
