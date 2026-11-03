@@ -349,7 +349,7 @@ select pg_temp.expect_denied('reunión de alguien que no es coordinador', format
 select pg_temp.as_user('M');
 select pg_temp.expect('mentor ve la reunión confirmada de su grupo (no el borrador ni otros grupos)', (select count(*) from kiru_coordination_meetings), 1);
 select pg_temp.expect('mentor ve solo su disponibilidad', (select count(*) from kiru_mentor_availability), 1);
-select pg_temp.expect('mentor ve publicadas (no borrador ni cerradas ajenas)', (select count(*) from kiru_opportunities), 2);
+select pg_temp.expect('mentor ve oportunidades vigentes (no borradores, vencidas ni cerradas ajenas)', (select count(*) from kiru_opportunities), 1);
 select pg_temp.expect_denied('mentor no escribe su disponibilidad directamente', format($q$update kiru_mentor_availability set notes='x' where mentor_id=%L$q$, (select id from ids where k='M')));
 select pg_temp.expect_denied('mentor no se presenta saltándose el servidor', format($q$insert into kiru_opportunity_applications(opportunity_id,mentor_id) values ((select id from opp where title='Abierta'),%L)$q$, (select id from ids where k='M')));
 select pg_temp.expect_denied('mentor no crea oportunidades', $q$insert into kiru_opportunities(title,area) values ('Falsa','campus')$q$);

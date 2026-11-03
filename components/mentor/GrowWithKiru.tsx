@@ -164,6 +164,7 @@ function OpportunityCard({ opportunity, application, reload, notify }: {
 
   const rows: [string, string][] = [
     ["Área", AREA_LABEL[opportunity.area] ?? opportunity.area],
+    ...(opportunity.positionsCount === null ? [] : [["Personas buscadas", String(opportunity.positionsCount)] as [string, string]]),
     ["Descripción", opportunity.description],
     ["Funciones", opportunity.functions],
     ["Requisitos", opportunity.requirements],

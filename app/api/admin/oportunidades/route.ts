@@ -5,7 +5,7 @@ import { readOpportunityFields } from "./fields";
 
 export const runtime = "nodejs";
 
-const COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,deadline,status,published_at,closed_at,updated_at";
+const COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,positions_count,deadline,status,published_at,closed_at,updated_at";
 
 /** Administración: todas las oportunidades, candidaturas y recomendaciones. */
 export async function GET(request: Request) {
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     opportunities: (opportunities.data ?? []).map((o): AdminOpportunity => ({
       id: o.id, title: o.title, area: o.area as OpportunityArea, description: o.description, functions: o.functions,
       requirements: o.requirements, dedication: o.dedication, modality: o.modality, remuneration: o.remuneration,
-      remunerationAuthorized: o.remuneration_authorized, deadline: o.deadline, status: o.status,
+      remunerationAuthorized: o.remuneration_authorized, positionsCount: o.positions_count, deadline: o.deadline, status: o.status,
       open: isOpportunityOpen(o.status, o.deadline), publishedAt: o.published_at, closedAt: o.closed_at, updatedAt: o.updated_at,
     })),
     applications: (applications.data ?? []).map((a) => ({

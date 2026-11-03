@@ -5,7 +5,7 @@ import { isOpportunityOpen, type MentorApplication, type MentorGrowthData } from
 
 export const runtime = "nodejs";
 
-const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
+const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,positions_count,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
 
 /**
  * «Crece con Kiru»: oportunidades publicadas por administración (nunca
@@ -35,7 +35,8 @@ export async function GET(request: Request) {
   ]);
   if (published.error || appliedClosed.error) return NextResponse.json({ error: "No se pudieron cargar las oportunidades." }, { status: 500 });
 
-  const byId = new Map([...(published.data ?? []), ...(appliedClosed.data ?? [])].map((row) => [row.id, row]));
+  const publishedOpen = (published.data ?? []).filter((row) => isOpportunityOpen(row.status, row.deadline));
+  const byId = new Map([...publishedOpen, ...(appliedClosed.data ?? [])].map((row) => [row.id, row]));
   const applications: MentorApplication[] = (applicationsResult.data ?? []).flatMap((a) => {
     const opportunity = byId.get(a.opportunity_id);
     return opportunity ? [{
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   });
 
   const data: MentorGrowthData = {
-    opportunities: (published.data ?? []).map(toOpportunity),
+    opportunities: publishedOpen.map(toOpportunity),
     applications,
   };
   return NextResponse.json(data);

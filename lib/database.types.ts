@@ -354,8 +354,8 @@ export type CoordinationMeetingRow = {
 };
 export type OpportunityRow = {
   id: string; title: string; area: string; description: string; functions: string; requirements: string;
-  dedication: string; modality: string; remuneration: string; remuneration_authorized: boolean; deadline: string | null;
-  status: "borrador" | "publicada" | "cerrada"; published_at: string | null; closed_at: string | null;
+  dedication: string; modality: string; remuneration: string; remuneration_authorized: boolean; positions_count: number | null; deadline: string | null;
+  status: "borrador" | "publicada" | "cerrada" | "completada"; published_at: string | null; closed_at: string | null;
   created_by: string | null; updated_by: string | null; created_at: string; updated_at: string;
 };
 export type OpportunityApplicationRow = {
@@ -412,7 +412,7 @@ export type Database = {
       kiru_onboarding_exceptions: Table<OnboardingExceptionRow, "id" | "granted_by" | "granted_at" | "revoked_at" | "revoked_by" | "revoke_reason">;
       kiru_mentor_availability: Table<MentorAvailabilityRow, "days" | "slots" | "notes" | "updated_at">;
       kiru_coordination_meetings: Table<CoordinationMeetingRow, Timestamps | "id" | "duration_minutes" | "zoom_url" | "status" | "agenda" | "confirmed_at" | "held_at" | "cancelled_at" | "cancel_reason" | "report_sent_at" | "created_by">;
-      kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
+      kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "positions_count" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
       kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;
       kiru_opportunity_recommendations: Table<OpportunityRecommendationRow, "id" | "created_at">;
     };

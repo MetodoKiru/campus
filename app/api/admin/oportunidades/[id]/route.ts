@@ -43,6 +43,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       if (current.status !== "publicada") return NextResponse.json({ error: "Solo se cierra una oportunidad publicada." }, { status: 409 });
       update = { status: "cerrada", closed_at: now };
       break;
+    case "completar":
+      if (current.status !== "publicada" && current.status !== "cerrada") return NextResponse.json({ error: "Solo puedes completar una oportunidad publicada o cerrada." }, { status: 409 });
+      update = { status: "completada", closed_at: now };
+      break;
     default:
       return NextResponse.json({ error: "Acción no válida." }, { status: 400 });
   }

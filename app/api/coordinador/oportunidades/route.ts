@@ -4,7 +4,7 @@ import { text, toOpportunity } from "@/lib/server/growth";
 
 export const runtime = "nodejs";
 
-const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
+const OPPORTUNITY_COLUMNS = "id,title,area,description,functions,requirements,dedication,modality,remuneration,remuneration_authorized,positions_count,deadline,status,published_at,closed_at,created_by,updated_by,created_at,updated_at";
 
 /**
  * El coordinador ve las oportunidades publicadas y puede recomendar a mentores
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     : { data: [] as { id: string; full_name: string }[] };
 
   return NextResponse.json({
-    opportunities: (opportunities.data ?? []).map(toOpportunity),
+    opportunities: (opportunities.data ?? []).map(toOpportunity).filter((opportunity) => opportunity.open),
     mentors: (mentors ?? []).map((m) => ({ id: m.id, name: m.full_name })),
     recommendations: (recommendations.data ?? []).map((r) => ({ id: r.id, opportunityId: r.opportunity_id, mentorId: r.mentor_id, note: r.note, createdAt: r.created_at })),
   });
