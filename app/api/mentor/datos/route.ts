@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       const student = str(keyOf(row, "alumno"));
       const weekday = str(keyOf(row, "dia"));
       const start = str(keyOf(row, "inicio")), end = str(keyOf(row, "fin"));
-      return { source_key: [normalizeName(name), normalizeName(student), normalizeName(weekday), start, end].join("|").slice(0, 500), mentor_id: mentorId(name, email), mentor_name: name, student_name: student, weekday, start_time: start, end_time: end, active: activeValue(keyOf(row, "activo")) };
+      return { source_key: [normalizeName(name), normalizeName(student), normalizeName(weekday)].join("|").slice(0, 500), mentor_id: mentorId(name, email), mentor_name: name, student_name: student, weekday, start_time: start, end_time: end, active: activeValue(keyOf(row, "activo")) };
     })),
     Promise.all(payments.map(async (row) => {
       const name = str(keyOf(row, "mentor")), student = str(keyOf(row, "alumno"));
@@ -107,12 +107,18 @@ export async function POST(request: Request) {
   const unmatched = [...payloads[0], ...payloads[1]].filter((x) => !x.mentor_id).map((x) => x.mentor_name);
   const validSchedules = payloads[0].filter((x) => x.mentor_id);
   const validPayments = payloads[1].filter((x) => x.mentor_id);
-  const validRates = payloads[2].filter((x) => x.mentor_id);
-  for (const [table, rows] of [["kiru_mentor_schedules", validSchedules], ["kiru_mentor_payroll", validPayments], ["kiru_mentor_rates", validRates]] as const) {
-    for (let i = 0; i < rows.length; i += 500) {
-      const { error: saveError } = await admin.from(table).upsert(rows.slice(i, i + 500), { onConflict: table === "kiru_mentor_rates" ? "mentor_id" : "source_key" });
-      if (saveError) return NextResponse.json({ error: "No se pudieron guardar los datos importados." }, { status: 500 });
-    }
+  const validRates = payloads[2].filter((x): x is typeof x & { mentor_id: string } => Boolean(x.mentor_id));
+  for (let i = 0; i < validSchedules.length; i += 500) {
+    const { error: saveError } = await admin.from("kiru_mentor_schedules").upsert(validSchedules.slice(i, i + 500), { onConflict: "source_key" });
+    if (saveError) return NextResponse.json({ error: "No se pudieron guardar los horarios importados." }, { status: 500 });
+  }
+  for (let i = 0; i < validPayments.length; i += 500) {
+    const { error: saveError } = await admin.from("kiru_mentor_payroll").upsert(validPayments.slice(i, i + 500), { onConflict: "source_key" });
+    if (saveError) return NextResponse.json({ error: "No se pudieron guardar los periodos importados." }, { status: 500 });
+  }
+  for (const row of validRates) {
+    const { error: saveError } = await admin.from("kiru_mentor_rates").upsert(row, { onConflict: "mentor_id" });
+    if (saveError) return NextResponse.json({ error: "No se pudieron guardar las tarifas importadas." }, { status: 500 });
   }
   return NextResponse.json({ ok: true, schedules: validSchedules.length, payments: validPayments.length, rates: validRates.length, unmatched: [...new Set(unmatched)] });
 }
