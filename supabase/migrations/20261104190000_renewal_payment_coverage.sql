@@ -1,4 +1,8 @@
 -- Une los pagos generados desde Renovaciones con su periodo y sesiones cubiertas.
+ALTER TABLE public.kiru_renewals
+  ADD COLUMN IF NOT EXISTS paid_from date,
+  ADD COLUMN IF NOT EXISTS sessions_planned smallint;
+
 ALTER TABLE public.kiru_payments
   ADD COLUMN IF NOT EXISTS renewal_id uuid REFERENCES public.kiru_renewals(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS coverage_start date,
