@@ -83,6 +83,32 @@ BEGIN
 END;
 $function$;
 
+-- Asegura la misma relación tanto si el pago se comunica desde el campus como desde el correo o la hoja.
+CREATE OR REPLACE FUNCTION kiru_private.sync_renewal_payment_coverage()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+BEGIN
+  IF NEW.paid_reported_at IS NOT NULL
+     AND (TG_OP = 'INSERT' OR OLD.paid_reported_at IS NULL OR NEW.paid_reported_at IS DISTINCT FROM OLD.paid_reported_at) THEN
+    PERFORM kiru_private.renewal_payment_reported(
+      NEW,
+      coalesce(NEW.paid_source, 'campus'),
+      NEW.paid_by
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS kiru_renewal_payment_coverage_trigger ON public.kiru_renewals;
+CREATE TRIGGER kiru_renewal_payment_coverage_trigger
+  AFTER INSERT OR UPDATE OF paid_reported_at ON public.kiru_renewals
+  FOR EACH ROW
+  EXECUTE FUNCTION kiru_private.sync_renewal_payment_coverage();
+
 -- Completa los pagos comunicados con el nuevo desglose sin cambiar su estado de validación.
 DO $$
 DECLARE r public.kiru_renewals;
