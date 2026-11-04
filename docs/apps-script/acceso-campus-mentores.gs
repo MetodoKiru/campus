@@ -218,6 +218,7 @@ function kiruEnviarPinsOlvidados() {
   } finally {
     bloqueo.releaseLock();
   }
+}
 
 function kiruEnviarCorreoPinNuevo(p) {
   var pila = String(p.fullName || '').trim().split(/\s+/)[0] || 'hola';
