@@ -379,6 +379,14 @@ export type MissingScWeekRow = {
   sessions: number; session_dates: string[]; respondent_email: string | null;
 };
 
+export type FamilySessionHistoryRow = {
+  id: string;
+  student_id: string;
+  session_date: string | null;
+  mentor_name: string;
+  topic: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -416,7 +424,9 @@ export type Database = {
       kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;
       kiru_opportunity_recommendations: Table<OpportunityRecommendationRow, "id" | "created_at">;
     };
-    Views: { [_ in never]: never };
+    Views: {
+      kiru_family_session_history: { Row: FamilySessionHistoryRow; Relationships: [] };
+    };
     Functions: {
       kiru_skillcoin_summary: { Args: { p_student: string }; Returns: Json };
       kiru_skillcoin_correct_week: {
