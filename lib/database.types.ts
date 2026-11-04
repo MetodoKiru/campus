@@ -395,6 +395,9 @@ export type Database = {
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
       kiru_coordinator_mentors: Table<CoordinatorMentorRow, "assigned_at">;
       kiru_session_logs: Table<SessionLogRow, Timestamps | "id" | "session_date" | "mentor_name" | "student_name" | "respondent_email" | "mentor_id" | "student_id" | "incident" | "answers" | "manual_status" | "manual_by" | "manual_at">;
+      kiru_mentor_schedules: Table<{ id: string; source_key: string; mentor_id: string | null; mentor_name: string; student_name: string; weekday: string; start_time: string; end_time: string; active: boolean; updated_at: string }, "id" | "updated_at">;
+      kiru_mentor_payroll: Table<{ id: string; source_key: string; mentor_id: string | null; mentor_name: string; student_name: string; period_start: string | null; period_end: string | null; status: string; sessions_count: number | null; team_extra_eur: number | null; agreed_amount_eur: number | null; payment_date: string | null; notes: string; updated_at: string }, "id" | "period_start" | "period_end" | "status" | "sessions_count" | "team_extra_eur" | "agreed_amount_eur" | "payment_date" | "notes" | "updated_at">;
+      kiru_mentor_rates: Table<{ mentor_id: string; hourly_rate_eur: number | null; pending_sessions: number | null; pending_amount_eur: number | null; sessions_total: number | null; updated_at: string }, "hourly_rate_eur" | "pending_sessions" | "pending_amount_eur" | "sessions_total" | "updated_at">;
       kiru_incident_reviews: Table<IncidentReviewRow, "note" | "reviewed_by" | "reviewed_at">;
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
       kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
