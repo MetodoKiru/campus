@@ -69,7 +69,7 @@ BEGIN
   IF v_days IS NOT NULL THEN
     v_sessions := (v_days * 4 * v_months)::smallint;
   END IF;
-  v_concept := 'Mensualidad del ' || kiru_private.fecha_corta(v_start) || ' al ' || kiru_private.fecha_corta(v_end)
+  v_concept := 'Mensualidad del ' || to_char(v_start, 'DD/MM/YYYY') || ' al ' || to_char(v_end, 'DD/MM/YYYY')
     || CASE WHEN v_months > 1 THEN ' (' || v_months || ' meses)' ELSE '' END;
 
   UPDATE public.kiru_renewals
