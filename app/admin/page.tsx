@@ -37,6 +37,7 @@ interface UserAccount {
   id: string;
   name: string;
   username: string;
+  email?: string | null;
   password?: string;
   role: "alumno" | "mentor" | "padre" | "formador" | "coordinador" | "admin";
   createdAt: string;
@@ -48,6 +49,7 @@ interface AdminUserRow {
   id: string;
   full_name: string;
   username: string | null;
+  email: string | null;
   role: UserAccount["role"];
   created_at: string | null;
 }
@@ -204,7 +206,7 @@ export default function AdminPage() {
         // Si la migración del coordinador aún no está aplicada, el resto del panel sigue funcionando.
         if (!coordinatorLinks.error) setCoordinatorByMentor(Object.fromEntries((coordinatorLinks.data || []).map((l) => [l.mentor_id, l.coordinator_id])));
         const guardianByStudent = new Map((guardianLinks.data || []).map((link) => [link.student_id, link.guardian_id]));
-        const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
+        const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", email: u.email, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
         setUsers(mappedUsers);
         const usernameById = new Map(mappedUsers.map((u) => [u.id, u.username]));
         setLinks((mentorLinks.data || []).map((link) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
@@ -248,7 +250,7 @@ export default function AdminPage() {
       if (!response.ok) throw new Error(result.error || "No se pudo crear el usuario.");
       const created = result.user;
       setUsers((current) => [{
-        id: created.id, name: created.full_name, username: created.username, role: created.role,
+        id: created.id, name: created.full_name, username: created.username, email: created.email ?? null, role: created.role,
         createdAt: new Date().toISOString().slice(0, 10),
       }, ...current]);
       setName(""); setUsername(""); setEmail(""); setPassword(""); setRole("alumno");
@@ -823,6 +825,7 @@ export default function AdminPage() {
                           <td className="py-3.5 pl-2">
                             <p className="font-bold text-slate-900">{user.name}</p>
                             <p className="text-[11px] text-slate-400 font-mono">@{user.username}</p>
+                            {user.email && <p className="text-[11px] text-slate-500 break-all">{user.email}</p>}
                           </td>
                           <td className="py-3.5">
                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
