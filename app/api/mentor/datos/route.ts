@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       const student = str(keyOf(row, "alumno"));
       const weekday = str(keyOf(row, "dia"));
       const start = str(keyOf(row, "inicio")), end = str(keyOf(row, "fin"));
-      return { source_key: [normalizeName(name), normalizeName(student), normalizeName(weekday)].join("|").slice(0, 500), mentor_id: mentorId(name, email), mentor_name: name, student_name: student, weekday, start_time: start, end_time: end, active: activeValue(keyOf(row, "activo")) };
+      return { source_key: [normalizeName(name), normalizeName(student), normalizeName(weekday), start, end].join("|").slice(0, 500), mentor_id: mentorId(name, email), mentor_name: name, student_name: student, weekday, start_time: start, end_time: end, active: activeValue(keyOf(row, "activo")) };
     })),
     Promise.all(payments.map(async (row) => {
       const name = str(keyOf(row, "mentor")), student = str(keyOf(row, "alumno"));
@@ -105,12 +105,20 @@ export async function POST(request: Request) {
     })),
   ]);
   const unmatched = [...payloads[0], ...payloads[1]].filter((x) => !x.mentor_id).map((x) => x.mentor_name);
-  const validSchedules = payloads[0].filter((x) => x.mentor_id);
+  const validSchedules = [...new Map(payloads[0].filter((x) => x.mentor_id).map((row) => [row.source_key, row])).values()];
   const validPayments = payloads[1].filter((x) => x.mentor_id);
   const validRates = payloads[2].filter((x): x is typeof x & { mentor_id: string } => Boolean(x.mentor_id));
   for (let i = 0; i < validSchedules.length; i += 500) {
     const { error: saveError } = await admin.from("kiru_mentor_schedules").upsert(validSchedules.slice(i, i + 500), { onConflict: "source_key" });
-    if (saveError) return NextResponse.json({ error: "No se pudieron guardar los horarios importados." }, { status: 500 });
+    if (saveError) return NextResponse.json({ error: "No se pudieron guardar los horarios importados.", ...(process.env.VERCEL_ENV === "preview" ? { detail: saveError.message, code: saveError.code } : {}) }, { status: 500 });
+  }
+  const { data: storedSchedules, error: scheduleReadError } = await admin.from("kiru_mentor_schedules").select("id,source_key");
+  if (scheduleReadError) return NextResponse.json({ error: "No se pudo comprobar la vigencia de los horarios." }, { status: 500 });
+  const currentScheduleKeys = new Set(validSchedules.map((row) => row.source_key));
+  const staleScheduleIds = (storedSchedules ?? []).filter((row) => !currentScheduleKeys.has(row.source_key)).map((row) => row.id);
+  for (let i = 0; i < staleScheduleIds.length; i += 500) {
+    const { error: deactivateError } = await admin.from("kiru_mentor_schedules").update({ active: false }).in("id", staleScheduleIds.slice(i, i + 500));
+    if (deactivateError) return NextResponse.json({ error: "No se pudieron desactivar horarios retirados de la hoja." }, { status: 500 });
   }
   for (let i = 0; i < validPayments.length; i += 500) {
     const { error: saveError } = await admin.from("kiru_mentor_payroll").upsert(validPayments.slice(i, i + 500), { onConflict: "source_key" });
