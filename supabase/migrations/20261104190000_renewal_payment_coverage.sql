@@ -24,6 +24,19 @@ COMMENT ON COLUMN public.kiru_payments.days_per_week IS 'Modalidad elegida en la
 COMMENT ON COLUMN public.kiru_payments.sessions_included IS 'Sesiones incluidas por modalidad y número de meses pagados.';
 COMMENT ON COLUMN public.kiru_payments.reported_at IS 'Momento en que la familia comunicó el pago; no implica validación bancaria.';
 
+CREATE OR REPLACE FUNCTION kiru_private.system_author()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SET search_path TO ''
+AS $function$
+  SELECT id
+  FROM public.profiles
+  WHERE role = 'admin' AND is_active
+  ORDER BY created_at
+  LIMIT 1
+$function$;
+
 CREATE OR REPLACE FUNCTION kiru_private.renewal_payment_reported(r public.kiru_renewals, p_source text, p_by uuid)
 RETURNS void
 LANGUAGE plpgsql
