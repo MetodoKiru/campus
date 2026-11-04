@@ -99,6 +99,12 @@ export type PaymentRow = {
   paid_at: string | null;
   external_reference: string | null;
   notes: string | null;
+  renewal_id: string | null;
+  coverage_start: string | null;
+  coverage_end: string | null;
+  days_per_week: number | null;
+  sessions_included: number | null;
+  reported_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -412,7 +418,7 @@ export type Database = {
       kiru_notices: Table<NoticeRow, Timestamps | "id" | "published_at" | "target_student_id" | "link_url" | "link_title" | "attachment_path">;
       kiru_documents: Table<DocumentRow, Timestamps | "id" | "document_type" | "target_student_id" | "file_size" | "requires_acceptance">;
       kiru_document_acceptances: Table<DocumentAcceptanceRow, "id" | "accepted_at">;
-      kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes">;
+      kiru_payments: Table<PaymentRow, Timestamps | "id" | "due_date" | "status" | "payment_url" | "paid_at" | "external_reference" | "notes" | "renewal_id" | "coverage_start" | "coverage_end" | "days_per_week" | "sessions_included" | "reported_at">;
       kiru_flashcard_sets: Table<FlashcardSetRow, Timestamps | "id" | "subject" | "source_file_name" | "source_storage_path" | "source_mime_type" | "source_size_bytes" | "generation_method" | "status">;
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
       kiru_coordinator_mentors: Table<CoordinatorMentorRow, "assigned_at">;
