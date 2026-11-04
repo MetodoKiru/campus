@@ -387,6 +387,20 @@ export type FamilySessionHistoryRow = {
   topic: string;
 };
 
+export type ScheduleSlotRow = {
+  id: string;
+  student_id: string;
+  mentor_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  time_zone: string;
+  is_active: boolean;
+  source: "campus" | "sheet_import";
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -402,6 +416,7 @@ export type Database = {
       kiru_flashcard_sets: Table<FlashcardSetRow, Timestamps | "id" | "subject" | "source_file_name" | "source_storage_path" | "source_mime_type" | "source_size_bytes" | "generation_method" | "status">;
       kiru_flashcards: Table<FlashcardRow, Timestamps | "id" | "position">;
       kiru_coordinator_mentors: Table<CoordinatorMentorRow, "assigned_at">;
+      kiru_student_schedule_slots: Table<ScheduleSlotRow, "id" | "time_zone" | "is_active" | "source" | "created_at" | "updated_at">;
       kiru_session_logs: Table<SessionLogRow, Timestamps | "id" | "session_date" | "mentor_name" | "student_name" | "respondent_email" | "mentor_id" | "student_id" | "incident" | "answers" | "manual_status" | "manual_by" | "manual_at">;
       kiru_incident_reviews: Table<IncidentReviewRow, "note" | "reviewed_by" | "reviewed_at">;
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
