@@ -298,13 +298,7 @@ set local role service_role;
 select pg_temp.expect('el correo ve que ya eligió', (select (kiru_renewal_from_email('p@t','Álvaro','2026-11-19','mantener')->>'already')::boolean::int), 1);
 select pg_temp.expect('el correo devuelve lo del campus', (select count(*) from kiru_renewals where plan='subir'), 1);
 select pg_temp.expect('pago por correo', (select (kiru_renewal_from_email('p@t','Álvaro','2026-11-19','pagado')->>'already')::boolean::int), 0);
-select pg_temp.expect('pago reportado conserva periodo y modalidad de 3 días', (
-  select count(*) from kiru_payments p join kiru_renewals r on r.id=p.renewal_id
-  where p.days_per_week=3 and p.sessions_included=12
-    and p.coverage_start=(r.paid_reported_at at time zone 'Europe/Madrid')::date
-    and p.coverage_end=(p.coverage_start + make_interval(months => 1))::date
-    and p.reported_at is not null and p.status='pending'
-), 1);
+
 select pg_temp.expect('hoja tiene 1 pendiente', (select jsonb_array_length(kiru_renewal_sync('[]')->'pendientes')), 1);
 select pg_temp.expect('ack confirma', (select kiru_renewal_ack((select jsonb_agg(jsonb_build_object('id',x->>'id','seq',x->'seq')) from jsonb_array_elements(kiru_renewal_sync('[]')->'pendientes') x))), 1);
 select pg_temp.expect('hoja sin pendientes', (select jsonb_array_length(kiru_renewal_sync('[]')->'pendientes')), 0);
@@ -337,6 +331,14 @@ do $$ begin
 exception when invalid_parameter_value then raise notice 'ok  meses no ofrecidos (denied)';
 end $$;
 select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal_choose_months((select id from ren2), 'mantener', 3)->>'total')::numeric * 10)::bigint, 9975);
+select pg_temp.expect('padre reporta pago de 3 meses', (select (kiru_renewal_report_paid((select id from ren2))->>'already')::boolean::int), 0);
+select pg_temp.expect('pago conserva periodo y modalidad de 2 días durante 3 meses', (
+  select count(*) from kiru_payments p join kiru_renewals r on r.id=p.renewal_id
+  where p.days_per_week=2 and p.sessions_included=24
+    and p.coverage_start=(r.paid_reported_at at time zone 'Europe/Madrid')::date
+    and p.coverage_end=(p.coverage_start + make_interval(months => 3))::date
+    and p.reported_at is not null and p.status='pending'
+), 1);
 reset role;
 set local role service_role;
 select pg_temp.expect('la hoja recibe meses y total', (select count(*) from jsonb_array_elements(kiru_renewal_sync('[]')->'pendientes') x where (x->>'meses')::int=3 and (x->>'total')::numeric=997.5), 1);
