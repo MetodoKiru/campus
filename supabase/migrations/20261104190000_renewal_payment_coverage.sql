@@ -1,10 +1,14 @@
 -- Une los pagos generados desde Renovaciones con su periodo y sesiones cubiertas.
 ALTER TABLE public.kiru_payments
+  ADD COLUMN IF NOT EXISTS renewal_id uuid REFERENCES public.kiru_renewals(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS coverage_start date,
   ADD COLUMN IF NOT EXISTS coverage_end date,
   ADD COLUMN IF NOT EXISTS days_per_week smallint,
   ADD COLUMN IF NOT EXISTS sessions_included smallint,
   ADD COLUMN IF NOT EXISTS reported_at timestamptz;
+
+CREATE UNIQUE INDEX IF NOT EXISTS kiru_payments_renewal_uidx
+  ON public.kiru_payments (renewal_id) WHERE renewal_id IS NOT NULL;
 
 ALTER TABLE public.kiru_payments
   ADD CONSTRAINT kiru_payments_days_per_week_check
