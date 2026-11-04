@@ -332,9 +332,12 @@ exception when invalid_parameter_value then raise notice 'ok  meses no ofrecidos
 end $$;
 select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal_choose_months((select id from ren2), 'mantener', 3)->>'total')::numeric * 10)::bigint, 9975);
 select pg_temp.expect('padre reporta pago de 3 meses', (select (kiru_renewal_report_paid((select id from ren2))->>'already')::boolean::int), 0);
-select pg_temp.expect('pago conserva periodo y modalidad de 2 días durante 3 meses', (
+select pg_temp.expect('pago conectado a su renovación', (select count(*) from kiru_payments where renewal_id=(select id from ren2)), 1);
+select pg_temp.expect('pago conserva los 2 días de frecuencia', (select count(*) from kiru_payments where renewal_id=(select id from ren2) and days_per_week=2), 1);
+select pg_temp.expect('pago calcula 24 sesiones para 3 meses', (select count(*) from kiru_payments where renewal_id=(select id from ren2) and sessions_included=24), 1);
+select pg_temp.expect('pago conserva inicio, fecha de renovación y estado de confirmación', (
   select count(*) from kiru_payments p join kiru_renewals r on r.id=p.renewal_id
-  where p.days_per_week=2 and p.sessions_included=24
+  where p.renewal_id=(select id from ren2)
     and p.coverage_start=(r.paid_reported_at at time zone 'Europe/Madrid')::date
     and p.coverage_end=(p.coverage_start + make_interval(months => 3))::date
     and p.reported_at is not null and p.status='pending'
