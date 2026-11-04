@@ -67,3 +67,47 @@ function kiruInstalarEnvioAutomatico() {
   ScriptApp.newTrigger('kiruEnviarRegistrosAlCampus').timeBased().everyHours(1).create();
   kiruEnviarRegistrosAlCampus();
 }
+
+
+/**
+ * Importación inicial manual del horario semanal desde la pestaña «Horarios».
+ * Ejecutar una sola vez cuando el endpoint del campus esté desplegado.
+ * Después, el horario del campus será la referencia y no se debe repetir.
+ */
+function kiruImportarHorarioInicialAlCampus() {
+  var clave = PropertiesService.getScriptProperties().getProperty('KIRU_REGISTROS_SECRET');
+  if (!clave) throw new Error('Falta la propiedad KIRU_REGISTROS_SECRET.');
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Horarios');
+  if (!hoja) throw new Error('No encuentro la pestaña «Horarios».');
+  var valores = hoja.getDataRange().getDisplayValues();
+  if (valores.length < 2) throw new Error('La pestaña Horarios no contiene filas.');
+  var cabeceras = valores[0].map(function (c) { return String(c).trim(); });
+  var indice = {};
+  cabeceras.forEach(function (c, i) { indice[c.toLowerCase()] = i; });
+  var requeridas = ['mentor (como en el formulario)', 'correo del mentor', 'alumno (como en el formulario)', 'día', 'inicio', 'fin', 'activo'];
+  requeridas.forEach(function (c) {
+    if (indice[c] === undefined) throw new Error('Falta la columna «' + c + '».');
+  });
+  var filas = valores.slice(1).filter(function (r) { return r.some(function (v) { return String(v).trim(); }); }).map(function (r) {
+    return {
+      mentor_name: r[indice['mentor (como en el formulario)']],
+      mentor_email: r[indice['correo del mentor']],
+      student_name: r[indice['alumno (como en el formulario)']],
+      weekday: r[indice['día']],
+      start_time: r[indice['inicio']],
+      end_time: r[indice['fin']],
+      active: r[indice['activo']]
+    };
+  });
+  var respuesta = UrlFetchApp.fetch('https://campus.metodokiru.es/api/horarios/importar-inicial', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + clave },
+    payload: JSON.stringify({ rows: filas }),
+    muteHttpExceptions: true
+  });
+  var codigo = respuesta.getResponseCode();
+  if (codigo !== 200) throw new Error('Importación no completada (' + codigo + '). Revisa el estado desde el campus.');
+  var resultado = JSON.parse(respuesta.getContentText());
+  console.log('Franjas semanales importadas: ' + resultado.imported);
+}
