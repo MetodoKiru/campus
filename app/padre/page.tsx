@@ -48,12 +48,18 @@ interface DocItem {
 
 interface PaymentRecord {
   id: string;
+  studentId: string;
   studentUsername: string;
   concept: string;
   amount: number;
   dueDate: string;
-  status: "Pagado" | "Pendiente";
+  status: "Pagado" | "Pendiente" | "Pago comunicado · pendiente de confirmar";
   payLink: string;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  daysPerWeek: number | null;
+  sessionsIncluded: number | null;
+  reportedAt: string | null;
 }
 
 interface FamilyScheduleSlot {
@@ -208,7 +214,21 @@ export default function PadrePage() {
         }));
         setDocs(mappedDocs);
         setNotices((noticesResult.data || []).filter((notice) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) ?? "" : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url ?? undefined, linkTitle: notice.link_title ?? undefined })));
-        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
+        setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment) => ({
+          id: payment.id,
+          studentId: payment.student_id,
+          studentUsername: usernameById.get(payment.student_id) ?? "",
+          concept: payment.concept,
+          amount: payment.amount_cents / 100,
+          dueDate: payment.due_date || "",
+          status: payment.status === "paid" ? "Pagado" : payment.reported_at ? "Pago comunicado · pendiente de confirmar" : "Pendiente",
+          payLink: payment.payment_url || "",
+          coverageStart: payment.coverage_start,
+          coverageEnd: payment.coverage_end,
+          daysPerWeek: payment.days_per_week,
+          sessionsIncluded: payment.sessions_included,
+          reportedAt: payment.reported_at,
+        })));
         setSessionHistory(familySessionsResult.error ? [] : (familySessionsResult.data || []));
         setScheduleSlots(scheduleResult.error ? [] : (scheduleResult.data || []).map((slot) => ({ ...slot, mentor_name: mentorNames.get(slot.mentor_id) || "Mentor asignado" })));
         setSessionHistoryLoading(false);
@@ -261,7 +281,7 @@ export default function PadrePage() {
     (p) => !selectedChild || p.studentUsername === selectedChild.username
   );
 
-  const pendingPayment = currentChildPayments.find((p) => p.status === "Pendiente");
+  const pendingPayment = currentChildPayments.find((p) => p.status === "Pendiente" && !p.reportedAt);
 
   if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -752,7 +772,8 @@ export default function PadrePage() {
                     <thead className="border-b border-[#EEEAE3] text-[#8D887F] uppercase text-[10px]">
                       <tr>
                         <th className="pb-2">Fecha</th>
-                        <th className="pb-2">Concepto</th>
+                        <th className="pb-2">Concepto y periodo</th>
+                        <th className="pb-2">Sesiones incluidas</th>
                         <th className="pb-2">Importe</th>
                         <th className="pb-2 text-right">Estado</th>
                       </tr>
@@ -760,8 +781,32 @@ export default function PadrePage() {
                     <tbody className="divide-y divide-[#EEEAE3]">
                       {currentChildPayments.map((pay) => (
                         <tr key={pay.id}>
-                          <td className="py-3 text-[#77736B]">{pay.dueDate}</td>
-                          <td className="py-3 font-medium text-[#45433F]">{pay.concept}</td>
+                          <td className="py-3 text-[#77736B]">
+                            <span className="block font-medium text-[#45433F]">{pay.concept}</span>
+                            {pay.coverageStart && pay.coverageEnd ? (
+                              <span className="mt-1 block text-[10px]">
+                                Periodo: {new Date(`${pay.coverageStart}T12:00:00`).toLocaleDateString("es-ES")} – {new Date(`${pay.coverageEnd}T12:00:00`).toLocaleDateString("es-ES")}
+                              </span>
+                            ) : pay.dueDate ? <span className="mt-1 block text-[10px]">Fecha: {pay.dueDate}</span> : null}
+                          </td>
+                          <td className="py-3 text-[#77736B]">
+                            {pay.sessionsIncluded !== null && pay.sessionsIncluded !== undefined && pay.coverageStart && pay.coverageEnd ? (() => {
+                              const consumed = sessionHistory.filter((session) =>
+                                session.student_id === pay.studentId && !!session.session_date
+                                && session.session_date >= pay.coverageStart!
+                                && session.session_date < pay.coverageEnd!
+                              ).length;
+                              const remaining = Math.max(0, pay.sessionsIncluded! - consumed);
+                              return (
+                                <span>
+                                  <strong className="block text-[#45433F]">{pay.sessionsIncluded} sesiones</strong>
+                                  {pay.daysPerWeek ? <span className="block">{pay.daysPerWeek} {pay.daysPerWeek === 1 ? "día" : "días"} por semana</span> : null}
+                                  <span className="block">{consumed} realizadas · {remaining} pendientes</span>
+                                  {pay.status === "Pago comunicado · pendiente de confirmar" && <span className="block text-[#806C50]">Pago por confirmar</span>}
+                                </span>
+                              );
+                            })() : <span>Sesiones aún no vinculadas</span>}
+                          </td>
                           <td className="py-3 font-serif font-bold text-[#292825]">{pay.amount} €</td>
                           <td className="py-3 text-right">
                             <span
