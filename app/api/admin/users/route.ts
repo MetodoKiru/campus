@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     await admin.auth.admin.deleteUser(created.user.id);
     return NextResponse.json({ error: "No se pudo crear el perfil: " + profileError.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, user: { id: created.user.id, full_name: fullName, username, role } }, { status: 201 });
+  return NextResponse.json({ ok: true, user: { id: created.user.id, full_name: fullName, username, email: created.user.email, role } }, { status: 201 });
 }
 
 export async function GET(request: Request) {
@@ -72,7 +72,20 @@ export async function GET(request: Request) {
   if (caller?.role !== "admin" || !caller.is_active) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { data, error } = await admin.from("profiles").select("id,full_name,username,role,is_active,created_at").order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "No se pudieron cargar los usuarios." }, { status: 500 });
-  return NextResponse.json({ users: data ?? [] });
+
+  const emailById = new Map<string, string>();
+  for (let page = 1; page <= 20; page++) {
+    const { data: authPage, error: authListError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (authListError) return NextResponse.json({ error: "No se pudieron cargar los correos de las cuentas." }, { status: 500 });
+    for (const authUser of authPage.users) {
+      if (authUser.email && !authUser.email.endsWith(".invalid")) emailById.set(authUser.id, authUser.email);
+    }
+    if (authPage.users.length < 1000) break;
+  }
+
+  return NextResponse.json({
+    users: (data ?? []).map((user) => ({ ...user, email: emailById.get(user.id) ?? null })),
+  });
 }
 
 export async function PATCH(request: Request) {

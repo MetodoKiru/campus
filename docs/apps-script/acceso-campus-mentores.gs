@@ -187,21 +187,37 @@ function kiruRevisarAccesosPendientes() {
 
 /** Cada 5 minutos: manda el correo «Crea un PIN nuevo» a quien lo haya pedido en el campus. */
 function kiruEnviarPinsOlvidados() {
-  var clave = PropertiesService.getScriptProperties().getProperty('KIRU_ALTA_SECRET');
-  if (!clave) throw new Error('Falta la propiedad KIRU_ALTA_SECRET.');
-  var r = UrlFetchApp.fetch(KIRU_PINS_URL, {
-    method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + clave },
-    payload: '{}', muteHttpExceptions: true,
-  });
-  if (r.getResponseCode() !== 200) throw new Error('El campus respondió ' + r.getResponseCode() + ': ' + r.getContentText());
-  var datos = JSON.parse(r.getContentText());
-  (datos.resets || []).forEach(function (p) {
-    try {
-      kiruEnviarCorreoPinNuevo(p);
-    } catch (e) {
-      console.error('PIN nuevo para ' + p.email + ': ' + e.message);
+  var bloqueo = LockService.getScriptLock();
+  if (!bloqueo.tryLock(30000)) return;
+  try {
+    var clave = PropertiesService.getScriptProperties().getProperty('KIRU_ALTA_SECRET');
+    if (!clave) throw new Error('Falta la propiedad KIRU_ALTA_SECRET.');
+    var opciones = {
+      method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + clave },
+      payload: '{}', muteHttpExceptions: true,
+    };
+    var r = UrlFetchApp.fetch(KIRU_PINS_URL, opciones);
+    if (r.getResponseCode() !== 200) throw new Error('El campus respondió ' + r.getResponseCode() + ': ' + r.getContentText());
+    var datos = JSON.parse(r.getContentText());
+    var entregados = [];
+    (datos.resets || []).forEach(function (p) {
+      try {
+        kiruEnviarCorreoPinNuevo(p);
+        (p.requestIds || []).forEach(function (id) { entregados.push(id); });
+      } catch (e) {
+        console.error('PIN nuevo para ' + p.email + ': ' + e.message);
+      }
+    });
+    if (entregados.length) {
+      opciones.payload = JSON.stringify({ deliveredIds: entregados });
+      var confirmacion = UrlFetchApp.fetch(KIRU_PINS_URL, opciones);
+      if (confirmacion.getResponseCode() !== 200) {
+        throw new Error('Se enviaron correos, pero el campus no confirmó la entrega (' + confirmacion.getResponseCode() + '): ' + confirmacion.getContentText());
+      }
     }
-  });
+  } finally {
+    bloqueo.releaseLock();
+  }
 }
 
 function kiruEnviarCorreoPinNuevo(p) {
