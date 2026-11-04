@@ -10,6 +10,10 @@ insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_bui
 update profiles set is_active=false where id=(select id from ids where k='S3');
 insert into student_mentors values ((select id from ids where k='S1'),(select id from ids where k='M')),((select id from ids where k='S2'),(select id from ids where k='M2'));
 insert into student_guardians(student_id,guardian_id) values ((select id from ids where k='S1'),(select id from ids where k='P'));
+insert into kiru_student_schedule_slots(student_id,mentor_id,weekday,start_time,end_time) values
+  ((select id from ids where k='S1'),(select id from ids where k='M'),1,'18:00','19:00'),
+  ((select id from ids where k='S1'),(select id from ids where k='M'),3,'18:00','19:00'),
+  ((select id from ids where k='S2'),(select id from ids where k='M2'),2,'17:00','18:00');
 insert into kiru_payments(student_id,concept,amount_cents,created_by) select id,'cuota',100,(select id from ids where k='A') from ids where k in ('S1','S2','S3');
 insert into kiru_notices(title,content,created_by,target_student_id) values ('global','x',(select id from ids where k='A'),null),('s1','x',(select id from ids where k='A'),(select id from ids where k='S1')),('s2','x',(select id from ids where k='A'),(select id from ids where k='S2'));
 insert into kiru_app_records(owner_id,record_type,record_key,created_by) select id,'progress','p_'||k,id from ids where k in ('S1','S2','S3');
@@ -250,6 +254,20 @@ select pg_temp.expect('padre no ve semanas sin SC', (select count(*) from kiru_m
 reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve semanas sin SC', $q$select * from kiru_missing_sc_weeks()$q$);
+reset role;
+
+-- Horarios semanales: familia y mentor solo ven las franjas de su relación.
+select pg_temp.as_user('P');
+select pg_temp.expect('padre ve las dos franjas de su hijo', (select count(*) from kiru_student_schedule_slots), 2);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve las dos franjas de su alumno asignado', (select count(*) from kiru_student_schedule_slots), 2);
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.expect('otro mentor solo ve su alumno asignado', (select count(*) from kiru_student_schedule_slots), 1);
+reset role;
+set local role anon;
+select pg_temp.expect_denied('anon no ve horarios', $q$select * from kiru_student_schedule_slots$q$);
 reset role;
 
 -- Renovaciones: correo y campus comparten respuesta; vale la primera.
