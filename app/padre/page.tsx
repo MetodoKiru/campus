@@ -56,6 +56,17 @@ interface PaymentRecord {
   payLink: string;
 }
 
+interface FamilyScheduleSlot {
+  id: string;
+  student_id: string;
+  mentor_id: string;
+  mentor_name: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  time_zone: string;
+}
+
 interface FamilySessionHistoryItem {
   id: string;
   student_id: string;
@@ -117,6 +128,7 @@ export default function PadrePage() {
   const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [sessionHistory, setSessionHistory] = useState<FamilySessionHistoryItem[]>([]);
+  const [scheduleSlots, setScheduleSlots] = useState<FamilyScheduleSlot[]>([]);
   const [sessionHistoryLoading, setSessionHistoryLoading] = useState(true);
 
   // SkillCoins del hijo seleccionado: saldo y semanas calculados en la base de datos.
@@ -166,6 +178,21 @@ export default function PadrePage() {
         if (familySessionsResult.error) {
           console.error("No se pudo cargar el historial de sesiones.", familySessionsResult.error);
         }
+        const scheduleResult = studentIds.length
+          ? await supabase.from("kiru_student_schedule_slots")
+              .select("id,student_id,mentor_id,weekday,start_time,end_time,time_zone")
+              .in("student_id", studentIds)
+              .eq("is_active", true)
+              .order("weekday", { ascending: true })
+              .order("start_time", { ascending: true })
+          : { data: [], error: null };
+        if (scheduleResult.error) console.error("No se pudo cargar el horario semanal.", scheduleResult.error);
+        const mentorIds = Array.from(new Set((scheduleResult.data || []).map((slot) => slot.mentor_id)));
+        const mentorProfiles = mentorIds.length
+          ? await supabase.from("profiles").select("id,full_name").in("id", mentorIds)
+          : { data: [], error: null };
+        if (mentorProfiles.error) console.error("No se pudieron cargar los mentores del horario.", mentorProfiles.error);
+        const mentorNames = new Map((mentorProfiles.data || []).map((mentor) => [mentor.id, mentor.full_name]));
         if (!active) return;
         const profileResult = studentIds.length ? await supabase.from("profiles").select("id,username").in("id", studentIds) : { data: [], error: null };
         if (profileResult.error) throw profileResult.error;
@@ -183,6 +210,7 @@ export default function PadrePage() {
         setNotices((noticesResult.data || []).filter((notice) => !notice.target_student_id || allowedIds.has(notice.target_student_id)).map((notice) => ({ id: notice.id, title: notice.title, targetStudent: notice.target_student_id ? usernameById.get(notice.target_student_id) ?? "" : "todos", date: new Date(notice.published_at).toLocaleDateString("es-ES"), content: notice.content, linkUrl: notice.link_url ?? undefined, linkTitle: notice.link_title ?? undefined })));
         setPayments((paymentsResult.data || []).filter((payment) => allowedIds.has(payment.student_id)).map((payment) => ({ id: payment.id, studentUsername: usernameById.get(payment.student_id) ?? "", concept: payment.concept, amount: payment.amount_cents / 100, dueDate: payment.due_date || "", status: payment.status === "paid" ? "Pagado" : "Pendiente", payLink: payment.payment_url || "" })));
         setSessionHistory(familySessionsResult.error ? [] : (familySessionsResult.data || []));
+        setScheduleSlots(scheduleResult.error ? [] : (scheduleResult.data || []).map((slot) => ({ ...slot, mentor_name: mentorNames.get(slot.mentor_id) || "Mentor asignado" })));
         setSessionHistoryLoading(false);
         const accepted: Record<string, { user: string; date: string }> = {};
         for (const row of acceptanceResult.data || []) if (allowedIds.has(row.student_id)) accepted[row.document_id] = { user: "Familia", date: new Date(row.accepted_at).toLocaleString("es-ES") };
@@ -475,10 +503,34 @@ export default function PadrePage() {
           {activeTab === "sesiones" && (
             <section className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E7E3DC] shadow-xs space-y-4">
               <div className="space-y-1">
-                <h3 className="font-serif text-lg text-[#292825] font-bold">Historial de sesiones</h3>
+                <h3 className="font-serif text-lg text-[#292825] font-bold">Horario semanal</h3>
                 <p className="text-xs text-[#77736B]">
-                  Sesiones registradas para {selectedChild.name}. Las próximas clases se mostrarán aquí cuando estén disponibles.
+                  Horario acordado para {selectedChild.name}. Las fechas concretas y cambios de clase se añadirán cuando estén gestionados desde el campus.
                 </p>
+              </div>
+              {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-[#45433F]">
+                    {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).length} sesiones por semana
+                  </p>
+                  <ul className="space-y-2">
+                    {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).map((slot) => (
+                      <li key={slot.id} className="flex flex-wrap justify-between gap-2 rounded-2xl border border-[#E7E3DC] bg-[#FDFCFB] p-4 text-xs">
+                        <span className="font-semibold text-[#292825]">{new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(new Date(Date.UTC(2024, 0, slot.weekday)))}</span>
+                        <span className="text-[#6D6962]">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</span>
+                        <span className="text-[#6D6962]">{slot.mentor_name}</span>
+                        <button type="button" disabled title="Próximamente" className="rounded-xl border border-[#E7E3DC] px-3 py-1.5 text-[#8D887F] opacity-70 cursor-not-allowed">Solicitar cambio · Próximamente</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#77736B]">Aún no hay un horario semanal cargado en el campus.</p>
+              )}
+
+              <div className="space-y-1 border-t border-[#E7E3DC] pt-4">
+                <h3 className="font-serif text-lg text-[#292825] font-bold">Historial de sesiones</h3>
+                <p className="text-xs text-[#77736B]">Sesiones realizadas y registradas para {selectedChild.name}.</p>
               </div>
 
               {sessionHistoryLoading ? (
