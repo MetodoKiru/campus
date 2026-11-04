@@ -516,7 +516,7 @@ export default function PadrePage() {
                   <ul className="space-y-2">
                     {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).map((slot) => (
                       <li key={slot.id} className="flex flex-wrap justify-between gap-2 rounded-2xl border border-[#E7E3DC] bg-[#FDFCFB] p-4 text-xs">
-                        <span className="font-semibold text-[#292825]">{new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(new Date(Date.UTC(2024, 0, slot.weekday)))}</span>
+                        <span className="font-semibold text-[#292825]">{new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(new Date(Date.UTC(2024, 0, slot.weekday - 1)))}</span>
                         <span className="text-[#6D6962]">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</span>
                         <span className="text-[#6D6962]">{slot.mentor_name}</span>
                         <button type="button" disabled title="Próximamente" className="rounded-xl border border-[#E7E3DC] px-3 py-1.5 text-[#8D887F] opacity-70 cursor-not-allowed">Solicitar cambio · Próximamente</button>
