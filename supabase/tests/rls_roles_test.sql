@@ -258,7 +258,8 @@ reset role;
 
 -- Horarios semanales: familia y mentor solo ven las franjas de su relación.
 select pg_temp.as_user('P');
-select pg_temp.expect('padre ve las dos franjas de su hijo', (select count(*) from kiru_student_schedule_slots), 2);
+select pg_temp.expect('padre ve las dos franjas de S1', (select count(*) from kiru_student_schedule_slots where student_id=(select id from ids where k='S1')), 2);
+select pg_temp.expect('padre ve solo los horarios de sus hijos vinculados', (select count(*) from kiru_student_schedule_slots where student_id=(select id from ids where k='S3')), 0);
 reset role;
 select pg_temp.as_user('M');
 select pg_temp.expect('mentor ve las dos franjas de su alumno asignado', (select count(*) from kiru_student_schedule_slots), 2);
