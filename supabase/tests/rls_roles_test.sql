@@ -10,6 +10,10 @@ insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_bui
 update profiles set is_active=false where id=(select id from ids where k='S3');
 insert into student_mentors values ((select id from ids where k='S1'),(select id from ids where k='M')),((select id from ids where k='S2'),(select id from ids where k='M2'));
 insert into student_guardians(student_id,guardian_id) values ((select id from ids where k='S1'),(select id from ids where k='P'));
+insert into kiru_student_schedule_slots(student_id,mentor_id,weekday,start_time,end_time) values
+  ((select id from ids where k='S1'),(select id from ids where k='M'),1,'18:00','19:00'),
+  ((select id from ids where k='S1'),(select id from ids where k='M'),3,'18:00','19:00'),
+  ((select id from ids where k='S2'),(select id from ids where k='M2'),2,'17:00','18:00');
 insert into kiru_payments(student_id,concept,amount_cents,created_by) select id,'cuota',100,(select id from ids where k='A') from ids where k in ('S1','S2','S3');
 insert into kiru_notices(title,content,created_by,target_student_id) values ('global','x',(select id from ids where k='A'),null),('s1','x',(select id from ids where k='A'),(select id from ids where k='S1')),('s2','x',(select id from ids where k='A'),(select id from ids where k='S2'));
 insert into kiru_app_records(owner_id,record_type,record_key,created_by) select id,'progress','p_'||k,id from ids where k in ('S1','S2','S3');
@@ -18,9 +22,9 @@ insert into kiru_flashcards(set_id,term,definition) select id,'t','d' from kiru_
 
 insert into kiru_mentor_onboarding(full_name,email,profile_id) values ('Mentor nuevo','mn@t.es',(select id from ids where k='MN'));
 insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values ((select id from ids where k='M'),(select id from ids where k='C')),((select id from ids where k='M2'),(select id from ids where k='C2'));
-insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident) values
-  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae'),
-  ('log-m2',now(),current_date,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'');
+insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident,answers) values
+  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae','[{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones y problemas"}]'::jsonb),
+  ('log-m2',now(),current_date,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'','[]'::jsonb);
 create temp table log_ids as select source_key, id from kiru_session_logs;
 grant select on log_ids to authenticated;
 
@@ -97,7 +101,10 @@ select pg_temp.expect('mentor no ve notas del coordinador', (select count(*) fro
 select pg_temp.expect('mentor no ve enlaces de coordinación', (select count(*) from kiru_coordinator_mentors), 0);
 reset role;
 select pg_temp.as_user('P');
-select pg_temp.expect('padre no ve registros de sesión', (select count(*) from kiru_session_logs), 0);
+select pg_temp.expect('padre no ve registros completos de sesión', (select count(*) from kiru_session_logs), 0);
+select pg_temp.expect('padre ve el historial de su hijo', (select count(*) from kiru_family_session_history), 1);
+select pg_temp.expect('padre ve el tema registrado de su hijo', (select count(*) from kiru_family_session_history where topic='Fracciones y problemas'), 1);
+select pg_temp.expect('padre no ve el historial de otro alumno', (select count(*) from kiru_family_session_history where student_id=(select id from ids where k='S2')), 0);
 reset role;
 select pg_temp.as_user('C', 'admin');
 select pg_temp.expect('JWT admin con perfil coordinador no ve pagos', (select count(*) from kiru_payments), 0);
@@ -247,6 +254,21 @@ select pg_temp.expect('padre no ve semanas sin SC', (select count(*) from kiru_m
 reset role;
 set local role anon;
 select pg_temp.expect_denied('anon no ve semanas sin SC', $q$select * from kiru_missing_sc_weeks()$q$);
+reset role;
+
+-- Horarios semanales: familia y mentor solo ven las franjas de su relación.
+select pg_temp.as_user('P');
+select pg_temp.expect('padre ve las dos franjas de S1', (select count(*) from kiru_student_schedule_slots where student_id=(select id from ids where k='S1')), 2);
+select pg_temp.expect('padre ve solo los horarios de sus hijos vinculados', (select count(*) from kiru_student_schedule_slots where student_id=(select id from ids where k='S3')), 0);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve las dos franjas de su alumno asignado', (select count(*) from kiru_student_schedule_slots), 2);
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.expect('otro mentor solo ve su alumno asignado', (select count(*) from kiru_student_schedule_slots), 1);
+reset role;
+set local role anon;
+select pg_temp.expect_denied('anon no ve horarios', $q$select * from kiru_student_schedule_slots$q$);
 reset role;
 
 -- Renovaciones: correo y campus comparten respuesta; vale la primera.
