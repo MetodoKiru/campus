@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import MentorSkillcoins from "@/components/skillcoins/MentorSkillcoins";
 import { MentorMissingSc, useMissingScWeeks } from "@/components/skillcoins/MissingScWeeks";
+import { MentorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
@@ -44,6 +45,7 @@ export default function MentorPage() {
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const missingSc = useMissingScWeeks(!authChecking);
+  const scheduleMismatches = useSessionScheduleMismatches(!authChecking);
   useEffect(() => {
     let alive = true;
     const verifyRole = async () => {
@@ -230,6 +232,7 @@ export default function MentorPage() {
         {menuStep && savedMsg && <Toast text={savedMsg} type={/^(No |Selecciona)/.test(savedMsg) ? "error" : "success"} onClose={() => setSavedMsg(null)} />}
 
         <div className={menuStep ? "hidden" : "space-y-6"}>
+        <MentorSessionScheduleMismatches rows={scheduleMismatches} />
         <MentorMissingSc rows={missingSc} />
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E7E3DC] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">

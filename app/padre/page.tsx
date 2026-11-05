@@ -18,6 +18,7 @@ import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoi
 import { latestWeekInfo } from "@/lib/skillcoins";
 import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renovaciones/RenewalCard";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
+import FamilySessionCalendar from "@/components/family/FamilySessionCalendar";
 
 interface Child {
   id: string;
@@ -283,6 +284,25 @@ export default function PadrePage() {
 
   const pendingPayment = currentChildPayments.find((p) => p.status === "Pendiente" && !p.reportedAt);
 
+  const childSessionHistory = selectedChild
+    ? sessionHistory.filter((session) => session.student_id === selectedChild.id)
+    : [];
+  const childPaymentPeriods = currentChildPayments
+    .filter((payment) => payment.status === "Pagado" && payment.coverageStart && payment.coverageEnd)
+    .sort((a, b) => (b.coverageStart ?? "").localeCompare(a.coverageStart ?? ""));
+  const assignedHistoryIds = new Set<string>();
+  const paymentHistoryGroups = childPaymentPeriods.map((payment) => {
+    const coveredSessions = childSessionHistory.filter((session) => {
+      if (!session.session_date || !payment.coverageStart || !payment.coverageEnd) return false;
+      const belongs = session.session_date >= payment.coverageStart && session.session_date < payment.coverageEnd;
+      if (!belongs || assignedHistoryIds.has(session.id)) return false;
+      assignedHistoryIds.add(session.id);
+      return true;
+    });
+    return { payment, sessions: coveredSessions };
+  });
+  const historyWithoutPaymentPeriod = childSessionHistory.filter((session) => !assignedHistoryIds.has(session.id));
+
   if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
   if (!authorized) return null;
 
@@ -525,7 +545,7 @@ export default function PadrePage() {
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Horario semanal</h3>
                 <p className="text-xs text-[#77736B]">
-                  Horario acordado para {selectedChild.name}. Las fechas concretas y cambios de clase se añadirán cuando estén gestionados desde el campus.
+                  Horario habitual de {selectedChild.name}. El calendario separa las sesiones registradas de las próximas previstas.
                 </p>
               </div>
               {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).length ? (
@@ -539,7 +559,6 @@ export default function PadrePage() {
                         <span className="font-semibold text-[#292825]">{new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(new Date(Date.UTC(2024, 0, slot.weekday - 1)))}</span>
                         <span className="text-[#6D6962]">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</span>
                         <span className="text-[#6D6962]">{slot.mentor_name}</span>
-                        <button type="button" disabled title="Próximamente" className="rounded-xl border border-[#E7E3DC] px-3 py-1.5 text-[#8D887F] opacity-70 cursor-not-allowed">Solicitar cambio · Próximamente</button>
                       </li>
                     ))}
                   </ul>
@@ -548,36 +567,61 @@ export default function PadrePage() {
                 <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#77736B]">Aún no hay un horario semanal cargado en el campus.</p>
               )}
 
+              <FamilySessionCalendar
+                sessions={childSessionHistory}
+                schedule={scheduleSlots.filter((slot) => slot.student_id === selectedChild.id)}
+              />
+
               <div className="space-y-1 border-t border-[#E7E3DC] pt-4">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Historial de sesiones</h3>
-                <p className="text-xs text-[#77736B]">Sesiones realizadas y registradas para {selectedChild.name}.</p>
+                <p className="text-xs text-[#77736B]">Despliega el periodo de acompañamiento pagado para ver sus sesiones registradas y las que quedan.</p>
               </div>
 
               {sessionHistoryLoading ? (
                 <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#77736B]">Cargando sesiones…</p>
-              ) : sessionHistory.filter((session) => session.student_id === selectedChild.id).length ? (
-                <ol className="space-y-3">
-                  {sessionHistory
-                    .filter((session) => session.student_id === selectedChild.id)
-                    .map((session) => (
-                      <li key={session.id} className="rounded-2xl border border-[#E7E3DC] bg-[#FDFCFB] p-4 space-y-2">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <time className="font-serif text-sm font-bold text-[#292825]">
-                            {session.session_date
-                              ? new Date(`${session.session_date}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-                              : "Fecha no indicada"}
-                          </time>
-                          <span className="text-[10px] text-[#8D887F]">Hora no registrada</span>
-                        </div>
-                        <p className="text-xs text-[#6D6962]">
-                          <strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}
-                        </p>
-                        <p className="text-xs leading-relaxed text-[#6D6962]">
-                          <strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}
-                        </p>
-                      </li>
-                    ))}
-                </ol>
+              ) : childSessionHistory.length ? (
+                <div className="space-y-2">
+                  {paymentHistoryGroups.map(({ payment, sessions }, index) => {
+                    const included = payment.sessionsIncluded;
+                    const remaining = included === null ? null : Math.max(0, included - sessions.length);
+                    return (
+                      <details key={payment.id} open={index === 0} className="group rounded-2xl border border-[#E7E3DC] bg-[#FDFCFB]">
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-4 marker:hidden">
+                          <span className="space-y-0.5">
+                            <span className="block text-xs font-bold text-[#45433F]">Periodo de acompañamiento · {payment.coverageStart && new Date(`${payment.coverageStart}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })} – {payment.coverageEnd && new Date(`${payment.coverageEnd}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</span>
+                            <span className="block text-[10px] text-[#77736B]">{sessions.length} realizadas{included !== null ? ` de ${included} previstas` : ""}{remaining !== null ? ` · ${remaining} por realizar` : ""}</span>
+                          </span>
+                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${payment.status === "Pagado" ? "bg-[#E7F0E4] text-[#38523A]" : "bg-[#F3EEE5] text-[#806C50]"}`}>{payment.status}</span>
+                        </summary>
+                        <ol className="space-y-2 border-t border-[#E7E3DC] p-3 sm:p-4">
+                          {sessions.length ? sessions.map((session) => (
+                            <li key={session.id} className="rounded-xl border border-[#E7E3DC] bg-white p-3 space-y-1.5">
+                              <time className="block font-serif text-sm font-bold capitalize text-[#292825]">
+                                {session.session_date ? new Date(`${session.session_date}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Fecha no indicada"}
+                              </time>
+                              <p className="text-xs text-[#6D6962]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
+                              <p className="text-xs leading-relaxed text-[#6D6962]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
+                            </li>
+                          )) : <li className="text-xs text-[#8D887F]">Aún no hay sesiones registradas en este periodo.</li>}
+                        </ol>
+                      </details>
+                    );
+                  })}
+                  {historyWithoutPaymentPeriod.length > 0 && (
+                    <details className="rounded-2xl border border-dashed border-[#DCD6CC] bg-[#FAF8F5]">
+                      <summary className="cursor-pointer p-4 text-xs font-bold text-[#6D6962]">Sesiones sin periodo de pago vinculado · {historyWithoutPaymentPeriod.length}</summary>
+                      <ol className="space-y-2 border-t border-[#E7E3DC] p-3 sm:p-4">
+                        {historyWithoutPaymentPeriod.map((session) => (
+                          <li key={session.id} className="rounded-xl border border-[#E7E3DC] bg-white p-3 space-y-1.5">
+                            <time className="block font-serif text-sm font-bold capitalize text-[#292825]">{session.session_date ? new Date(`${session.session_date}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Fecha no indicada"}</time>
+                            <p className="text-xs text-[#6D6962]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
+                            <p className="text-xs leading-relaxed text-[#6D6962]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
+                </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[#DCD6CC] bg-[#FAF8F5] p-6 text-center space-y-1">
                   <p className="font-serif text-sm font-bold text-[#45433F]">Aún no hay sesiones registradas</p>
