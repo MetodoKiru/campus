@@ -6,6 +6,9 @@ begin;
 create temp table ids(k text primary key, id uuid);
 insert into ids values ('A',gen_random_uuid()),('M',gen_random_uuid()),('M2',gen_random_uuid()),('P',gen_random_uuid()),('S1',gen_random_uuid()),('S2',gen_random_uuid()),('S3',gen_random_uuid()),('X',gen_random_uuid()),('F',gen_random_uuid()),('MN',gen_random_uuid()),('C',gen_random_uuid()),('C2',gen_random_uuid()),('M3',gen_random_uuid()),('M4',gen_random_uuid()),('M5',gen_random_uuid()),('M6',gen_random_uuid()),('M7',gen_random_uuid());
 grant select on ids to authenticated;
+-- El fixture de duplicados inserta una segunda respuesta como service_role.
+-- Dale acceso únicamente a la tabla temporal de IDs usada por estas pruebas.
+grant select on ids to service_role;
 insert into auth.users(id,email,raw_app_meta_data) select id, k||'@t', jsonb_build_object('kiru_role', case k when 'A' then 'admin' when 'X' then 'admin' when 'M' then 'mentor' when 'M2' then 'mentor' when 'P' then 'padre' when 'F' then 'formador' when 'MN' then 'mentor' when 'C' then 'coordinador' when 'C2' then 'coordinador' when 'M3' then 'mentor' when 'M4' then 'mentor' when 'M5' then 'mentor' when 'M6' then 'mentor' when 'M7' then 'mentor' else 'alumno' end) from ids;
 update profiles set is_active=false where id=(select id from ids where k='S3');
 insert into student_mentors values ((select id from ids where k='S1'),(select id from ids where k='M')),((select id from ids where k='S2'),(select id from ids where k='M2'));
