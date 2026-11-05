@@ -8,7 +8,7 @@ DB=kiru_rls_test
 psql -v ON_ERROR_STOP=1 -q -d postgres -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/supabase_stubs.sql
 for f in supabase/migrations/*.sql; do
-  psql -v ON_ERROR_STOP=1 -q -d "$DB" -1 -f "$f" 2>&1 | { grep -v NOTICE || true; }
+  psql -v ON_ERROR_STOP=1 -q -d "$DB" -1 -f "$f"
 done
 output=$(psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/rls_roles_test.sql 2>&1)
 echo "$output" | grep -E "ok  |FAIL|ERROR" | sed 's/^.*NOTICE:  //'
