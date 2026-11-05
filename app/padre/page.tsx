@@ -773,7 +773,7 @@ export default function PadrePage() {
                       <tr>
                         <th className="pb-2">Fecha</th>
                         <th className="pb-2">Concepto y periodo</th>
-                        <th className="pb-2">Sesiones incluidas</th>
+                        <th className="pb-2">Acompañamiento del periodo</th>
                         <th className="pb-2">Importe</th>
                         <th className="pb-2 text-right">Estado</th>
                       </tr>
@@ -799,13 +799,13 @@ export default function PadrePage() {
                               const remaining = Math.max(0, pay.sessionsIncluded! - consumed);
                               return (
                                 <span>
-                                  <strong className="block text-[#45433F]">{pay.sessionsIncluded} sesiones</strong>
+                                  <strong className="block text-[#45433F]">{pay.sessionsIncluded} sesiones previstas</strong>
                                   {pay.daysPerWeek ? <span className="block">{pay.daysPerWeek} {pay.daysPerWeek === 1 ? "día" : "días"} por semana</span> : null}
-                                  <span className="block">{consumed} realizadas · {remaining} pendientes</span>
+                                  <span className="block">{consumed} realizadas · {remaining} por realizar</span>
                                   {pay.status === "Pago comunicado · pendiente de confirmar" && <span className="block text-[#806C50]">Pago por confirmar</span>}
                                 </span>
                               );
-                            })() : <span>Sesiones aún no vinculadas</span>}
+                            })() : <span>Sesiones del periodo pendientes de configurar</span>}
                           </td>
                           <td className="py-3 font-serif font-bold text-[#292825]">{pay.amount} €</td>
                           <td className="py-3 text-right">

@@ -23,7 +23,7 @@ insert into kiru_flashcards(set_id,term,definition) select id,'t','d' from kiru_
 insert into kiru_mentor_onboarding(full_name,email,profile_id) values ('Mentor nuevo','mn@t.es',(select id from ids where k='MN'));
 insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values ((select id from ids where k='M'),(select id from ids where k='C')),((select id from ids where k='M2'),(select id from ids where k='C2'));
 insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident,answers) values
-  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae','[{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones y problemas"}]'::jsonb),
+  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae','[{"q":"¿Qué número de sesión del mes?","a":"3º"},{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones y problemas"}]'::jsonb),
   ('log-m2',now(),current_date,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'','[]'::jsonb);
 create temp table log_ids as select source_key, id from kiru_session_logs;
 grant select on log_ids to authenticated;
@@ -234,6 +234,16 @@ insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,s
   ('sc-s1',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date - 5,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'[]'),
   ('sc-s2',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date - 5,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),
    '[{"q":"SKILLCOINS: estudios (0-10)","a":"7"},{"q":"SKILLCOINS: compromiso(0-10)","a":"6"},{"q":"SKILLCOINS: organización(0-10)","a":"5"},{"q":"SKILLCOINS: bienestar(0-10)","a":"8"}]');
+-- Una respuesta duplicada con la misma fecha y número no debe duplicar el
+-- historial familiar; el original queda primero y se conserva en la tabla.
+set local role service_role;
+insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,answers) values
+  ('log-m-duplicate',now() + interval '1 hour',current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),
+   '[{"q":"¿Qué número de sesión del mes?","a":"3º"},{"q":"¿Qué se ha trabajado hoy?","a":"Duplicado"}]');
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('padre no ve duplicada una sesión registrada dos veces', (select count(*) from kiru_family_session_history where student_id=(select id from ids where k='S1') and session_date=current_date), 1);
+reset role;
 select pg_temp.as_user('A');
 select pg_temp.expect('admin ve semanas sin SC', (select count(*) from kiru_missing_sc_weeks()), 1);
 reset role;
@@ -334,7 +344,35 @@ select pg_temp.expect('padre paga 3 meses por adelantado', (select (kiru_renewal
 select pg_temp.expect('padre reporta pago de 3 meses', (select (kiru_renewal_report_paid((select id from ren2))->>'already')::boolean::int), 0);
 select pg_temp.expect('pago conectado a su renovación', (select count(*) from kiru_payments where renewal_id=(select id from ren2)), 1);
 select pg_temp.expect('pago conserva los 2 días de frecuencia', (select count(*) from kiru_payments where renewal_id=(select id from ren2) and days_per_week=2), 1);
-select pg_temp.expect('pago calcula 24 sesiones para 3 meses', (select count(*) from kiru_payments where renewal_id=(select id from ren2) and sessions_included=24), 1);
+select pg_temp.expect('pago incluye las ocurrencias reales del horario del periodo', (
+  select count(*) from kiru_payments p
+  where p.renewal_id=(select id from ren2)
+    and p.sessions_included=(
+      select count(*) from kiru_student_schedule_slots s
+      cross join lateral generate_series(p.coverage_start::timestamp, (p.coverage_end - 1)::timestamp, interval '1 day') AS scheduled_day(day)
+      where s.student_id=p.student_id and s.is_active
+        and extract(isodow from scheduled_day.day)::smallint=s.weekday
+    )
+), 1);
+do $$
+declare
+  v_previous_paid_at timestamptz;
+  v_renewal_id uuid := (select id from ren2);
+begin
+  select paid_reported_at into v_previous_paid_at from kiru_renewals where id=v_renewal_id;
+  update kiru_renewals
+    set paid_reported_at='2026-10-19 12:00:00+02'::timestamptz, months=1
+    where id=v_renewal_id;
+  if not exists (
+    select 1 from kiru_payments
+    where renewal_id=v_renewal_id and coverage_start='2026-10-19'
+      and coverage_end='2026-11-19' and sessions_included=10
+  ) then
+    raise exception 'FAIL: periodo 19/10–19/11 con lunes y miércoles debe incluir 10 sesiones';
+  end if;
+  update kiru_renewals set paid_reported_at=v_previous_paid_at, months=3 where id=v_renewal_id;
+  raise notice 'ok  periodo del 19/10 al 19/11 incluye las 10 clases lunes/miércoles';
+end $$;
 select pg_temp.expect('pago conserva inicio, fecha de renovación y estado de confirmación', (
   select count(*) from kiru_payments p join kiru_renewals r on r.id=p.renewal_id
   where p.renewal_id=(select id from ren2)
