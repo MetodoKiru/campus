@@ -357,6 +357,9 @@ select pg_temp.expect('pago incluye las ocurrencias reales del horario del perio
         and extract(isodow from scheduled_day.day)::smallint=s.weekday
     )
 ), 1);
+-- Este bloque prepara y restaura datos del fixture; no forma parte de una
+-- operación permitida al padre en producción.
+reset role;
 do $$
 declare
   v_previous_paid_at timestamptz;
@@ -376,6 +379,7 @@ begin
   update kiru_renewals set paid_reported_at=v_previous_paid_at, months=3 where id=v_renewal_id;
   raise notice 'ok  periodo del 19/10 al 19/11 incluye las 10 clases lunes/miércoles';
 end $$;
+select pg_temp.as_user('P');
 select pg_temp.expect('pago conserva inicio, fecha de renovación y estado de confirmación', (
   select count(*) from kiru_payments p join kiru_renewals r on r.id=p.renewal_id
   where p.renewal_id=(select id from ren2)
