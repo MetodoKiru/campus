@@ -47,7 +47,7 @@ export function MentorMissingSc({ rows }: { rows: MissingScWeekRow[] }) {
         ))}
       </ul>
       <p className="text-[11px] text-amber-800">
-        Cada semana hay que puntuar las SkillCoins (estudios, compromiso, organización y bienestar) en una de las sesiones. Sin ese registro el alumno y su familia no ven su semana. Tu coordinador/a también recibe este aviso.
+        Este aviso señala que falta la valoración semanal. No registres otra sesión para quitarlo ni añadas una fecha nueva. Si no sabes cómo completar la valoración, habla con tu coordinador/a para revisarlo.
       </p>
     </div>
   );

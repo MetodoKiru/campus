@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins/MissingScWeeks";
+import { CoordinatorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
@@ -63,6 +64,7 @@ export default function CoordinadorPage() {
   const notifyOffers = useCallback((text: string, type: "success" | "error") => setMsg({ text, type }), []);
   const [busy, setBusy] = useState(false);
   const missingScAll = useMissingScWeeks(!authChecking);
+  const scheduleMismatches = useSessionScheduleMismatches(!authChecking);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -370,6 +372,7 @@ export default function CoordinadorPage() {
           <section className="space-y-3">
             <p className="text-xs text-slate-500">Lo que el mentor escribe en «Incidencia» al registrar la sesión. Márcala como revisada cuando la hayas hablado; la nota solo la ven coordinación y administración.</p>
             <CoordinatorMissingSc rows={missingSc} />
+            <CoordinatorSessionScheduleMismatches rows={scheduleMismatches} />
             <h3 className="text-sm font-bold text-slate-800 pt-3">Incidencias escritas por el mentor</h3>
             {incidents.length === 0 && <p className="text-sm text-slate-500">No hay incidencias.</p>}
             {[...openIncidents, ...incidents.filter((l) => reviews[l.id])].map((log) => (

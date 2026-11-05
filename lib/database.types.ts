@@ -385,6 +385,16 @@ export type MissingScWeekRow = {
   sessions: number; session_dates: string[]; respondent_email: string | null;
 };
 
+export type SessionScheduleMismatchRow = {
+  session_date: string;
+  student_id: string;
+  student_name: string;
+  mentor_id: string;
+  mentor_name: string;
+  session_weekday: number;
+  scheduled_weekdays: number[];
+};
+
 export type FamilySessionHistoryRow = {
   id: string;
   student_id: string;
@@ -473,6 +483,10 @@ export type Database = {
       kiru_missing_sc_weeks: {
         Args: { p_weeks?: number };
         Returns: MissingScWeekRow[];
+      };
+      kiru_session_schedule_mismatches: {
+        Args: { p_days?: number };
+        Returns: SessionScheduleMismatchRow[];
       };
     };
     Enums: { [_ in never]: never };

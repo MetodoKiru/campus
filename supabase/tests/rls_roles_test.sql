@@ -26,8 +26,8 @@ insert into kiru_flashcards(set_id,term,definition) select id,'t','d' from kiru_
 insert into kiru_mentor_onboarding(full_name,email,profile_id) values ('Mentor nuevo','mn@t.es',(select id from ids where k='MN'));
 insert into kiru_coordinator_mentors(mentor_id,coordinator_id) values ((select id from ids where k='M'),(select id from ids where k='C')),((select id from ids where k='M2'),(select id from ids where k='C2'));
 insert into kiru_session_logs(source_key,submitted_at,session_date,mentor_name,student_name,mentor_id,student_id,incident,answers) values
-  ('log-m',now(),current_date,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae','[{"q":"¿Qué número de sesión del mes?","a":"3º"},{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones y problemas"}]'::jsonb),
-  ('log-m2',now(),current_date,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'','[]'::jsonb);
+  ('log-m',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date + 3 - CASE WHEN extract(isodow FROM now() AT TIME ZONE 'Europe/Madrid') < 4 THEN 7 ELSE 0 END,'M','S1',(select id from ids where k='M'),(select id from ids where k='S1'),'Se distrae','[{"q":"¿Qué número de sesión del mes?","a":"3º"},{"q":"¿Qué se ha trabajado hoy?","a":"Fracciones y problemas"}]'::jsonb),
+  ('log-m2',now(),date_trunc('week', now() AT TIME ZONE 'Europe/Madrid')::date + 3 - CASE WHEN extract(isodow FROM now() AT TIME ZONE 'Europe/Madrid') < 4 THEN 7 ELSE 0 END,'M2','S2',(select id from ids where k='M2'),(select id from ids where k='S2'),'','[]'::jsonb);
 create temp table log_ids as select source_key, id from kiru_session_logs;
 grant select on log_ids to authenticated;
 
@@ -52,6 +52,23 @@ end $$;
 create function pg_temp.expect_allowed(label text, stmt text) returns void language plpgsql as $$
 begin execute stmt; raise notice 'ok  % (allowed)', label; end $$;
 grant execute on all functions in schema pg_temp to authenticated;
+select pg_temp.as_user('M');
+select pg_temp.expect('mentor ve aviso cuando registra fuera de sus días acordados', (
+  select count(*) from kiru_session_schedule_mismatches(90)
+  where student_id=(select id from ids where k='S1')
+    and mentor_id=(select id from ids where k='M')
+    and session_weekday=4 and scheduled_weekdays=array[1,3]::smallint[]
+), 1);
+reset role;
+select pg_temp.as_user('C');
+select pg_temp.expect('coordinación ve la fecha fuera de horario de su mentor', (
+  select count(*) from kiru_session_schedule_mismatches(90)
+  where student_id=(select id from ids where k='S1') and mentor_id=(select id from ids where k='M')
+), 1);
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('padre no ve alertas internas de horario', (select count(*) from kiru_session_schedule_mismatches(90)), 0);
+reset role;
 -- admin
 select pg_temp.as_user('A');
 select pg_temp.expect('admin ve 17 perfiles', (select count(*) from profiles), 17);
