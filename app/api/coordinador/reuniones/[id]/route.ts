@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { UUID_RE, requireStaff } from "@/lib/server/require-staff";
-import { madridLocalToIso, text, validZoomUrl } from "@/lib/server/growth";
+import { madridLocalToIso, text, validDriveUrl, validZoomUrl } from "@/lib/server/growth";
 import type { Database } from "@/lib/database.types";
 
 export const runtime = "nodejs";
@@ -25,17 +25,30 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .eq("id", id).maybeSingle();
   if (!meeting || meeting.coordinator_id !== user.id) return NextResponse.json({ error: "Esta reunión no es de tu grupo." }, { status: 404 });
 
-  let body: { action?: unknown; scheduledAt?: unknown; zoomUrl?: unknown; agenda?: unknown; reason?: unknown };
+  let body: { action?: unknown; scheduledAt?: unknown; zoomUrl?: unknown; agenda?: unknown; reason?: unknown; recordingUrl?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
   const now = new Date().toISOString();
   const started = new Date(meeting.scheduled_at).getTime() <= Date.now();
   let update: Update;
+
+  // El enlace de la grabación va aparte, en la tabla que solo leen el
+  // coordinador de la reunión y administración (nunca los mentores).
+  if (body.action === "grabacion") {
+    if (meeting.status !== "realizada") return NextResponse.json({ error: "Marca antes la reunión como realizada." }, { status: 409 });
+    const recordingUrl = validDriveUrl(body.recordingUrl);
+    if (!recordingUrl) return NextResponse.json({ error: "Pega el enlace de Google Drive de la grabación (empieza por https://drive.google.com/)." }, { status: 400 });
+    const { error } = await admin.from("kiru_coordination_meeting_private")
+      .upsert({ meeting_id: id, recording_url: recordingUrl, recording_registered_at: now });
+    if (error) return NextResponse.json({ error: "No se pudo guardar el enlace de la grabación." }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
 
   switch (body.action) {
     case "editar": {
       if (meeting.status !== "borrador" && meeting.status !== "confirmada") return NextResponse.json({ error: "Esta reunión ya no se puede cambiar." }, { status: 409 });
       const scheduledAt = typeof body.scheduledAt === "string" ? madridLocalToIso(body.scheduledAt) : null;
       if (!scheduledAt) return NextResponse.json({ error: "Elige la fecha y la hora." }, { status: 400 });
+      if (!/T\d{2}:(00|30)$/.test(String(body.scheduledAt))) return NextResponse.json({ error: "La reunión tiene que empezar en punto o y media." }, { status: 400 });
       if (new Date(scheduledAt).getTime() < Date.now()) return NextResponse.json({ error: "La fecha ya ha pasado." }, { status: 400 });
       const zoomUrl = validZoomUrl(body.zoomUrl);
       if (zoomUrl === null) return NextResponse.json({ error: "El enlace de Zoom no es válido (tiene que empezar por https:// y ser de zoom.us)." }, { status: 400 });
@@ -69,5 +82,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const { error } = await admin.from("kiru_coordination_meetings").update(update).eq("id", id).eq("coordinator_id", user.id);
   if (error?.code === "23505") return NextResponse.json({ error: "Ya tienes otra reunión ese mes." }, { status: 409 });
   if (error) return NextResponse.json({ error: "No se pudo guardar el cambio." }, { status: 500 });
+  if (body.action === "registro") {
+    await admin.from("kiru_coordination_meeting_private").upsert({ meeting_id: id, jotform_completed_at: meeting.report_sent_at ?? now });
+  }
   return NextResponse.json({ ok: true });
 }

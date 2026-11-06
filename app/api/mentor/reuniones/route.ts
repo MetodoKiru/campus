@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/server/require-staff";
-import { requireGrowthAccess, text, toAvailability } from "@/lib/server/growth";
-import { DAY_SLOTS, WEEK_DAYS, type MentorMeeting, type MentorMeetingsData } from "@/lib/growth";
+import { AVAILABILITY_COLUMNS, cleanCells, requireGrowthAccess, saveAvailability, text, toAvailability } from "@/lib/server/growth";
+import type { MentorMeeting, MentorMeetingsData } from "@/lib/growth";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   const [linkResult, availabilityResult, studentsResult] = await Promise.all([
     admin.from("kiru_coordinator_mentors").select("coordinator_id").eq("mentor_id", user.id).maybeSingle(),
-    admin.from("kiru_mentor_availability").select("days,slots,notes,updated_at").eq("mentor_id", user.id).maybeSingle(),
+    admin.from("kiru_mentor_availability").select(AVAILABILITY_COLUMNS).eq("mentor_id", user.id).maybeSingle(),
     admin.from("student_mentors").select("student_id").eq("mentor_id", user.id),
   ]);
   if (linkResult.error || availabilityResult.error || studentsResult.error) {
@@ -36,7 +36,16 @@ export async function GET(request: Request) {
   const coordinatorId = linkResult.data?.coordinator_id ?? null;
   let coordinatorName: string | null = null;
   let meetings: MentorMeeting[] = [];
+  let availabilityRequest: MentorMeetingsData["request"] = null;
   if (coordinatorId) {
+    const { data: latest } = await admin.from("kiru_availability_requests")
+      .select("id,message,deadline,created_at").eq("coordinator_id", coordinatorId)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (latest) {
+      const { data: response } = await admin.from("kiru_availability_responses")
+        .select("responded_at").eq("request_id", latest.id).eq("mentor_id", user.id).maybeSingle();
+      availabilityRequest = { id: latest.id, message: latest.message, deadline: latest.deadline, createdAt: latest.created_at, respondedAt: response?.responded_at ?? null };
+    }
     const [coordinator, rows] = await Promise.all([
       admin.from("profiles").select("full_name").eq("id", coordinatorId).maybeSingle(),
       admin.from("kiru_coordination_meetings")
@@ -61,14 +70,11 @@ export async function GET(request: Request) {
     }));
   }
 
-  const data: MentorMeetingsData = { coordinatorName, mandatory, availability: toAvailability(availabilityResult.data), meetings };
+  const data: MentorMeetingsData = { coordinatorName, mandatory, availability: toAvailability(availabilityResult.data), request: availabilityRequest, meetings };
   return NextResponse.json(data);
 }
 
-const DAY_IDS = new Set<string>(WEEK_DAYS.map((d) => d.id));
-const SLOT_IDS = new Set<string>(DAY_SLOTS.map((s) => s.id));
-
-/** El mentor guarda o cambia sus preferencias cuando quiera. */
+/** El mentor guarda o cambia su cuadrícula de 30 minutos cuando quiera. */
 export async function PUT(request: Request) {
   const auth = await requireStaff(request, ["mentor"]);
   if (!auth.ok) return auth.response;
@@ -76,13 +82,13 @@ export async function PUT(request: Request) {
   const blocked = await requireGrowthAccess(admin, user.id);
   if (blocked) return blocked;
 
-  let body: { days?: unknown; slots?: unknown; notes?: unknown };
+  let body: { cells?: unknown; notes?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
-  const days = Array.isArray(body.days) ? [...new Set(body.days.filter((d): d is string => typeof d === "string" && DAY_IDS.has(d)))] : [];
-  const slots = Array.isArray(body.slots) ? [...new Set(body.slots.filter((s): s is string => typeof s === "string" && SLOT_IDS.has(s)))] : [];
-  if (!days.length || !slots.length) return NextResponse.json({ error: "Marca al menos un día y una franja." }, { status: 400 });
+  const cells = cleanCells(body.cells);
+  if (!cells.length) return NextResponse.json({ error: "Marca al menos una casilla en la que puedas asistir." }, { status: 400 });
 
-  const { error } = await admin.from("kiru_mentor_availability").upsert({ mentor_id: user.id, days, slots, notes: text(body.notes, 500) });
-  if (error) return NextResponse.json({ error: "No se pudo guardar tu disponibilidad." }, { status: 500 });
+  const { data: link } = await admin.from("kiru_coordinator_mentors").select("coordinator_id").eq("mentor_id", user.id).maybeSingle();
+  const saved = await saveAvailability(admin, user.id, cells, text(body.notes, 500), link?.coordinator_id ?? null);
+  if (!saved.ok) return NextResponse.json({ error: "No se pudo guardar tu disponibilidad." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -351,7 +351,10 @@ export type OnboardingExceptionRow = {
   id: string; mentor_id: string; reason: string; granted_by: string | null; granted_at: string;
   revoked_at: string | null; revoked_by: string | null; revoke_reason: string;
 };
-export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
+export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; cells: string[]; first_saved_at: string | null; notes: string; updated_at: string };
+export type AvailabilityRequestRow = { id: string; coordinator_id: string; message: string; deadline: string; created_at: string };
+export type AvailabilityResponseRow = { request_id: string; mentor_id: string; responded_at: string };
+export type CoordinationMeetingPrivateRow = { meeting_id: string; recording_url: string; jotform_completed_at: string | null; recording_registered_at: string | null; updated_at: string };
 export type CoordinationMeetingRow = {
   id: string; coordinator_id: string; scheduled_at: string; duration_minutes: number; zoom_url: string;
   status: "borrador" | "confirmada" | "realizada" | "cancelada"; agenda: string;
@@ -449,7 +452,10 @@ export type Database = {
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
       kiru_onboarding_exceptions: Table<OnboardingExceptionRow, "id" | "granted_by" | "granted_at" | "revoked_at" | "revoked_by" | "revoke_reason">;
-      kiru_mentor_availability: Table<MentorAvailabilityRow, "days" | "slots" | "notes" | "updated_at">;
+      kiru_mentor_availability: Table<MentorAvailabilityRow, "days" | "slots" | "cells" | "first_saved_at" | "notes" | "updated_at">;
+      kiru_availability_requests: Table<AvailabilityRequestRow, "id" | "message" | "created_at">;
+      kiru_availability_responses: Table<AvailabilityResponseRow, "responded_at">;
+      kiru_coordination_meeting_private: Table<CoordinationMeetingPrivateRow, "recording_url" | "jotform_completed_at" | "recording_registered_at" | "updated_at">;
       kiru_coordination_meetings: Table<CoordinationMeetingRow, Timestamps | "id" | "duration_minutes" | "zoom_url" | "status" | "agenda" | "confirmed_at" | "held_at" | "cancelled_at" | "cancel_reason" | "report_sent_at" | "created_by">;
       kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "positions_count" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
       kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;

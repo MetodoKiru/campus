@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Clock, ExternalLink, Video } from "lucide-react";
 import { call } from "@/components/mentor/MentorSteps";
+import AvailabilityGrid from "@/components/growth/AvailabilityGrid";
 import {
-  DAY_SLOTS, MEETING_DURATION_MINUTES, MEETING_STATUS_LABEL, WEEK_DAYS,
-  formatDay, formatMeetingDate, formatMeetingTime,
-  type DaySlot, type MentorMeeting, type MentorMeetingsData, type WeekDay,
+  MEETING_DURATION_MINUTES, MEETING_STATUS_LABEL,
+  cellsDuration, deadlineOpen, formatDay, formatMeetingDate, formatMeetingTime,
+  type MentorMeeting, type MentorMeetingsData,
 } from "@/lib/growth";
 
 const primaryButton = "inline-flex items-center gap-1.5 rounded-xl bg-[#242321] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#3A3835] disabled:opacity-50";
@@ -115,59 +116,64 @@ function MeetingCard({ meeting }: { meeting: MentorMeeting }) {
 }
 
 function AvailabilityForm({ data, reload, notify }: { data: MentorMeetingsData; reload: () => Promise<void>; notify: (text: string) => void }) {
-  const [days, setDays] = useState<WeekDay[]>(data.availability.days);
-  const [slots, setSlots] = useState<DaySlot[]>(data.availability.slots);
+  const [cells, setCells] = useState<string[]>(data.availability.cells);
   const [notes, setNotes] = useState(data.availability.notes);
   const [busy, setBusy] = useState(false);
-  const toggle = <T extends string>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  const saved = data.availability.cells;
+  const changed = cells.length !== saved.length || cells.some((c) => !saved.includes(c)) || notes !== data.availability.notes;
+  const request = data.request;
+  const requestOpen = request && !request.respondedAt;
 
   const save = async () => {
-    if (!days.length || !slots.length) { notify("No has marcado ningún día o ninguna franja."); return; }
+    if (!cells.length) { notify("Marca al menos una casilla en la que puedas asistir."); return; }
     setBusy(true);
     try {
-      await call("/api/mentor/reuniones", { method: "PUT", body: { days, slots, notes } });
+      await call("/api/mentor/reuniones", { method: "PUT", body: { cells, notes } });
       await reload();
       notify("Disponibilidad guardada. Tu coordinador la verá al elegir la fecha.");
     } catch (e) { notify(e instanceof Error ? e.message : "No se pudo guardar tu disponibilidad."); }
     finally { setBusy(false); }
   };
 
-  const chip = (selected: boolean) => `rounded-xl border px-3 py-2 text-xs font-semibold transition ${selected ? "border-[#D9C8AE] bg-[#F3EEE5] text-[#4A4032]" : "border-[#E7E3DC] bg-[#FAF8F5] text-[#6D6962] hover:bg-[#F3F0EA]"}`;
-
   return (
     <div className="space-y-4 rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4 sm:p-5">
-      <div>
+      <div className="space-y-1.5">
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#555149]">Tu disponibilidad para la reunión</h3>
-        <p className="mt-1 text-xs text-[#77736B]">
-          Marca los días y las franjas que mejor te vienen. Tu coordinador elige la fecha que encaja con la mayoría del grupo. Puedes cambiarlo cuando lo necesites.
-          {data.availability.updatedAt ? ` Última actualización: ${formatDay(data.availability.updatedAt)}.` : ""}
+        <p className="text-xs leading-relaxed text-[#555149]">
+          Marca <strong className="font-semibold text-[#292825]">todas las medias horas en las que de verdad puedes asistir</strong>. Cuantas más opciones reales des, más fácil es encontrar una hora en la que esté todo el grupo: es una forma de facilitar la coordinación y de mostrar tu implicación con el equipo.
         </p>
+        <p className="text-xs leading-relaxed text-[#77736B]">Marca solo lo que puedas cumplir: no hace falta marcar horas por compromiso. Toca una casilla para marcarla o desmarcarla; toca el día o la hora para marcar la columna o la fila entera.</p>
       </div>
-      <fieldset className="space-y-2">
-        <legend className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Días de la semana</legend>
-        <div className="flex flex-wrap gap-2">
-          {WEEK_DAYS.map((day) => (
-            <button key={day.id} type="button" aria-pressed={days.includes(day.id)} onClick={() => setDays(toggle(days, day.id))} className={chip(days.includes(day.id))}>{day.label}</button>
-          ))}
-        </div>
-      </fieldset>
-      <fieldset className="space-y-2">
-        <legend className="text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Horarios preferidos</legend>
-        <div className="flex flex-wrap gap-2">
-          {DAY_SLOTS.map((slot) => (
-            <button key={slot.id} type="button" aria-pressed={slots.includes(slot.id)} onClick={() => setSlots(toggle(slots, slot.id))} className={chip(slots.includes(slot.id))}>{slot.label}</button>
-          ))}
-        </div>
-      </fieldset>
+
+      {request && (
+        <p className={`rounded-xl border p-3 text-xs ${requestOpen ? "border-[#D9C8AE] bg-white text-[#4A4032]" : "border-[#E7E3DC] bg-white text-[#6D6962]"}`}>
+          {requestOpen
+            ? <>Tu coordinador te pide revisar tu disponibilidad antes del <strong>{formatDay(request.deadline)}</strong>{deadlineOpen(request.deadline) ? "." : " (el plazo ya ha pasado, pero aún puedes actualizarla)."}{request.message ? ` «${request.message}»` : ""} Guarda la cuadrícula aunque no cambies nada para confirmar que está al día.</>
+            : <>Revisaste tu disponibilidad el {formatDay(request.respondedAt)} tras la petición de tu coordinador. ¡Gracias!</>}
+        </p>
+      )}
+
+      <AvailabilityGrid value={cells} onChange={setCells} disabled={busy} />
+
+      <p className="text-xs text-[#555149]">
+        {cells.length
+          ? <>Has marcado <strong className="font-semibold text-[#292825]">{cells.length} medias horas</strong> ({cellsDuration(cells.length)} a la semana).</>
+          : "Todavía no has marcado ninguna casilla."}
+        {data.availability.updatedAt ? ` Última actualización: ${formatDay(data.availability.updatedAt)}.` : ""}
+      </p>
+
       <div className="space-y-1">
         <label htmlFor="disponibilidad-notas" className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Algo más (opcional)</label>
         <textarea id="disponibilidad-notas" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} rows={2}
-          placeholder="Ej.: los jueves solo a partir de las 18:00"
+          placeholder="Ej.: en diciembre solo puedo por las tardes"
           className="w-full rounded-xl border border-[#E7E3DC] bg-white p-2.5 text-xs text-[#45433F] focus:outline-none" />
       </div>
-      <button type="button" disabled={busy} onClick={save} className={data.availability.updatedAt ? secondaryButton : primaryButton}>
-        {busy ? "Guardando…" : data.availability.updatedAt ? "Actualizar mi disponibilidad" : "Guardar mi disponibilidad"}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={busy || (!changed && !requestOpen)} onClick={save} className={primaryButton}>
+          {busy ? "Guardando…" : data.availability.updatedAt ? (changed ? "Guardar cambios" : "Confirmar que está al día") : "Guardar mi disponibilidad"}
+        </button>
+        {changed && data.availability.updatedAt && <button type="button" disabled={busy} onClick={() => { setCells(saved); setNotes(data.availability.notes); }} className={secondaryButton}>Deshacer cambios</button>}
+      </div>
     </div>
   );
 }
