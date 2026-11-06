@@ -177,6 +177,21 @@ select pg_temp.expect_text('se copia a «Recuperaciones» al confirmarse', (sele
 select pg_temp.expect('confirmación a mentor, familia y coordinador', (select count(distinct recipient_id) from kiru_notifications where kind = 'recuperacion_confirmada'), 3);
 select pg_temp.expect_denied('una original solo tiene una recuperación viva', format($q$insert into kiru_class_sessions(student_id, mentor_id, kind, recovers_session_id, original_start, scheduled_start, scheduled_end, consumption, source) values (%L,%L,'recuperacion',%L,%L,%L,%L,'no_aplica','recuperacion')$q$, pg_temp.i('S1'), pg_temp.i('M'), pg_temp.s('tarde_mentor'), pg_temp.at(12,'07:00'), pg_temp.at(12,'07:00'), pg_temp.at(12,'08:00')));
 
+-- Si se cancela una recuperación confirmada, la original vuelve a estar por recuperar.
+insert into kiru_class_sessions(student_id, mentor_id, original_start, scheduled_start, scheduled_end, source)
+values (pg_temp.i('S1'), pg_temp.i('M'), pg_temp.at(2,'07:00'), pg_temp.at(2,'07:00'), pg_temp.at(2,'08:00'), 'coordinacion');
+insert into sess select 'orig2', id from kiru_class_sessions where scheduled_start = pg_temp.at(2,'07:00');
+select public.kiru_clases_registrar_cancelacion(pg_temp.i('C'), pg_temp.s('orig2'), 'mentor', 'Enfermo');
+insert into req select 'prop3', (public.kiru_recuperaciones_proponer(pg_temp.i('M'), pg_temp.s('orig2'), jsonb_build_array(pg_temp.opt(3,'07:00')))->>'id')::uuid;
+insert into sess select 'recup2', (public.kiru_recuperaciones_elegir(pg_temp.i('P'), pg_temp.r('prop3'), 0)->>'recuperacion')::uuid;
+select public.kiru_clases_registrar_cancelacion(pg_temp.i('C'), pg_temp.s('recup2'), 'mentor', 'Otra vez enfermo');
+select pg_temp.expect_text('recuperación cancelada por el mentor: la original vuelve a pendiente', (select recovery||'/'||consumption from kiru_class_sessions where id = pg_temp.s('orig2')), 'pendiente/conservada');
+select pg_temp.expect('la recuperación anulada se marca en «Recuperaciones»', (select count(*) from kiru_sheet_outbox where row_key = pg_temp.s('recup2')::text and (payload->>'anulada')::boolean), 1);
+insert into req select 'prop4', (public.kiru_recuperaciones_proponer(pg_temp.i('M'), pg_temp.s('orig2'), jsonb_build_array(pg_temp.opt(4,'07:00')))->>'id')::uuid;
+insert into sess select 'recup3', (public.kiru_recuperaciones_elegir(pg_temp.i('P'), pg_temp.r('prop4'), 0)->>'recuperacion')::uuid;
+select public.kiru_clases_registrar_cancelacion(pg_temp.i('C'), pg_temp.s('recup3'), 'familia_menos_48h', 'No vienen');
+select pg_temp.expect_text('si la familia cancela la recuperación con menos de 48 h, se pierde', (select recovery||'/'||consumption from kiru_class_sessions where id = pg_temp.s('orig2')), 'ninguna/consumida');
+
 -- El registro del formulario la marca como impartida y consume la original una vez.
 insert into kiru_session_logs(source_key, submitted_at, session_date, mentor_name, student_name, mentor_id, student_id, answers)
 values ('rec-1', now(), (pg_temp.at(10,'07:00') at time zone 'Europe/Madrid')::date, 'M', 'S1', pg_temp.i('M'), pg_temp.i('S1'), '[]');
@@ -233,7 +248,7 @@ select pg_temp.expect('al quitar el día, la clase vuelve', (select count(*) fro
 insert into kiru_payments(student_id, concept, amount_cents, created_by, coverage_start, coverage_end, sessions_included)
 values (pg_temp.i('S1'), 'periodo', 100, pg_temp.i('A'), (now() at time zone 'Europe/Madrid')::date, (now() at time zone 'Europe/Madrid')::date + 30, 8);
 select pg_temp.as_user('P');
-select pg_temp.expect('la familia ve su periodo: 2 consumidas (una tardía y una recuperada)', (select sessions_consumed from kiru_period_session_summary where student_id = pg_temp.i('S1')), 2);
+select pg_temp.expect('la familia ve su periodo: 3 consumidas (dos perdidas y una recuperada)', (select sessions_consumed from kiru_period_session_summary where student_id = pg_temp.i('S1')), 3);
 select pg_temp.expect('1 recuperación sigue abierta (la que avisó con tiempo)', (select recoveries_open from kiru_period_session_summary where student_id = pg_temp.i('S1')), 1);
 reset role;
 select pg_temp.as_user('P2');

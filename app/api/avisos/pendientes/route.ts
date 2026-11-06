@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     .from("kiru_notifications")
     .select("id,recipient_id,student_id,goal_id,kind,title,event_key")
     .eq("email_status", "pendiente")
+    // Solo los avisos de recompensas e informes: los de clases los manda /api/avisos/clases.
+    .in("kind", ["objetivo_pendiente", "canje_solicitado", "informe_progreso"])
     .gt("created_at", since)
     .order("created_at")
     .limit(MAX_PER_CALL);

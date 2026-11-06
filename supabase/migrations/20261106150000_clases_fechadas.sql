@@ -965,6 +965,9 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_kind text;
+  v_original uuid;
 BEGIN
   UPDATE public.kiru_class_sessions
   SET delivery = 'no_impartida',
@@ -978,8 +981,21 @@ BEGIN
       recovery = CASE WHEN kind = 'recuperacion' THEN 'ninguna'
                       WHEN p_cause IN ('familia_menos_48h', 'no_presentado') THEN 'ninguna'
                       ELSE 'pendiente' END
-  WHERE id = p_session;
+  WHERE id = p_session
+  RETURNING kind, recovers_session_id INTO v_kind, v_original;
   PERFORM kiru_private.class_event(p_session, NULL, p_actor, 'cancelada', jsonb_build_object('causa', p_cause));
+  -- Si se cancela una recuperación, su original vuelve a quedar por recuperar,
+  -- salvo que la familia la cancele con menos de 48 h o no se presente: entonces
+  -- se pierde (consumida). Una original ya consumida (recuperación voluntaria)
+  -- simplemente se queda sin recuperación.
+  IF v_kind = 'recuperacion' THEN
+    UPDATE public.kiru_class_sessions
+    SET consumption = CASE WHEN p_cause IN ('familia_menos_48h', 'no_presentado') THEN 'consumida' ELSE consumption END,
+        recovery = CASE WHEN p_cause IN ('familia_menos_48h', 'no_presentado') OR consumption = 'consumida' THEN 'ninguna' ELSE 'pendiente' END
+    WHERE id = v_original;
+    PERFORM kiru_private.class_event(v_original, NULL, p_actor, 'recuperacion_cancelada', jsonb_build_object('recuperacion', p_session, 'causa', p_cause));
+    PERFORM kiru_private.class_notify_new_recovery(v_original);
+  END IF;
   PERFORM kiru_private.sheet_sync_session(p_session);
 END
 $$;

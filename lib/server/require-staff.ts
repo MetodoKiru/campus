@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 
 export type StaffRole = "admin" | "formador" | "coordinador";
-/** El mentor solo entra en las rutas de su propio panel (/api/mentor/…). */
-type SessionRole = StaffRole | "mentor";
+/** El mentor y la familia solo entran en las rutas de su propio panel. */
+type SessionRole = StaffRole | "mentor" | "padre";
 
 type StaffSuccess = { ok: true; admin: SupabaseClient<Database>; user: User; role: SessionRole };
 type StaffFailure = { ok: false; response: NextResponse };
