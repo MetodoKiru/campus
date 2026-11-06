@@ -10,13 +10,15 @@ Dos apartados nuevos dentro del menú ☰ del mentor (no en la pantalla principa
 
 ## Reuniones
 
-- El mentor indica días y franjas (y una nota) y los cambia cuando quiera: `kiru_mentor_availability`.
-- El coordinador (Panel del Coordinador → «Reuniones de coordinación») ve la disponibilidad **solo de su grupo**, elige fecha y hora, pone el Zoom y la convoca. Una reunión al mes por coordinador (las canceladas no cuentan), 30 minutos. Nada se programa solo ni se conecta con calendarios.
-- La convocatoria la envía el coordinador: botón «Enviar por correo» (abre su correo con los mentores en copia oculta) o «Copiar convocatoria».
-- El mentor ve fecha, hora, duración, coordinador, enlace de Zoom y estado (Convocada, Realizada, Cancelada). Los borradores no los ve.
-- Después, el coordinador marca la reunión como realizada, abre el registro de Jotform (https://form.jotform.com/263053244292049) y marca «Ya lo he enviado». El panel avisa si pasan 24 horas sin registro.
-- La grabación de Zoom **no se guarda en el campus**: su enlace va en el registro de Jotform, que solo ve dirección.
-- Administración ve todas las reuniones en solo lectura.
+Todo con herramientas gratuitas: Campus, Zoom gratuito, Calendly Free (opcional), Google Calendar y Google Drive. Sin APIs propias, Zapier ni Make.
+
+- **Disponibilidad en cuadrícula de 30 minutos** (lunes a domingo, 08:00–22:00), igual para mentores y coordinadores: `kiru_mentor_availability.cells` («día-HH:MM»). Se marca casilla a casilla; el día o la hora marcan la columna o la fila entera. Las columnas antiguas `days`/`slots` se conservan, pero el campus ya no las usa.
+- **Compromiso, sin puntuación**: el coordinador ve si cada mentor la ha completado, cuántas medias horas marcó, cuándo la actualizó y si respondió a su última petición en plazo. Peticiones con fecha límite: `kiru_availability_requests`; la primera respuesta de cada mentor: `kiru_availability_responses` (se anota sola al guardar la cuadrícula).
+- **Coincidencias**: se cruzan las horas del coordinador con las de su grupo y se ordenan de más a menos mentores (con %, quién puede, quién no y si es obligatoria para él). «Elegir este horario» rellena la próxima fecha de ese día y hora; decide el coordinador.
+- **Convocatoria**: el coordinador crea la reunión en Zoom (o la reserva en su Calendly Free con Zoom conectado) y pega el enlace una vez. Al convocarla, los mentores la ven en su menú ☰. Invitación por correo: «Invitar con Google Calendar» (evento ya rellenado con los mentores como invitados; Google manda las invitaciones) o «Enviar por correo» (copia oculta) o «Copiar convocatoria».
+- **Aviso de grabación** visible en el panel y en cada reunión convocada, con el procedimiento de grabación local de Zoom gratuito.
+- **Después**: comprobar la grabación, subirla a la carpeta de Drive de Método Kiru, registrar el enlace (se guarda en `kiru_coordination_meeting_private`, que solo leen el coordinador de la reunión y administración) y completar el Jotform (https://form.jotform.com/263053244292049) en 24 horas.
+- Una reunión al mes por coordinador, 30 minutos, empezando en punto o y media. Administración lo ve todo en solo lectura.
 
 ## Crece con Kiru
 
