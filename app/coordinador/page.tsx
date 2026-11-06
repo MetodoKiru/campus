@@ -12,6 +12,8 @@ import OffersPanel from "@/components/offers/OffersPanel";
 import CoordinatorReportsPanel from "@/components/reports/CoordinatorReportsPanel";
 import CoordinatorMeetings from "@/components/coordination/CoordinatorMeetings";
 import CoordinatorRecommendations from "@/components/coordination/CoordinatorRecommendations";
+import CoordinatorClasses from "@/components/classes/CoordinatorClasses";
+import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
@@ -57,7 +59,7 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes">("mentores");
+  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes">("mentores");
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState("todos");
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -238,6 +240,7 @@ export default function CoordinadorPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <NotificationBell onOpenItem={(n) => { if (n.session_id || n.request_id) setTab("clases"); }} />
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Administración</span>
@@ -262,6 +265,7 @@ export default function CoordinadorPage() {
         <div className="flex flex-wrap items-center gap-3">
           <nav className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 shadow-sm text-xs font-semibold w-fit">
             <TabButton active={tab === "mentores"} onClick={() => setTab("mentores")} icon={<Users className="w-3.5 h-3.5" />} label="Mis mentores" />
+            <TabButton active={tab === "clases"} onClick={() => setTab("clases")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Clases y recuperaciones" />
             <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
             <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
             <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
@@ -279,6 +283,7 @@ export default function CoordinadorPage() {
           )}
         </div>
 
+        {tab === "clases" && <CoordinatorClasses notify={notifyOffers} />}
         {tab === "propuestas" && <OffersPanel notify={notifyOffers} />}
         {tab === "informes" && <CoordinatorReportsPanel />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}

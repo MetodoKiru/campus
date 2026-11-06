@@ -207,6 +207,7 @@ insert into sess select 'recup_vol', (public.kiru_recuperaciones_elegir(pg_temp.
 insert into kiru_session_logs(source_key, submitted_at, session_date, mentor_name, student_name, mentor_id, student_id, answers)
 values ('rec-2', now(), (pg_temp.at((select n from vd),'07:00') at time zone 'Europe/Madrid')::date, 'M2', 'S1', pg_temp.i('M2'), pg_temp.i('S1'), '[]');
 select pg_temp.expect('la voluntaria la cobra el sustituto que la imparte', (select count(*) from kiru_class_sessions where id = pg_temp.s('recup_vol') and delivered_by = pg_temp.i('M2')), 1);
+select pg_temp.expect_text('en «Recuperaciones» figura el sustituto que la dio', (select payload->>'mentor' from kiru_sheet_outbox where row_key = pg_temp.s('recup_vol')::text and status = 'pendiente'), (select full_name from profiles where id = pg_temp.i('M2')));
 select pg_temp.expect('y la original no se descuenta otra vez', (select count(*) from kiru_class_sessions where id = pg_temp.s('tarde_familia') and consumption = 'consumida' and delivered_by is null), 1);
 select pg_temp.expect('un segundo registro del mismo día no cuenta dos veces', (select count(*) from kiru_class_sessions where id = pg_temp.s('recup_vol') and session_log_id = (select id from kiru_session_logs where source_key = 'rec-2')), 1);
 insert into kiru_session_logs(source_key, submitted_at, session_date, mentor_name, student_name, mentor_id, student_id, answers)

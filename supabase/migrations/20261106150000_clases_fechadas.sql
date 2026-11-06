@@ -638,6 +638,8 @@ BEGIN
       'id_clase', s.id::text,
       'anulada', s.delivery <> 'no_impartida'));
   ELSIF s.kind = 'recuperacion' THEN
+    -- En «Recuperaciones», «Mentor» es quien la imparte (también si es un sustituto).
+    SELECT full_name INTO v_mentor FROM public.profiles WHERE id = coalesce(s.delivered_by, s.mentor_id);
     SELECT * INTO o FROM public.kiru_class_sessions WHERE id = s.recovers_session_id;
     PERFORM kiru_private.sheet_queue('recuperaciones', s.id::text, jsonb_build_object(
       'fecha_original', to_char(o.original_start AT TIME ZONE 'Europe/Madrid', 'DD/MM/YYYY'),
