@@ -28,6 +28,11 @@ export type StudentRow = {
   profile_id: string;
   level: string;
   skill_coins: number;
+  /** Fuente única: pestaña «Familias» de Contabilidad. */
+  service_status: "activo" | "en_pausa" | "baja";
+  municipality: string;
+  service_status_source: "inicial" | "familias";
+  service_status_synced_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -304,7 +309,9 @@ export type NotificationRow = {
   recipient_id: string;
   student_id: string | null;
   goal_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso";
+  session_id: string | null;
+  request_id: string | null;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind;
   title: string;
   body: string;
   event_key: string;
@@ -312,6 +319,149 @@ export type NotificationRow = {
   email_status: "no_aplica" | "pendiente" | "enviado" | "sin_correo";
   email_sent_at: string | null;
   created_at: string;
+};
+
+export type ClassNotificationKind =
+  | "clase_solicitud" | "clase_decision" | "clase_mas_info" | "recuperacion_propuesta" | "recuperacion_confirmada"
+  | "recuperacion_sin_encaje" | "recuperacion_nueva" | "recuperacion_sin_avanzar" | "recuperacion_recordatorio"
+  | "recuperacion_fin_periodo" | "registro_aviso" | "clase_incidencia";
+
+export type ClassDelivery = "programada" | "impartida" | "no_impartida" | "anulada";
+export type ClassConsumption = "pendiente" | "consumida" | "conservada" | "no_aplica";
+export type ClassRecovery = "ninguna" | "pendiente" | "propuesta" | "sin_encaje" | "programada" | "realizada" | "rechazada";
+export type ClassCancelCause =
+  | "familia_menos_48h" | "familia_con_aviso" | "no_presentado" | "mentor" | "excepcion"
+  | "dia_sin_clase_kiru" | "pausa_servicio" | "cambio_horario" | "historico_sin_clasificar";
+
+export type ClassSessionRow = {
+  id: string;
+  student_id: string;
+  mentor_id: string;
+  slot_id: string | null;
+  kind: "regular" | "recuperacion";
+  recovers_session_id: string | null;
+  original_start: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  delivery: ClassDelivery;
+  consumption: ClassConsumption;
+  recovery: ClassRecovery;
+  cancel_cause: ClassCancelCause | null;
+  cancel_note: string;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  recovery_exception_note: string;
+  recovery_exception_by: string | null;
+  recovery_exception_at: string | null;
+  recovery_status_since: string;
+  session_log_id: string | null;
+  delivered_by: string | null;
+  source: "horario" | "recuperacion" | "historico" | "coordinacion";
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClassOption = { start: string; end: string };
+
+export type ClassRequestRow = {
+  id: string;
+  session_id: string | null;
+  session_log_id: string | null;
+  mentor_id: string;
+  student_id: string | null;
+  kind: "cambio" | "cancelacion" | "propuesta_recuperacion" | "aviso_registro";
+  requested_by: string;
+  requester_role: "mentor" | "padre" | "coordinador" | "admin";
+  reason: string;
+  reason_code: "cambio_acordado" | "recuperacion" | "sustitucion" | "error_registro" | "otro" | null;
+  details: string;
+  preferences: string;
+  options: Json;
+  hours_notice: number | null;
+  late: boolean;
+  status: "pendiente" | "mas_info" | "contrapropuesta" | "aprobada" | "rechazada" | "retirada" | "elegida" | "sin_encaje" | "gestionado" | "sustituida";
+  chosen_option: Json | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string;
+  reply: string;
+  incident: "ninguna" | "potencial" | "abierta" | "justificada" | "no_justificada" | "mas_info";
+  incident_note: string;
+  incident_reviewed_by: string | null;
+  incident_reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClassEventRow = {
+  id: number;
+  session_id: string | null;
+  request_id: string | null;
+  actor_id: string | null;
+  action: string;
+  detail: Json;
+  created_at: string;
+};
+
+export type NoClassDayRow = {
+  id: string;
+  day: string;
+  reason: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  updated_at: string;
+};
+
+export type SheetOutboxRow = {
+  id: number;
+  target: "sin_clase" | "recuperaciones";
+  row_key: string;
+  payload: Json;
+  status: "pendiente" | "enviado" | "error";
+  attempts: number;
+  last_error: string;
+  claimed_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PeriodSessionSummaryRow = {
+  payment_id: string;
+  student_id: string;
+  coverage_start: string;
+  coverage_end: string;
+  payment_status: string;
+  sessions_included: number | null;
+  sessions_consumed: number;
+  sessions_delivered: number;
+  sessions_cancelled_consumed: number;
+  recoveries_open: number;
+  sessions_scheduled: number;
+};
+
+export type FamilyClassRow = Pick<ClassSessionRow, "id" | "student_id" | "kind" | "recovers_session_id" | "original_start" | "scheduled_start" | "scheduled_end" | "delivery" | "consumption" | "recovery" | "cancel_cause" | "recovery_status_since"> & {
+  mentor_name: string;
+  delivered_by_name: string;
+  rescheduled: boolean;
+};
+
+export type FamilyClassRequestRow = Pick<ClassRequestRow, "id" | "session_id" | "student_id" | "kind" | "requester_role" | "reason" | "preferences" | "options" | "hours_notice" | "late" | "status" | "chosen_option" | "decision_note" | "reply" | "decided_at" | "created_at"> & {
+  requested_by_me: boolean;
+};
+
+export type UnlinkedSessionLogRow = {
+  id: string;
+  session_date: string;
+  student_id: string;
+  mentor_id: string | null;
+  mentor_name: string;
+  student_name: string;
+  submitted_at: string;
+  probable_duplicate: boolean;
 };
 
 /** Opción de pago por adelantado (precio total de varios meses con descuento). */
@@ -421,7 +571,7 @@ export type Database = {
   public: {
     Tables: {
       profiles: Table<ProfileRow, Timestamps | "role" | "is_active" | "username">;
-      students: Table<StudentRow, Timestamps | "level" | "skill_coins">;
+      students: Table<StudentRow, Timestamps | "level" | "skill_coins" | "service_status" | "municipality" | "service_status_source" | "service_status_synced_at">;
       student_mentors: Table<StudentMentorRow, "assigned_at">;
       student_guardians: Table<StudentGuardianRow, "assigned_at" | "relationship">;
       kiru_app_records: Table<AppRecordRow, Timestamps | "id" | "data" | "created_by">;
@@ -454,9 +604,18 @@ export type Database = {
       kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "positions_count" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
       kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;
       kiru_opportunity_recommendations: Table<OpportunityRecommendationRow, "id" | "created_at">;
+      kiru_class_sessions: Table<ClassSessionRow, Timestamps | "id" | "slot_id" | "kind" | "recovers_session_id" | "delivery" | "consumption" | "recovery" | "cancel_cause" | "cancel_note" | "cancelled_at" | "cancelled_by" | "recovery_exception_note" | "recovery_exception_by" | "recovery_exception_at" | "recovery_status_since" | "session_log_id" | "delivered_by" | "source">;
+      kiru_class_requests: Table<ClassRequestRow, Timestamps | "id" | "session_id" | "session_log_id" | "student_id" | "reason" | "reason_code" | "details" | "preferences" | "options" | "hours_notice" | "late" | "status" | "chosen_option" | "decided_by" | "decided_at" | "decision_note" | "reply" | "incident" | "incident_note" | "incident_reviewed_by" | "incident_reviewed_at">;
+      kiru_class_events: Table<ClassEventRow, "id" | "session_id" | "request_id" | "actor_id" | "detail" | "created_at">;
+      kiru_no_class_days: Table<NoClassDayRow, Timestamps | "id" | "is_active" | "created_by" | "cancelled_by" | "cancelled_at">;
+      kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {
       kiru_family_session_history: { Row: FamilySessionHistoryRow; Relationships: [] };
+      kiru_period_session_summary: { Row: PeriodSessionSummaryRow; Relationships: [] };
+      kiru_family_classes: { Row: FamilyClassRow; Relationships: [] };
+      kiru_family_class_requests: { Row: FamilyClassRequestRow; Relationships: [] };
+      kiru_unlinked_session_logs: { Row: UnlinkedSessionLogRow; Relationships: [] };
     };
     Functions: {
       kiru_skillcoin_summary: { Args: { p_student: string }; Returns: Json };
@@ -488,8 +647,28 @@ export type Database = {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];
       };
-    };
+    } & ClassFunctions;
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
+};
+
+/** Funciones de clases con fecha (todas reciben p_actor: quien actúa, comprobado en el servidor). */
+type ClassFunctions = {
+  kiru_clases_generar: { Args: { p_from?: string; p_until?: string }; Returns: Json };
+  kiru_clases_solicitar: { Args: { p_actor: string; p_session: string; p_kind: string; p_reason: string; p_options?: Json; p_details?: string; p_preferences?: string }; Returns: Json };
+  kiru_clases_decidir: { Args: { p_actor: string; p_request: string; p_decision: string; p_note?: string; p_option?: number; p_options?: Json }; Returns: Json };
+  kiru_clases_responder: { Args: { p_actor: string; p_request: string; p_action: string; p_reply?: string; p_option?: number }; Returns: Json };
+  kiru_recuperaciones_proponer: { Args: { p_actor: string; p_session: string; p_options: Json; p_note?: string }; Returns: Json };
+  kiru_recuperaciones_elegir: { Args: { p_actor: string; p_request: string; p_option: number | null; p_note?: string }; Returns: Json };
+  kiru_recuperaciones_gestionar: { Args: { p_actor: string; p_session: string; p_action: string; p_note?: string }; Returns: Json };
+  kiru_clases_registrar_cancelacion: { Args: { p_actor: string; p_session: string; p_cause: string; p_note: string }; Returns: Json };
+  kiru_registros_avisar: { Args: { p_actor: string; p_log: string; p_reason_code: string; p_reason?: string }; Returns: Json };
+  kiru_registros_gestionar_aviso: { Args: { p_actor: string; p_request: string; p_action: string; p_note?: string; p_session?: string }; Returns: Json };
+  kiru_registros_responder_aviso: { Args: { p_actor: string; p_request: string; p_reply: string }; Returns: Json };
+  kiru_incidencias_revisar: { Args: { p_actor: string; p_request: string; p_verdict: string; p_note?: string }; Returns: Json };
+  kiru_dias_sin_clase_guardar: { Args: { p_actor: string; p_day: string; p_reason: string; p_active?: boolean }; Returns: Json };
+  kiru_familias_estado: { Args: { p_rows: Json }; Returns: Json };
+  kiru_clases_tarea_diaria: { Args: Record<string, never>; Returns: Json };
+  kiru_sesiones_previstas: { Args: { p_student: string; p_from: string; p_until: string }; Returns: Json };
 };

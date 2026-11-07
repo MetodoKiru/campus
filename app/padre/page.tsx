@@ -13,6 +13,8 @@ import {
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
+import FamilyClasses from "@/components/classes/FamilyClasses";
+import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
 import { latestWeekInfo } from "@/lib/skillcoins";
@@ -108,6 +110,7 @@ export default function PadrePage() {
   }, [router]);
 
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
+  const [classMsg, setClassMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"inicio" | "sesiones" | "progreso" | "recompensas" | "documentos" | "pagos" | "informes">("inicio");
 
   // Lista de hijos dinámica cargada desde las cuentas de alumnos creadas
@@ -339,7 +342,7 @@ export default function PadrePage() {
                 const child = childrenList.find((c) => c.id === n.student_id);
                 if (child) {
                   setSelectedChild(child);
-                  setActiveTab(n.kind === "renovacion" ? "inicio" : n.kind === "informe_progreso" ? "informes" : "recompensas");
+                  setActiveTab(n.kind === "renovacion" ? "inicio" : n.kind === "informe_progreso" ? "informes" : n.session_id || n.request_id ? "sesiones" : "recompensas");
                   if (n.kind === "informe_progreso" && n.event_key.startsWith("informe_progreso:")) {
                     const params = new URLSearchParams(window.location.search);
                     params.set("informe", n.event_key.slice("informe_progreso:".length));
@@ -540,6 +543,8 @@ export default function PadrePage() {
             </div>
           )}
 
+          {activeTab === "sesiones" && <FamilyClasses studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />}
+          {classMsg && <Toast text={classMsg.text} type={classMsg.type} onClose={() => setClassMsg(null)} />}
           {activeTab === "sesiones" && (
             <section className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E7E3DC] shadow-xs space-y-4">
               <div className="space-y-1">
