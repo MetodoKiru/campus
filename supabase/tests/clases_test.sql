@@ -260,5 +260,7 @@ select public.kiru_clases_tarea_diaria();
 select pg_temp.expect('recuperación parada 3 días: aviso al coordinador del mentor', (select count(*) from kiru_notifications where kind = 'recuperacion_sin_avanzar' and recipient_id = pg_temp.i('C')), 1);
 select public.kiru_clases_tarea_diaria();
 select pg_temp.expect('el aviso no se repite cada día', (select count(*) from kiru_notifications where kind = 'recuperacion_sin_avanzar'), 1);
+select pg_temp.expect('a los 2 días, recordatorio amable al propio mentor (una vez)', (select count(*) from kiru_notifications where kind = 'recuperacion_recordatorio' and recipient_id = pg_temp.i('M') and event_key like '%:auto:%'), (select count(*) from kiru_class_sessions where mentor_id = pg_temp.i('M') and kind = 'regular' and recovery = 'pendiente' and recovery_status_since < now() - interval '2 days'));
+select pg_temp.expect('el recordatorio al mentor existe para la recuperación parada', (select count(*) from kiru_notifications where kind = 'recuperacion_recordatorio' and event_key like 'recuperacion_recordatorio:' || pg_temp.s('pronto_familia') || ':auto:%'), 1);
 select pg_temp.expect_denied('el historial no se modifica', $q$update kiru_class_events set action = 'x'$q$);
 rollback;
