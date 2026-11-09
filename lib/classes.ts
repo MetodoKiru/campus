@@ -209,3 +209,32 @@ export function madridToIso(day: string, time: string): string | null {
   }
   return null;
 }
+
+/**
+ * Fechas que propone el mentor (cambio o recuperación): solo opciones realistas.
+ * El servidor aplica las mismas reglas (kiru_private.class_check_mentor_options).
+ */
+export const MENTOR_PROPOSAL_RULES = { minOptions: 3, latestEnd: "20:30", blockedWeekday: 5 } as const;
+
+function madridParts(iso: string): { day: string; weekday: number; time: string } {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
+  const time = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Madrid" });
+  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay() || 7;
+  return { day, weekday, time };
+}
+
+/** Problemas de una lista de fechas propuestas por el mentor (vacía = todo bien). */
+export function mentorProposalProblems(options: ClassOption[]): string[] {
+  const { minOptions, latestEnd, blockedWeekday } = MENTOR_PROPOSAL_RULES;
+  const problems: string[] = [];
+  const days = new Set(options.map((o) => madridParts(o.start).day));
+  if (options.length < minOptions || days.size < minOptions) problems.push(`Propón al menos ${minOptions} fechas, cada una en un día distinto.`);
+  for (const o of options) {
+    const s = madridParts(o.start);
+    const e = madridParts(o.end);
+    if (s.weekday === blockedWeekday) problems.push(`Los viernes no se pueden proponer (${classDateLabel(o.start)}).`);
+    if (e.day !== s.day || e.time > latestEnd) problems.push(`La clase tiene que terminar como tarde a las ${latestEnd} (${classDateLabel(o.start)}).`);
+  }
+  return problems;
+}
