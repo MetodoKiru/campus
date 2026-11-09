@@ -225,11 +225,12 @@ function madridParts(iso: string): { day: string; weekday: number; time: string 
 }
 
 /** Problemas de una lista de fechas propuestas por el mentor (vacía = todo bien). */
-export function mentorProposalProblems(options: ClassOption[]): string[] {
-  const { minOptions, latestEnd, blockedWeekday } = MENTOR_PROPOSAL_RULES;
+export function mentorProposalProblems(options: ClassOption[], minOptions: number = MENTOR_PROPOSAL_RULES.minOptions): string[] {
+  const { latestEnd, blockedWeekday } = MENTOR_PROPOSAL_RULES;
   const problems: string[] = [];
   const days = new Set(options.map((o) => madridParts(o.start).day));
-  if (options.length < minOptions || days.size < minOptions) problems.push(`Propón al menos ${minOptions} fechas, cada una en un día distinto.`);
+  if (minOptions > 1 && (options.length < minOptions || days.size < minOptions)) problems.push(`Propón al menos ${minOptions} fechas, cada una en un día distinto.`);
+  if (minOptions <= 1 && options.length < 1) problems.push("Indica al menos una fecha.");
   for (const o of options) {
     const s = madridParts(o.start);
     const e = madridParts(o.end);

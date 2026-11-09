@@ -827,6 +827,7 @@ type ClassFunctions = {
   kiru_clases_decidir: { Args: { p_actor: string; p_request: string; p_decision: string; p_note?: string; p_option?: number; p_options?: Json }; Returns: Json };
   kiru_clases_responder: { Args: { p_actor: string; p_request: string; p_action: string; p_reply?: string; p_option?: number }; Returns: Json };
   kiru_recuperaciones_proponer: { Args: { p_actor: string; p_session: string; p_options: Json; p_note?: string }; Returns: Json };
+  kiru_recuperaciones_contraproponer: { Args: { p_actor: string; p_request: string; p_options: Json; p_note?: string }; Returns: Json };
   kiru_recuperaciones_elegir: { Args: { p_actor: string; p_request: string; p_option: number | null; p_note?: string }; Returns: Json };
   kiru_recuperaciones_gestionar: { Args: { p_actor: string; p_session: string; p_action: string; p_note?: string }; Returns: Json };
   kiru_clases_registrar_cancelacion: { Args: { p_actor: string; p_session: string; p_cause: string; p_note: string }; Returns: Json };

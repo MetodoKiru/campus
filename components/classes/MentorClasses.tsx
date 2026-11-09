@@ -29,6 +29,7 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
   const noticedLogs = new Set(notices.map((n) => n.sessionLogId));
   const unlinked = (data?.unlinkedLogs ?? []).filter((l) => l.mentorId === data?.viewerId && !l.probableDuplicate);
   const openRequestFor = (id: string) => requests.find((r) => r.sessionId === id && OPEN.includes(r.status));
+  const familyProposal = (id: string) => requests.find((r) => r.sessionId === id && r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole === "padre");
 
   const done = async (message: string | null, ok: string) => {
     if (message) { notify(`No se pudo: ${message}`); return; }
@@ -57,11 +58,29 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
             <div key={s.id} className={`${subtle} space-y-2`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span><strong>{s.studentName}</strong> · clase del {classDateLabel(s.originalStart)}</span>
-                <Badge tone={s.recovery === "propuesta" ? "neutral" : "warn"}>
-                  {s.recovery === "propuesta" ? "Esperando a la familia" : s.recovery === "sin_encaje" ? "Ninguna fecha encajó" : "Propón fechas"}
+                <Badge tone={s.recovery === "propuesta" && !familyProposal(s.id) ? "neutral" : "warn"}>
+                  {familyProposal(s.id) ? "La familia propone fechas" : s.recovery === "propuesta" ? "Esperando a la familia" : s.recovery === "sin_encaje" ? "Ninguna fecha encajó" : "Propón fechas"}
                 </Badge>
               </div>
               {s.cancelCause && <p className="text-[11px] text-[#77736B]">{CAUSE_LABEL[s.cancelCause]}</p>}
+              {(() => {
+                const fp = familyProposal(s.id);
+                if (!fp) return null;
+                return (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-[#45433F]">Ninguna de tus fechas les encajaba. Acepta una de las suyas o propón otras:</p>
+                    {fp.reason && <p className="text-[11px] text-[#77736B]">«{fp.reason}»</p>}
+                    <div className="flex flex-wrap gap-2">
+                      {fp.options.map((o, i) => (
+                        <button key={o.start} type="button" className={btnDark}
+                          onClick={() => classAction({ action: "elegir_recuperacion", requestId: fp.id, option: i }).then((m) => done(m, "Recuperación confirmada. La familia recibirá un correo."))}>
+                          Aceptar {timeRange(o)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {open === `rec:${s.id}`
                 ? <ProposeForm session={s} onCancel={() => setOpen(null)} onDone={done} />
                 : <button type="button" className={btnLight} onClick={() => setOpen(`rec:${s.id}`)}>{s.recovery === "propuesta" ? "Proponer otras fechas" : "Proponer fechas"}</button>}

@@ -8,7 +8,8 @@ INSERT INTO public.kiru_settings (key, value) VALUES
   ('propuestas_mentor_dia_no_permitido', '5'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
-CREATE OR REPLACE FUNCTION kiru_private.class_check_mentor_options(p_options jsonb)
+-- Día y hora realistas para cualquier fecha propuesta por el mentor o la familia.
+CREATE OR REPLACE FUNCTION kiru_private.class_check_option_hours(p_options jsonb)
 RETURNS void
 LANGUAGE plpgsql
 STABLE
@@ -16,20 +17,13 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_min int := kiru_private.setting_int('propuestas_mentor_minimas', 3);
   v_end_max int := kiru_private.setting_int('propuestas_mentor_fin_max_minutos', 1230);
   v_blocked int := kiru_private.setting_int('propuestas_mentor_dia_no_permitido', 5);
   v_item jsonb;
   v_start timestamp;
   v_end timestamp;
-  v_days int;
 BEGIN
-  SELECT count(DISTINCT ((value ->> 'start')::timestamptz AT TIME ZONE 'Europe/Madrid')::date)
-  INTO v_days FROM jsonb_array_elements(coalesce(p_options, '[]'::jsonb));
-  IF jsonb_array_length(coalesce(p_options, '[]'::jsonb)) < v_min OR v_days < v_min THEN
-    RAISE EXCEPTION 'Propón al menos % fechas, cada una en un día distinto.', v_min USING ERRCODE = 'check_violation';
-  END IF;
-  FOR v_item IN SELECT value FROM jsonb_array_elements(p_options) LOOP
+  FOR v_item IN SELECT value FROM jsonb_array_elements(coalesce(p_options, '[]'::jsonb)) LOOP
     v_start := (v_item ->> 'start')::timestamptz AT TIME ZONE 'Europe/Madrid';
     v_end := (v_item ->> 'end')::timestamptz AT TIME ZONE 'Europe/Madrid';
     IF extract(isodow FROM v_start) = v_blocked THEN
@@ -41,6 +35,28 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
   END LOOP;
+END
+$$;
+REVOKE ALL ON FUNCTION kiru_private.class_check_option_hours(jsonb) FROM PUBLIC;
+
+-- Fechas del mentor: además, al menos N en N días distintos.
+CREATE OR REPLACE FUNCTION kiru_private.class_check_mentor_options(p_options jsonb)
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_min int := kiru_private.setting_int('propuestas_mentor_minimas', 3);
+  v_days int;
+BEGIN
+  SELECT count(DISTINCT ((value ->> 'start')::timestamptz AT TIME ZONE 'Europe/Madrid')::date)
+  INTO v_days FROM jsonb_array_elements(coalesce(p_options, '[]'::jsonb));
+  IF jsonb_array_length(coalesce(p_options, '[]'::jsonb)) < v_min OR v_days < v_min THEN
+    RAISE EXCEPTION 'Propón al menos % fechas, cada una en un día distinto.', v_min USING ERRCODE = 'check_violation';
+  END IF;
+  PERFORM kiru_private.class_check_option_hours(p_options);
 END
 $$;
 REVOKE ALL ON FUNCTION kiru_private.class_check_mentor_options(jsonb) FROM PUBLIC;

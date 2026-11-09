@@ -293,4 +293,20 @@ select pg_temp.expect('3 días distintos, sin viernes y acabando a las 20:30: se
 insert into req select 'coord_libre', (public.kiru_recuperaciones_proponer(pg_temp.i('C'), pg_temp.s('pronto_familia'),
   jsonb_build_array(pg_temp.wd(5,'20:00')))->>'id')::uuid;
 select pg_temp.expect('coordinación no tiene ese límite', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre')), 1);
+
+-- 11. Ninguna fecha encaja: la familia propone las suyas y responde el mentor ----
+select pg_temp.expect_denied('la familia tampoco puede proponer viernes', format($q$select public.kiru_recuperaciones_contraproponer(%L, %L, %L::jsonb)$q$, pg_temp.i('P'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(5,'17:00'))));
+select pg_temp.expect_denied('otra familia no responde', format($q$select public.kiru_recuperaciones_contraproponer(%L, %L, %L::jsonb)$q$, pg_temp.i('P2'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(2,'17:00'))));
+insert into req select 'fam_prop', (public.kiru_recuperaciones_contraproponer(pg_temp.i('P'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(2,'17:00'), pg_temp.wd(4,'18:00')), 'Mejor martes o jueves por la tarde')->>'id')::uuid;
+select pg_temp.expect('la propuesta anterior queda como «ninguna encaja»', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre') and status = 'sin_encaje'), 1);
+select pg_temp.expect('al mentor le llega la propuesta de la familia', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('M') and request_id = pg_temp.r('fam_prop')), 1);
+select pg_temp.expect('y a su coordinador también', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('C') and request_id = pg_temp.r('fam_prop')), 1);
+select pg_temp.expect_denied('la familia no elige sus propias fechas', format($q$select public.kiru_recuperaciones_elegir(%L, %L, 0)$q$, pg_temp.i('P'), pg_temp.r('fam_prop')));
+select pg_temp.expect_denied('el mentor no puede decir «ninguna» sin proponer otras', format($q$select public.kiru_recuperaciones_elegir(%L, %L, null)$q$, pg_temp.i('M'), pg_temp.r('fam_prop')));
+select public.kiru_recuperaciones_elegir(pg_temp.i('M'), pg_temp.r('fam_prop'), 1);
+select pg_temp.expect('el mentor acepta una fecha de la familia: recuperación programada', (select count(*) from kiru_class_sessions where recovers_session_id = pg_temp.s('pronto_familia') and delivery = 'programada' and scheduled_start = (pg_temp.wd(4,'18:00')->>'start')::timestamptz), 1);
+select pg_temp.expect('la confirmación llega a la familia', (select count(*) from kiru_notifications where kind = 'recuperacion_confirmada' and recipient_id = pg_temp.i('P') and request_id = pg_temp.r('fam_prop')), 1);
 rollback;

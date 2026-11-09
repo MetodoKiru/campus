@@ -69,14 +69,17 @@ export function timeRange(o: ClassOption): string {
 type Draft = { day: string; start: string; end: string };
 
 /** Editor de varias fechas propuestas (día + hora de inicio y fin, en hora de Madrid). */
-export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, realistic = false }: {
+export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, realistic = false, family = false }: {
   value: ClassOption[]; onChange: (options: ClassOption[]) => void; max?: number; defaultMinutes?: number;
   /** Fechas de un mentor: mínimo 3 en días distintos, sin viernes y terminando como tarde a las 20:30. */
   realistic?: boolean;
+  /** Fechas de la familia: de 1 a 3, con el mismo límite de día y hora. */
+  family?: boolean;
 }) {
   const empty = { day: "", start: "", end: "" };
-  const [drafts, setDrafts] = useState<Draft[]>(realistic ? Array.from({ length: MENTOR_PROPOSAL_RULES.minOptions }, () => ({ ...empty })) : [{ ...empty }]);
-  const problems = realistic && value.length > 0 ? mentorProposalProblems(value) : [];
+  const minOptions = family ? 1 : MENTOR_PROPOSAL_RULES.minOptions;
+  const [drafts, setDrafts] = useState<Draft[]>(realistic && !family ? Array.from({ length: minOptions }, () => ({ ...empty })) : [{ ...empty }]);
+  const problems = realistic && value.length > 0 ? mentorProposalProblems(value, minOptions) : [];
   const update = (next: Draft[]) => {
     setDrafts(next);
     onChange(next.flatMap((d) => {
@@ -94,7 +97,9 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, r
     <div className="space-y-2">
       {realistic && (
         <p className="rounded-lg bg-[#F3EFE6] p-2 text-[11px] text-[#45433F]">
-          Propón al menos {MENTOR_PROPOSAL_RULES.minOptions} fechas, cada una en un día distinto y a horas que sepas que encajan a la familia.
+          {family
+            ? "Indicad hasta 3 días y horas que os vengan bien. "
+            : `Propón al menos ${MENTOR_PROPOSAL_RULES.minOptions} fechas, cada una en un día distinto y a horas que sepas que encajan a la familia. `}
           No se pueden proponer viernes y la clase tiene que terminar como tarde a las {MENTOR_PROPOSAL_RULES.latestEnd}.
         </p>
       )}
@@ -107,7 +112,7 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, r
           <span className="text-xs text-[#77736B]">a</span>
           <input type="time" aria-label="Termina" className={`${input} w-auto`} value={d.end}
             onChange={(e) => update(drafts.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-          {drafts.length > (realistic ? MENTOR_PROPOSAL_RULES.minOptions : 1) && (
+          {drafts.length > (realistic ? minOptions : 1) && (
             <button type="button" aria-label="Quitar fecha" className="p-1 text-[#8D887F] hover:text-[#292825]" onClick={() => update(drafts.filter((_, j) => j !== i))}>
               <Trash2 className="h-3.5 w-3.5" />
             </button>
