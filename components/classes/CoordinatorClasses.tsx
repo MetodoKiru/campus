@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, ClipboardCheck, RotateCcw } from "lucide-react";
 import {
   CAUSE_LABEL, NOTICE_HOURS, REASON_CODE_LABEL, RECOVERY_STAGE, REQUEST_STATUS_LABEL, classDateLabel, daysSince, hoursUntil,
-  type StaffClass, type StaffClassesData, type StaffRequest,
+  type StaffClass, type StaffClassesData, type StaffRequest, type UnavailableSlot,
 } from "@/lib/classes";
 import type { ClassOption, ClassRecovery } from "@/lib/database.types";
 import { ProposeForm } from "./MentorClasses";
@@ -81,7 +81,7 @@ export default function CoordinatorClasses({ notify }: { notify: (text: string, 
               <div key={stage} className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[#6D6962]">{RECOVERY_STAGE[stage]} · {rows.length}</h4>
                 {rows.length === 0 ? <p className="text-[11px] text-[#8D887F]">Ninguna.</p>
-                  : rows.map((s) => <RecoveryRow key={s.id} session={s} recovery={sessions.find((x) => x.recoversSessionId === s.id && x.delivery !== "no_impartida")} onDone={done} />)}
+                  : rows.map((s) => <RecoveryRow key={s.id} session={s} blocked={data.unavailable.filter((u) => u.studentId === s.studentId)} recovery={sessions.find((x) => x.recoversSessionId === s.id && x.delivery !== "no_impartida")} onDone={done} />)}
               </div>
             );
           })}
@@ -165,7 +165,7 @@ function PendingRequest({ request: r, session, onDone }: { request: StaffRequest
   );
 }
 
-function RecoveryRow({ session: s, recovery, onDone }: { session: StaffClass; recovery?: StaffClass; onDone: (m: string | null, ok: string) => void }) {
+function RecoveryRow({ session: s, blocked, recovery, onDone }: { session: StaffClass; blocked: UnavailableSlot[]; recovery?: StaffClass; onDone: (m: string | null, ok: string) => void }) {
   const [mode, setMode] = useState<"" | "proponer" | "excepcion">("");
   const [note, setNote] = useState("");
   const days = daysSince(s.recoveryStatusSince);
@@ -189,7 +189,7 @@ function RecoveryRow({ session: s, recovery, onDone }: { session: StaffClass; re
           <button type="button" className={btnLight} onClick={() => setMode(mode === "excepcion" ? "" : "excepcion")}>Excepción de plazo</button>
         </div>
       )}
-      {mode === "proponer" && <ProposeForm session={s} realistic={false} onCancel={() => setMode("")} onDone={(m, ok) => { setMode(""); void onDone(m, ok); }} />}
+      {mode === "proponer" && <ProposeForm session={s} blocked={blocked} realistic={false} onCancel={() => setMode("")} onDone={(m, ok) => { setMode(""); void onDone(m, ok); }} />}
       {mode === "excepcion" && (
         <div className="space-y-2">
           <input className={input} placeholder="Motivo y fecha acordada (después del fin del periodo)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />

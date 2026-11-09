@@ -61,6 +61,9 @@ export type UnlinkedLog = {
   probableDuplicate: boolean;
 };
 
+/** Franja semanal en la que la familia no puede recuperar clases (hora de Madrid). */
+export type UnavailableSlot = { studentId: string; weekday: number; start: string; end: string };
+
 export type StaffClassesData = {
   role: "mentor" | "coordinador" | "admin";
   viewerId: string;
@@ -68,6 +71,7 @@ export type StaffClassesData = {
   requests: StaffRequest[];
   unlinkedLogs: UnlinkedLog[];
   noClassDays: { day: string; reason: string }[];
+  unavailable: UnavailableSlot[];
 };
 
 export type FamilyClass = {
@@ -125,6 +129,7 @@ export type FamilyClassesData = {
   requests: FamilyRequest[];
   periods: FamilyPeriod[];
   noticeHours: number;
+  unavailable: UnavailableSlot[];
 };
 
 export const NOTICE_HOURS = 48;
@@ -224,8 +229,27 @@ function madridParts(iso: string): { day: string; weekday: number; time: string 
   return { day, weekday, time };
 }
 
+export const WEEKDAY_LABEL: Record<number, string> = { 1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado", 7: "Domingo" };
+
+/** «Lunes de 17:00 a 19:00», para mostrar una franja en la que la familia no puede. */
+export function unavailableLabel(u: UnavailableSlot): string {
+  return `${WEEKDAY_LABEL[u.weekday] ?? ""} de ${u.start} a ${u.end}`;
+}
+
+/** Fechas que caen en una franja en la que la familia ha dicho que no puede. */
+export function blockedProblems(options: ClassOption[], blocked: UnavailableSlot[]): string[] {
+  const problems: string[] = [];
+  for (const o of options) {
+    const s = madridParts(o.start);
+    const e = madridParts(o.end);
+    const hit = blocked.find((u) => u.weekday === s.weekday && u.start < (e.day === s.day ? e.time : "24:00") && u.end > s.time);
+    if (hit) problems.push(`La familia no puede los ${unavailableLabel(hit).toLowerCase()} (${classDateLabel(o.start)}).`);
+  }
+  return problems;
+}
+
 /** Problemas de una lista de fechas propuestas por el mentor (vacía = todo bien). */
-export function mentorProposalProblems(options: ClassOption[], minOptions: number = MENTOR_PROPOSAL_RULES.minOptions): string[] {
+export function mentorProposalProblems(options: ClassOption[], minOptions: number = MENTOR_PROPOSAL_RULES.minOptions, blocked: UnavailableSlot[] = []): string[] {
   const { latestEnd, blockedWeekday } = MENTOR_PROPOSAL_RULES;
   const problems: string[] = [];
   const days = new Set(options.map((o) => madridParts(o.start).day));
@@ -237,5 +261,5 @@ export function mentorProposalProblems(options: ClassOption[], minOptions: numbe
     if (s.weekday === blockedWeekday) problems.push(`Los viernes no se pueden proponer (${classDateLabel(o.start)}).`);
     if (e.day !== s.day || e.time > latestEnd) problems.push(`La clase tiene que terminar como tarde a las ${latestEnd} (${classDateLabel(o.start)}).`);
   }
-  return problems;
+  return [...problems, ...blockedProblems(options, blocked)];
 }

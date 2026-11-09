@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { MENTOR_PROPOSAL_RULES, classDateLabel, madridToIso, mentorProposalProblems } from "@/lib/classes";
+import { MENTOR_PROPOSAL_RULES, blockedProblems, classDateLabel, madridToIso, mentorProposalProblems, unavailableLabel, type UnavailableSlot } from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
 
 async function token(): Promise<string> {
@@ -69,17 +69,19 @@ export function timeRange(o: ClassOption): string {
 type Draft = { day: string; start: string; end: string };
 
 /** Editor de varias fechas propuestas (día + hora de inicio y fin, en hora de Madrid). */
-export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, realistic = false, family = false }: {
+export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, realistic = false, family = false, blocked = [] }: {
   value: ClassOption[]; onChange: (options: ClassOption[]) => void; max?: number; defaultMinutes?: number;
   /** Fechas de un mentor: mínimo 3 en días distintos, sin viernes y terminando como tarde a las 20:30. */
   realistic?: boolean;
   /** Fechas de la familia: de 1 a 3, con el mismo límite de día y hora. */
   family?: boolean;
+  /** Franjas en las que la familia ha dicho que no puede (se muestran y se avisa si una fecha cae en ellas). */
+  blocked?: UnavailableSlot[];
 }) {
   const empty = { day: "", start: "", end: "" };
   const minOptions = family ? 1 : MENTOR_PROPOSAL_RULES.minOptions;
   const [drafts, setDrafts] = useState<Draft[]>(realistic && !family ? Array.from({ length: minOptions }, () => ({ ...empty })) : [{ ...empty }]);
-  const problems = realistic && value.length > 0 ? mentorProposalProblems(value, minOptions) : [];
+  const problems = value.length === 0 ? [] : realistic ? mentorProposalProblems(value, minOptions, blocked) : blockedProblems(value, blocked);
   const update = (next: Draft[]) => {
     setDrafts(next);
     onChange(next.flatMap((d) => {
@@ -101,6 +103,11 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, r
             ? "Indicad hasta 3 días y horas que os vengan bien. "
             : `Propón al menos ${MENTOR_PROPOSAL_RULES.minOptions} fechas, cada una en un día distinto y a horas que sepas que encajan a la familia. `}
           No se pueden proponer viernes y la clase tiene que terminar como tarde a las {MENTOR_PROPOSAL_RULES.latestEnd}.
+        </p>
+      )}
+      {blocked.length > 0 && (
+        <p className="rounded-lg bg-orange-50 p-2 text-[11px] text-orange-900">
+          La familia ha indicado que no puede: {blocked.map(unavailableLabel).join(" · ")}.
         </p>
       )}
       {drafts.map((d, i) => (
