@@ -5,7 +5,7 @@ import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins
 import { CoordinatorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import OffersPanel from "@/components/offers/OffersPanel";
@@ -13,6 +13,7 @@ import CoordinatorReportsPanel from "@/components/reports/CoordinatorReportsPane
 import CoordinatorMeetings from "@/components/coordination/CoordinatorMeetings";
 import CoordinatorRecommendations from "@/components/coordination/CoordinatorRecommendations";
 import CoordinatorClasses from "@/components/classes/CoordinatorClasses";
+import CoordinatorSupervision from "@/components/supervision/CoordinatorSupervision";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
 
@@ -59,7 +60,15 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes">("mentores");
+  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision">("mentores");
+  // Enlaces de los correos: /coordinador?tab=supervision&revision=…
+  const [linkedReview, setLinkedReview] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") !== "supervision") return;
+    const timer = window.setTimeout(() => { setTab("supervision"); setLinkedReview(params.get("revision")); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState("todos");
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -240,7 +249,10 @@ export default function CoordinadorPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <NotificationBell onOpenItem={(n) => { if (n.session_id || n.request_id) setTab("clases"); }} />
+          <NotificationBell onOpenItem={(n) => {
+            if (n.review_id || n.warning_id) { setLinkedReview(n.review_id ?? null); setTab("supervision"); }
+            else if (n.session_id || n.request_id) setTab("clases");
+          }} />
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Administración</span>
@@ -268,6 +280,7 @@ export default function CoordinadorPage() {
             <TabButton active={tab === "clases"} onClick={() => setTab("clases")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Clases y recuperaciones" />
             <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
             <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
+            <TabButton active={tab === "supervision"} onClick={() => setTab("supervision")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Supervisión" />
             <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
             <TabButton active={tab === "reuniones"} onClick={() => setTab("reuniones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Reuniones de coordinación" />
@@ -286,6 +299,8 @@ export default function CoordinadorPage() {
         {tab === "clases" && <CoordinatorClasses notify={notifyOffers} />}
         {tab === "propuestas" && <OffersPanel notify={notifyOffers} />}
         {tab === "informes" && <CoordinatorReportsPanel />}
+        {tab === "supervision" && me && <CoordinatorSupervision key={linkedReview ?? "supervision"} meId={me.id} isAdmin={me.isAdmin} people={people}
+          coordinatorOf={coordinatorOf} initialReviewId={linkedReview} notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}
         {tab === "crece" && !me.isAdmin && <CoordinatorRecommendations notify={notifyOffers} />}
 
