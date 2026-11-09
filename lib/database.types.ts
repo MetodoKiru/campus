@@ -301,6 +301,7 @@ export type SkillcoinCorrectionRow = {
   reason: string;
   corrected_by: string | null;
   corrected_role: "mentor" | "admin";
+  review_id?: string | null;
   created_at: string;
 };
 
@@ -311,7 +312,9 @@ export type NotificationRow = {
   goal_id: string | null;
   session_id: string | null;
   request_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind;
+  review_id: string | null;
+  warning_id: string | null;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind;
   title: string;
   body: string;
   event_key: string;
@@ -320,6 +323,115 @@ export type NotificationRow = {
   email_sent_at: string | null;
   created_at: string;
 };
+
+export type SupervisionNotificationKind =
+  | "justificacion_solicitada" | "justificacion_respondida" | "justificacion_repregunta" | "justificacion_cerrada"
+  | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento";
+
+// Supervisión metodológica (migración 20261109110000): solicitudes de justificación
+// de una nota de SkillCoins, sus mensajes y evidencias, y avisos metodológicos.
+export type SkillcoinCompetencia = "estudios" | "compromiso" | "organizacion" | "bienestar";
+export type SkillcoinReviewStatus = "pendiente_respuesta" | "respondida" | "pendiente_valoracion" | "cerrada";
+export type SkillcoinReviewResolution = "adecuada" | "insuficiente" | "necesita_formacion" | "retirada";
+
+export type SkillcoinReviewRow = {
+  id: string;
+  student_id: string;
+  mentor_id: string;
+  session_log_id: string | null;
+  week: string;
+  competencia: SkillcoinCompetencia;
+  score_snapshot: number;
+  week_scores: Json;
+  requested_by: string | null;
+  requested_role: "coordinador" | "admin";
+  reason_code: "maximo_repetido" | "sin_variacion" | "posible_contradiccion" | "maximo_sin_evolucion" | "otro";
+  reason: string;
+  question: string;
+  due_date: string | null;
+  status: SkillcoinReviewStatus;
+  status_since: string;
+  round: number;
+  answered_at: string | null;
+  assessment_started_at: string | null;
+  assessment_started_by: string | null;
+  resolution: SkillcoinReviewResolution | null;
+  resolution_note: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SkillcoinReviewMessageRow = {
+  id: string;
+  review_id: string;
+  round: number;
+  author_id: string | null;
+  author_role: "mentor" | "coordinador" | "admin";
+  kind: "respuesta" | "repregunta";
+  body: string;
+  criteria: string;
+  created_at: string;
+};
+
+export type SkillcoinReviewFileRow = {
+  id: string;
+  review_id: string;
+  message_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
+export type MethodologyWarningRow = {
+  id: string;
+  mentor_id: string;
+  review_id: string | null;
+  competencia: SkillcoinCompetencia | "general";
+  origin: "insuficiente" | "necesita_formacion" | "manual";
+  level: 1 | 2 | 3;
+  counted_warning_ids: string[];
+  criterion: string;
+  expected_improvements: string;
+  manual_reference: string;
+  recommended_action: string;
+  status: "pendiente" | "en_revision" | "resuelto";
+  meeting_at: string | null;
+  meeting_done_at: string | null;
+  meeting_note: string;
+  assessment_kind: "prueba_conocimientos" | "evaluacion_practica" | null;
+  assessment_requested_at: string | null;
+  assessment_result: string;
+  reinforcement_measures: string;
+  assessment_recorded_at: string | null;
+  improvement_at: string | null;
+  improvement_note: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_note: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Historial de supervisión (solo coordinación y administración lo leen). */
+export type SupervisionEventRow = {
+  id: string;
+  review_id: string | null;
+  warning_id: string | null;
+  mentor_id: string;
+  actor_id: string | null;
+  action: string;
+  detail: Json;
+  created_at: string;
+};
+
+/** Solo se escriben con funciones (RLS sin INSERT/UPDATE/DELETE): estos tipos son de lectura. */
+type ReadOnlyTable<Row> = { Row: Row; Insert: never; Update: never; Relationships: [] };
 
 export type ClassNotificationKind =
   | "clase_solicitud" | "clase_decision" | "clase_mas_info" | "recuperacion_propuesta" | "recuperacion_confirmada"
@@ -593,7 +705,7 @@ export type Database = {
       kiru_reward_goals: Table<RewardGoalRow, Timestamps | "id" | "status" | "replaces_goal_id" | "family_note" | "requested_at" | "decided_at" | "decided_by" | "redeem_round" | "redeem_requested_at" | "completed_at" | "completed_by" | "closed_at">;
       kiru_skillcoin_movements: Table<SkillcoinMovementRow, "id" | "goal_id" | "created_by" | "created_at">;
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
-      kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
+      kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "review_id" | "warning_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
       kiru_family_progress_reports: Table<FamilyProgressReportRow, "id" | "status" | "content" | "published_by" | "published_at" | "created_at" | "updated_at">;
       kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
@@ -608,6 +720,11 @@ export type Database = {
       kiru_class_requests: Table<ClassRequestRow, Timestamps | "id" | "session_id" | "session_log_id" | "student_id" | "reason" | "reason_code" | "details" | "preferences" | "options" | "hours_notice" | "late" | "status" | "chosen_option" | "decided_by" | "decided_at" | "decision_note" | "reply" | "incident" | "incident_note" | "incident_reviewed_by" | "incident_reviewed_at">;
       kiru_class_events: Table<ClassEventRow, "id" | "session_id" | "request_id" | "actor_id" | "detail" | "created_at">;
       kiru_no_class_days: Table<NoClassDayRow, Timestamps | "id" | "is_active" | "created_by" | "cancelled_by" | "cancelled_at">;
+      kiru_skillcoin_reviews: ReadOnlyTable<SkillcoinReviewRow>;
+      kiru_skillcoin_review_messages: ReadOnlyTable<SkillcoinReviewMessageRow>;
+      kiru_skillcoin_review_files: ReadOnlyTable<SkillcoinReviewFileRow>;
+      kiru_methodology_warnings: ReadOnlyTable<MethodologyWarningRow>;
+      kiru_supervision_events: ReadOnlyTable<SupervisionEventRow>;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {
@@ -647,7 +764,7 @@ export type Database = {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];
       };
-    } & ClassFunctions;
+    } & ClassFunctions & SupervisionFunctions;
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
@@ -671,4 +788,26 @@ type ClassFunctions = {
   kiru_familias_estado: { Args: { p_rows: Json }; Returns: Json };
   kiru_clases_tarea_diaria: { Args: Record<string, never>; Returns: Json };
   kiru_sesiones_previstas: { Args: { p_student: string; p_from: string; p_until: string }; Returns: Json };
+};
+
+/** Funciones de supervisión metodológica (comprueban en la base quién llama). */
+type SupervisionFunctions = {
+  kiru_supervision_evaluations: { Args: { p_since?: string }; Returns: Json };
+  kiru_request_sc_review: { Args: { p_log: string; p_competencia: string; p_reason_code: string; p_reason: string; p_question: string; p_due_date?: string | null }; Returns: string };
+  kiru_answer_sc_review: { Args: { p_review: string; p_body: string; p_criteria?: string }; Returns: string };
+  kiru_sc_review_add_file: { Args: { p_message: string; p_path: string; p_name: string; p_mime: string; p_size: number }; Returns: string };
+  kiru_sc_review_start_assessment: { Args: { p_review: string }; Returns: undefined };
+  kiru_sc_review_ask_more: { Args: { p_review: string; p_body: string }; Returns: string };
+  kiru_resolve_sc_review: {
+    Args: { p_review: string; p_resolution: string; p_note?: string; p_criterion?: string; p_improvements?: string; p_manual_reference?: string; p_recommended?: string };
+    Returns: Json;
+  };
+  kiru_methodology_warning_next_level: { Args: { p_mentor: string; p_competencia: string }; Returns: Json };
+  kiru_methodology_warning_create: {
+    Args: { p_mentor: string; p_competencia: string; p_criterion: string; p_improvements?: string; p_manual_reference?: string; p_recommended?: string };
+    Returns: string;
+  };
+  kiru_methodology_warning_update: { Args: { p_warning: string; p_action: string; p_payload?: Json }; Returns: undefined };
+  kiru_sc_review_correct: { Args: { p_review: string; p_new_score: number; p_reason: string }; Returns: undefined };
+  kiru_supervision_tarea_diaria: { Args: Record<string, never>; Returns: Json };
 };
