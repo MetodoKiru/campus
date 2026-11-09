@@ -274,4 +274,28 @@ select pg_temp.expect_text('la corrección queda enlazada y guarda la nota anter
 select pg_temp.expect_text('la nota original de la revisión se conserva', (select score_snapshot::text from kiru_skillcoin_reviews where id = pg_temp.r('r1')), '10');
 select pg_temp.expect_denied('el historial no se modifica', $$update kiru_supervision_events set action = 'x'$$);
 
+-- 10. Evidencias: se eliminan al acabar el curso (31 de agosto), el texto se queda ---------
+insert into kiru_skillcoin_review_messages(id, review_id, round, author_role, kind, body, created_at)
+values ('00000000-0000-0000-0000-0000000000e1', pg_temp.r('r3'), 1, 'mentor', 'respuesta', 'Respuesta del curso pasado', '2026-05-01'),
+       ('00000000-0000-0000-0000-0000000000e2', (select id from kiru_skillcoin_reviews where status <> 'cerrada' order by created_at limit 1), 1, 'mentor', 'respuesta', 'Sigue abierta', '2026-05-01');
+insert into kiru_skillcoin_review_files(id, review_id, message_id, storage_path, file_name, mime_type, size_bytes, created_at)
+values ('00000000-0000-0000-0000-0000000000f1', pg_temp.r('r3'), '00000000-0000-0000-0000-0000000000e1', 'viejo/cerrada.jpg', 'cerrada.jpg', 'image/jpeg', 100, '2026-05-01'),
+       ('00000000-0000-0000-0000-0000000000f2', (select review_id from kiru_skillcoin_review_messages where id = '00000000-0000-0000-0000-0000000000e2'),
+        '00000000-0000-0000-0000-0000000000e2', 'viejo/abierta.jpg', 'abierta.jpg', 'image/jpeg', 100, '2026-05-01');
+select pg_temp.expect_text('el curso empieza el 1 de septiembre', (select kiru_private.course_start('2026-08-31')::text || ' ' || kiru_private.course_start('2026-09-01')::text), '2025-09-01 2026-09-01');
+select pg_temp.expect_text('solo caducan archivos de cursos anteriores en revisiones cerradas', (select string_agg(storage_path, ',') from public.kiru_evidence_expired()), 'viejo/cerrada.jpg');
+select pg_temp.as_user('C');
+select pg_temp.expect_denied('un coordinador no lista archivos para borrar', $$select * from public.kiru_evidence_expired()$$);
+select pg_temp.expect_denied('ni los marca como eliminados', $$select public.kiru_evidence_mark_deleted(array['00000000-0000-0000-0000-0000000000f1'::uuid])$$);
+reset role;
+select pg_temp.expect('se marcan solo los caducados', public.kiru_evidence_mark_deleted(array['00000000-0000-0000-0000-0000000000f1'::uuid, '00000000-0000-0000-0000-0000000000f2'::uuid, pg_temp.r('r1')]), 1);
+select pg_temp.expect('repetirlo no cambia nada', public.kiru_evidence_mark_deleted(array['00000000-0000-0000-0000-0000000000f1'::uuid]), 0);
+select pg_temp.expect('la fila del archivo se conserva con su fecha de eliminación', (select count(*) from kiru_skillcoin_review_files where deleted_at is not null and deleted_reason = 'fin_de_curso'), 1);
+select pg_temp.expect('el texto de la respuesta se conserva', (select count(*) from kiru_skillcoin_review_messages where id = '00000000-0000-0000-0000-0000000000e1'), 1);
+select pg_temp.expect('queda en el historial', (select count(*) from kiru_supervision_events where action = 'evidencias_eliminadas' and review_id = pg_temp.r('r3')), 1);
+select pg_temp.expect('ya no vuelve a salir para borrar', (select count(*) from public.kiru_evidence_expired()), 0);
+select pg_temp.expect_denied('un adjunto no se borra', $$delete from kiru_skillcoin_review_files where id = '00000000-0000-0000-0000-0000000000f2'$$);
+select pg_temp.expect_denied('ni se edita su nombre', $$update kiru_skillcoin_review_files set file_name = 'x.jpg' where id = '00000000-0000-0000-0000-0000000000f2'$$);
+select pg_temp.expect_denied('ni se «desmarca»', $$update kiru_skillcoin_review_files set deleted_at = null where id = '00000000-0000-0000-0000-0000000000f1'$$);
+
 rollback;

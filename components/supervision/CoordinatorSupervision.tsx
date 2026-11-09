@@ -418,12 +418,14 @@ function ReviewDetail({ review: r, bundle, isAdmin, name, onChanged, notify, rel
           <p className="text-[11px] text-slate-500">{m.kind === "respuesta" ? "Respuesta" : "Repregunta"} de {name(m.author_id)} · {fmtDateTime(m.created_at)}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{m.body}</p>
           {m.criteria && <p className="mt-2 text-sm text-slate-700"><strong>Criterio usado:</strong> {m.criteria}</p>}
-          {files.filter((f) => f.message_id === m.id).map((f) => <button key={f.id} type="button"
+          {files.filter((f) => f.message_id === m.id).map((f) => f.deleted_at ? <span key={f.id}
+            className="mr-2 mt-2 inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-200 px-2 py-1 text-xs text-slate-400"
+            title="Las evidencias se conservan hasta el 31 de agosto de cada curso."><Paperclip className="h-3 w-3" />{f.file_name} · archivo eliminado el {fmtDay(f.deleted_at)}</span> : <button key={f.id} type="button"
             onClick={() => void evidenceUrl(f.storage_path).then((url) => window.open(url, "_blank", "noopener,noreferrer")).catch((error) => notify(errorText(error), "error"))}
             className="mr-2 mt-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"><Paperclip className="h-3 w-3" />{f.file_name}</button>)}
         </div>)}
       </div>
-      {files.length > 0 && <p className="mt-2 text-[11px] text-slate-400">Las evidencias pueden contener datos de un menor: se abren con un enlace que caduca a los 5 minutos. No las descargues ni las reenvíes.</p>}
+      {files.length > 0 && <p className="mt-2 text-[11px] text-slate-400">Las evidencias pueden contener datos de un menor: se abren con un enlace que caduca a los 5 minutos. No las descargues ni las reenvíes. Los archivos se eliminan solos al acabar el curso (31 de agosto); el texto de la respuesta se conserva.</p>}
     </div>
 
     {open && <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
