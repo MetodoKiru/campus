@@ -181,6 +181,8 @@ export type SessionLogRow = {
 
 export type AccessLinkRow = { id: string; profile_id: string; token_hash: string; expires_at: string; used_at: string | null; created_at: string };
 
+export type FamilyIntakeRow = { submission_id: string; student_id: string; created_at: string };
+
 export type PinRequestRow = { id: string; profile_id: string; created_at: string; sent_at: string | null };
 
 export type IncidentReviewRow = { log_id: string; note: string; reviewed_by: string | null; reviewed_at: string };
@@ -748,6 +750,7 @@ export type Database = {
       kiru_mentor_onboarding: Table<MentorOnboardingRow, Timestamps | "id" | "phone" | "confidentiality_signed_at" | "confidentiality_checked_by" | "certificate_checked_at" | "certificate_checked_by" | "profile_id" | "notes" | "archived_at" | "created_by">;
       kiru_access_links: Table<AccessLinkRow, "id" | "used_at" | "created_at">;
       kiru_pin_requests: Table<PinRequestRow, "id" | "created_at" | "sent_at">;
+      kiru_family_intakes: Table<FamilyIntakeRow, "created_at">;
       kiru_mentor_steps: Table<MentorStepRow, "document_path" | "holder_name" | "submitted_at" | "reviewed_at" | "reviewed_by" | "review_note" | "updated_at">;
       kiru_rewards: Table<RewardRow, Timestamps | "category_order" | "sort_order" | "is_active">;
       kiru_reward_goals: Table<RewardGoalRow, Timestamps | "id" | "status" | "replaces_goal_id" | "family_note" | "requested_at" | "decided_at" | "decided_by" | "redeem_round" | "redeem_requested_at" | "completed_at" | "completed_by" | "closed_at">;
