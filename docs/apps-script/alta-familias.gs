@@ -15,28 +15,37 @@
  *     cuenta de familia (un hermano), se reutiliza y solo se enlaza.
  *  3. Manda a cada tutor nuevo su usuario y el botón «Crear mi PIN y entrar».
  *     El acceso del alumno (que no tiene correo) va en el correo del primer
- *     tutor. Un tutor que ya tenía cuenta recibe solo un aviso, sin acceso nuevo.
- *  4. Manda a metodokiru@gmail.com un resumen. Si falta un dato, la fila queda
- *     PENDIENTE y el resumen lo dice; si falta el correo de un tutor, lleva un
- *     botón de WhatsApp con el mensaje ya escrito para pedírselo.
+ *     tutor. Un tutor que ya tenía cuenta recibe solo un aviso.
+ *  4. Manda a metodokiru@gmail.com un resumen con lo hecho y lo pendiente.
+ *
+ * Cada envío se controla por separado: en cuanto un correo sale bien, queda
+ * apuntado (Propiedades del script, «altaFamEnv|nº de envío»). Si Gmail falla
+ * con uno, en la siguiente pasada se pide al campus un enlace nuevo SOLO para
+ * ese tutor; el enlace que ya recibió el otro no se toca nunca.
  *
  * Columnas que añade a la hoja:
- *  - CAMPUS ALTA: PENDIENTE · … / SIN AUTORIZACIÓN / CUENTAS CREADAS · acceso
- *    sin enviar / ACCESO ENVIADO (con «· PENDIENTE correo de …» si falta un
- *    tutor) / ERROR · … / Anterior al alta automática.
+ *  - CAMPUS ALTA, el estado de la familia:
+ *      PENDIENTE · falta …        no se ha creado nada; falta un dato obligatorio
+ *      SIN AUTORIZACIÓN           la familia no autorizó crear la cuenta
+ *      REVISIÓN MANUAL · …        ya hay un alumno con ese nombre (ver abajo)
+ *      CUENTAS CREADAS · …        cuentas hechas, pero algún correo no ha salido
+ *      ALTA PARCIAL · …           alumno y un tutor dados de alta; falta el correo del otro
+ *      ACCESO ENVIADO             todo hecho y todos los correos enviados
+ *      CUENTA ENLAZADA · …        los tutores ya tenían acceso; solo se les avisó
+ *      ERROR · …                  error del campus; vaciar la casilla para reintentar
  *  - CAMPUS CUENTAS: usuarios creados o enlazados.
  *  - CAMPUS ID ALUMNO: el id que pide la pestaña Familias de Contabilidad.
  * El alta NO activa el servicio: no asigna mentor, horario, clases ni pagos.
- * El alumno pasa a activo cuando se marca «Activa» en Contabilidad y se le
- * asignan mentor y horario, como hasta ahora.
  *
- * Lo que puede hacer Sofía en CAMPUS ALTA:
- *  - Corregir un dato de la fila (por ejemplo, el correo que faltaba): la
- *    siguiente pasada lo detecta sola.
- *  - Escribir REENVIAR: se manda de nuevo el acceso a quien aún no ha entrado
- *    nunca (el enlace anterior deja de valer).
- *  - Escribir OK: se da por cerrada aunque falte el correo de un tutor.
- *  - Vaciarla: se vuelve a procesar desde cero (nunca duplica cuentas).
+ * REVISIÓN MANUAL: si ya hay en el campus un alumno con el mismo nombre, no se
+ * crea nada. Sofía escribe en CAMPUS ID ALUMNO el id de ese alumno (si es el
+ * mismo niño) o NUEVO (si es otro), y la siguiente pasada sigue sola.
+ *
+ * Además, en CAMPUS ALTA Sofía puede escribir:
+ *  - REENVIAR: manda un acceso nuevo a todos los de la familia que aún no han
+ *    entrado nunca (su enlace anterior deja de valer, pero reciben el nuevo).
+ *  - OK: da la familia por cerrada aunque falte el correo de un tutor.
+ *  - Nada (vaciarla): se vuelve a procesar; nunca duplica cuentas.
  *
  * Instalar (solo cuando se haya revisado todo): ejecuta una vez
  * «altaFamiliasInstalar» y acepta los permisos. Marca las respuestas que ya
@@ -82,9 +91,18 @@ function altaFamiliasRevisar() {
   try { altaFamiliasRevisar_(); } finally { lock.releaseLock(); }
 }
 
-/** Estados que se vuelven a mirar en cada pasada. */
-function altaFamPendiente_(estado) {
-  return estado === '' || /^PENDIENTE/i.test(estado) || /PENDIENTE correo/i.test(estado) || /^REENVIAR$/i.test(estado);
+/**
+ * Qué hacer con una fila según su estado:
+ *  - 'nueva': vacía; 'reenviar': REENVIAR; 'reintento': correo que falló, se reintenta solo;
+ *  - 'espera': pendiente de un dato; solo se vuelve a tratar si cambia la fila;
+ *  - null: cerrada.
+ */
+function altaFamModo_(estado) {
+  if (estado === '') return 'nueva';
+  if (/^REENVIAR$/i.test(estado)) return 'reenviar';
+  if (/^CUENTAS CREADAS · reintentando/i.test(estado)) return 'reintento';
+  if (/^(PENDIENTE|REVISIÓN MANUAL|ALTA PARCIAL)/i.test(estado)) return 'espera';
+  return null;
 }
 
 function altaFamiliasRevisar_() {
@@ -98,24 +116,23 @@ function altaFamiliasRevisar_() {
   for (var r = 1; r < datos.length; r++) {
     var fila = datos[r];
     if (fila.join('').trim() === '') continue;
-    var estado = String(fila[cols.estado] || '').trim();
-    if (!altaFamPendiente_(estado)) continue;
-    var fam = altaFamLeer_(cab, fila);
-    var reenviar = /^REENVIAR$/i.test(estado);
-    // Una fila pendiente solo se vuelve a tratar si ha cambiado algún dato suyo
+    var modo = altaFamModo_(String(fila[cols.estado] || '').trim());
+    if (!modo) continue;
+    var fam = altaFamLeer_(cab, fila, String(fila[cols.id] || '').trim());
+    // Una fila en espera solo se vuelve a tratar si ha cambiado algún dato suyo
     // (así no se repiten ni el resumen ni el WhatsApp cada 10 minutos).
     var claveHuella = 'altaFam|' + fam.envio;
-    if (estado !== '' && !reenviar && props.getProperty(claveHuella) === fam.huella) continue;
+    if (modo === 'espera' && props.getProperty(claveHuella) === fam.huella) continue;
     try {
-      var linea = altaFamProcesar_(fam, reenviar);
-      props.setProperty(claveHuella, fam.huella);
+      var linea = altaFamProcesar_(fam, modo, props);
+      props.setProperty(claveHuella, fam.huellaDatos + '|' + (linea.alumnoId || fam.idAlumno));
       props.deleteProperty('altaFamErr|' + fam.envio);
       hoja.getRange(r + 1, cols.estado + 1).setValue(linea.estado);
       if (linea.cuentas) hoja.getRange(r + 1, cols.cuentas + 1).setValue(linea.cuentas);
       if (linea.alumnoId) hoja.getRange(r + 1, cols.id + 1).setValue(linea.alumnoId);
       if (linea.html) resumen.push(linea);
     } catch (e) {
-      // Fallos pasajeros (campus caído): se reintenta en la siguiente pasada.
+      // Fallos pasajeros del campus: se reintenta en la siguiente pasada.
       var n = Number(props.getProperty('altaFamErr|' + fam.envio) || 0) + 1;
       props.setProperty('altaFamErr|' + fam.envio, String(n));
       console.error('Alta de la familia de ' + (fam.alumno || 'fila ' + (r + 1)) + ': ' + e.message);
@@ -123,8 +140,8 @@ function altaFamiliasRevisar_() {
         props.deleteProperty('altaFamErr|' + fam.envio);
         props.setProperty(claveHuella, fam.huella);
         hoja.getRange(r + 1, cols.estado + 1).setValue('ERROR · ' + e.message);
-        resumen.push({ html: altaFamCaja_(fam.alumno || 'Fila ' + (r + 1), '<p style="margin:0">No se ha podido dar de alta: ' + kiruEscapar(e.message) +
-          '. Cuando lo arregles, vacía su casilla CAMPUS ALTA y se volverá a intentar.</p>'),
+        resumen.push({ html: altaFamCaja_(fam.alumno || 'Fila ' + (r + 1), 'Error', '<p style="margin:0">No se ha podido dar de alta: ' +
+          kiruEscapar(e.message) + '. Cuando lo arregles, vacía su casilla CAMPUS ALTA y se volverá a intentar.</p>'),
           texto: (fam.alumno || 'Fila ' + (r + 1)) + ': ERROR ' + e.message });
       }
     }
@@ -132,13 +149,26 @@ function altaFamiliasRevisar_() {
   if (resumen.length) altaFamEnviarResumen_(resumen);
 }
 
+// ===== Registro de envíos (uno por familia, una entrada por persona) =====
+
+function altaFamLog_(props, envio) {
+  try { return JSON.parse(props.getProperty('altaFamEnv|' + envio) || '') || { t: {}, a: '' }; } catch (e) { return { t: {}, a: '' }; }
+}
+function altaFamGuardarLog_(props, envio, log) {
+  props.setProperty('altaFamEnv|' + envio, JSON.stringify(log));
+}
+
+function altaFamAhora_() {
+  return Utilities.formatDate(new Date(), 'Europe/Madrid', 'dd/MM/yyyy HH:mm');
+}
+
 /** Da de alta una familia y manda sus correos. Devuelve lo que se escribe en la hoja y el resumen. */
-function altaFamProcesar_(fam, reenviar) {
+function altaFamProcesar_(fam, modo, props) {
   var nombre = fam.alumno || 'Familia sin nombre de alumno';
   if (!fam.autoriza) {
     return {
       estado: 'SIN AUTORIZACIÓN · no se ha creado nada',
-      html: altaFamCaja_(nombre, '<p style="margin:0">La familia no marcó «Autorización para crear una cuenta en la Plataforma Kiru», así que no se ha creado ninguna cuenta. ' +
+      html: altaFamCaja_(nombre, 'Sin autorización', '<p style="margin:0">La familia no marcó «Autorización para crear una cuenta en la Plataforma Kiru», así que no se ha creado ninguna cuenta. ' +
         'Si lo autorizan después (por ejemplo, rellenando de nuevo el formulario), vacía su casilla CAMPUS ALTA y se dará de alta.</p>'),
       texto: nombre + ': sin autorización, no se crea nada.',
     };
@@ -154,69 +184,145 @@ function altaFamProcesar_(fam, reenviar) {
   if (!fam.alumno || !conCorreo.length) {
     return {
       estado: 'PENDIENTE · falta ' + faltan.join(', '),
-      html: altaFamCaja_(nombre, '<p style="margin:0 0 8px">No se ha creado ninguna cuenta todavía. Falta ' + kiruEscapar(faltan.join(', ')) +
+      html: altaFamCaja_(nombre, 'Pendiente', '<p style="margin:0 0 8px">No se ha creado ninguna cuenta todavía. Falta ' + kiruEscapar(faltan.join(', ')) +
         '. En cuanto lo corrijas en la hoja, la siguiente pasada la dará de alta.</p>' + altaFamWhatsappHtml_(fam, sinCorreo)),
       texto: nombre + ': PENDIENTE, falta ' + faltan.join(', ') + '.',
     };
   }
 
-  var res = altaFamLlamarCampus_(fam, conCorreo, reenviar);
-  var alumnoPila = fam.alumno.split(/\s+/)[0];
-  var accesoAlumno = res.student.accessUrl ? res.student : null; // solo al crearlo o al reenviar
-  var sinEnviar = [];
+  // 1. Primera llamada: crea lo que falte. Nunca genera enlaces para cuentas que ya existían.
+  var res = altaFamLlamarCampus_(fam, conCorreo, [], false);
+  if (res.review) {
+    var cand = (res.candidates || []).map(function (c) { return c.fullName + ' (@' + c.username + ', id ' + c.id + ')'; }).join('; ');
+    return {
+      estado: 'REVISIÓN MANUAL · ya hay un alumno con ese nombre: ' + cand + '. Escribe en CAMPUS ID ALUMNO su id si es el mismo, o NUEVO si es otro.',
+      html: altaFamCaja_(nombre, 'Revisión manual', '<p style="margin:0 0 8px">' + kiruEscapar(res.reason) + ' No se ha creado ninguna cuenta.</p><ul style="margin:0 0 8px;padding-left:18px">' +
+        (res.candidates || []).map(function (c) {
+          return '<li>' + kiruEscapar(c.fullName) + ' — @' + kiruEscapar(c.username) + ' — id <code>' + kiruEscapar(c.id) + '</code></li>';
+        }).join('') + '</ul><p style="margin:0">Si es el mismo niño, copia su id en la casilla CAMPUS ID ALUMNO de esta familia. Si es otro, escribe NUEVO. ' +
+        'En 10 minutos se completará el alta.</p>'),
+      texto: nombre + ': REVISIÓN MANUAL, ya hay un alumno con ese nombre (' + cand + ').',
+    };
+  }
+
+  // 2. ¿A quién le falta todavía su correo? Cada persona por separado, según el registro.
+  var log = altaFamLog_(props, fam.envio);
+  var manual = modo === 'reenviar';
+  var porCorreo = {};
+  res.guardians.forEach(function (g) { porCorreo[g.email] = g; });
+  var pedirEnlace = [];
   res.guardians.forEach(function (g) {
+    if (g.status === 'error') return;
+    if (manual) { if (!g.hasSignedIn && !g.accessUrl) pedirEnlace.push(g.email); return; }
+    if (log.t[g.email]) return;                 // ya recibió su correo: no se toca
+    if (g.status === 'already' && !g.hasSignedIn) pedirEnlace.push(g.email); // su enlace se perdió (Gmail falló)
+  });
+  var s = res.student;
+  var pedirAlumno = !s.accessUrl && !s.hasSignedIn && (manual || !log.a);
+  if (pedirEnlace.length || pedirAlumno) {
+    var res2 = altaFamLlamarCampus_(fam, conCorreo, pedirEnlace, pedirAlumno);
+    if (res2.review) throw new Error('el campus pide revisión en el reenvío');
+    res2.guardians.forEach(function (g) {
+      if (g.accessUrl && porCorreo[g.email]) { porCorreo[g.email].accessUrl = g.accessUrl; porCorreo[g.email].expiresAt = g.expiresAt; porCorreo[g.email].reenviado = true; }
+    });
+    if (res2.student.accessUrl) { s.accessUrl = res2.student.accessUrl; s.expiresAt = res2.student.expiresAt; }
+  }
+
+  // 3. Envíos, uno a uno; cada uno que sale bien queda apuntado al momento.
+  var envios = res.guardians.filter(function (g) {
+    if (g.status === 'error') return false;
+    if (g.accessUrl) return true;                               // cuenta nueva o enlace reenviado
+    if (manual) return false;
+    return !log.t[g.email] && (g.status === 'linked' || g.hasSignedIn); // aviso a quien ya tenía acceso
+  });
+  var alumnoPila = fam.alumno.split(/\s+/)[0];
+  var accesoAlumno = s.accessUrl ? s : null;
+  if (accesoAlumno && !envios.length) {
+    // Solo falta el acceso del alumno: va al primer tutor que pueda recibirlo.
+    var destino = res.guardians.filter(function (g) { return g.status !== 'error'; })[0];
+    if (destino) envios.push({ email: destino.email, fullName: destino.fullName, username: destino.username, soloAlumno: true });
+  }
+  var fallos = [];
+  envios.forEach(function (g) {
     var tutor = conCorreo.filter(function (t) { return t.correo === g.email; })[0] || { nombre: g.fullName };
-    var toca = g.status === 'created' || g.status === 'resent' || g.status === 'linked' || (accesoAlumno && g.status === 'already');
-    if (!toca) return;
+    var conAlumno = accesoAlumno;
     try {
-      altaFamCorreoTutor_(tutor, g, alumnoPila, accesoAlumno, res.loginUrl);
+      altaFamCorreoTutor_(tutor, g, alumnoPila, conAlumno, res.loginUrl);
+      log.t[g.email] = altaFamAhora_();
+      if (conAlumno) { log.a = altaFamAhora_() + ' a ' + g.email; accesoAlumno = null; }
+      altaFamGuardarLog_(props, fam.envio, log);
       g.enviado = true;
-      if (accesoAlumno) { g.conAlumno = true; accesoAlumno = null; }
+      if (porCorreo[g.email]) porCorreo[g.email].enviado = true;
     } catch (e) {
       g.fallo = e.message;
-      sinEnviar.push(g.email);
+      if (porCorreo[g.email]) porCorreo[g.email].fallo = e.message;
+      fallos.push(g.email);
     }
   });
-  if (accesoAlumno) sinEnviar.push('acceso de ' + alumnoPila);
+  if (accesoAlumno) fallos.push('acceso de ' + alumnoPila);
 
+  // 4. Estado de la familia.
   var errores = res.guardians.filter(function (g) { return g.status === 'error'; });
   var pendientes = sinCorreo.map(function (t) { return t.nombre; });
-  // Con un correo sin salir, la fila queda PENDIENTE para que Sofía escriba REENVIAR.
-  var accesoEnviado = res.guardians.some(function (g) { return g.enviado && (g.accessUrl || g.conAlumno); });
-  var estado = sinEnviar.length ? 'CUENTAS CREADAS · acceso sin enviar (' + sinEnviar.join(', ') + '): escribe REENVIAR'
-    : accesoEnviado ? 'ACCESO ENVIADO'
-    : res.guardians.some(function (g) { return g.enviado; }) ? 'CUENTA ENLAZADA · aviso enviado (ya tenían acceso)'
-    : 'CUENTAS AL DÍA';
-  estado += ' · ' + Utilities.formatDate(new Date(), 'Europe/Madrid', 'dd/MM/yyyy HH:mm');
-  if (pendientes.length) estado += ' · PENDIENTE correo de ' + pendientes.join(' y ');
+  var recibidos = Object.keys(log.t);
+  var claveGm = 'altaFamGm|' + fam.envio;
+  var estado;
+  var titulo;
+  var intentos = 0;
+  if (fallos.length) {
+    intentos = Number(props.getProperty(claveGm) || 0) + 1;
+    props.setProperty(claveGm, String(intentos));
+    estado = intentos < ALTA_FAM.INTENTOS
+      ? 'CUENTAS CREADAS · reintentando el correo a ' + fallos.join(', ') + ' (intento ' + intentos + ' de ' + ALTA_FAM.INTENTOS + ')'
+      : 'CUENTAS CREADAS · no se ha podido enviar a ' + fallos.join(', ') + ': revisa el correo y escribe REENVIAR';
+    titulo = 'Cuentas creadas, falta enviar un correo';
+  } else {
+    props.deleteProperty(claveGm);
+    if (pendientes.length) {
+      estado = 'ALTA PARCIAL · acceso enviado a ' + recibidos.join(', ') + ' · PENDIENTE correo de ' + pendientes.join(' y ');
+      titulo = 'Alta parcial';
+    } else if (res.guardians.some(function (g) { return g.accessUrl; }) || log.a) {
+      estado = 'ACCESO ENVIADO · ' + altaFamAhora_();
+      titulo = 'Acceso enviado';
+    } else {
+      estado = 'CUENTA ENLAZADA · aviso enviado (ya tenían acceso) · ' + altaFamAhora_();
+      titulo = 'Cuenta enlazada';
+    }
+  }
   if (errores.length) estado += ' · REVISAR ' + errores.map(function (g) { return g.email; }).join(', ');
-  var cuentas = 'alumno @' + res.student.username + res.guardians.filter(function (g) { return g.username; })
+  var cuentas = 'alumno @' + s.username + res.guardians.filter(function (g) { return g.username; })
     .map(function (g) { return ' · @' + g.username; }).join('');
-  var algoNuevo = res.student.status === 'created' || res.student.status === 'resent' || pendientes.length || errores.length || sinEnviar.length ||
-    res.guardians.some(function (g) { return g.enviado; });
+  // Se avisa a Sofía si ha pasado algo nuevo; de un fallo de Gmail, solo la primera y la última vez.
+  var avisarFallo = fallos.length && (intentos === 1 || intentos >= ALTA_FAM.INTENTOS);
+  var algoNuevo = envios.some(function (g) { return g.enviado; }) || errores.length || avisarFallo ||
+    (pendientes.length && modo !== 'reintento');
   return {
     estado: estado,
     cuentas: cuentas,
-    alumnoId: res.student.id,
-    html: algoNuevo ? altaFamHtmlFamilia_(fam, res, sinCorreo) : '',
+    alumnoId: s.id,
+    html: algoNuevo ? altaFamHtmlFamilia_(fam, res, sinCorreo, titulo, log) : '',
     texto: fam.alumno + ': ' + estado,
   };
 }
 
-function altaFamLlamarCampus_(fam, conCorreo, reenviar) {
+function altaFamLlamarCampus_(fam, conCorreo, reenviarA, reenviarAlumno) {
   var clave = PropertiesService.getScriptProperties().getProperty('KIRU_ALTA_SECRET');
   if (!clave) throw new Error('Falta la propiedad KIRU_ALTA_SECRET (Configuración del proyecto → Propiedades del script).');
+  var cuerpo = {
+    submissionId: fam.envio,
+    authorized: true,
+    student: { fullName: fam.alumno },
+    guardians: conCorreo.map(function (t) { return { fullName: t.nombre, email: t.correo, relationship: t.relacion }; }),
+    resendTo: reenviarA,
+    resendStudent: reenviarAlumno === true,
+  };
+  if (fam.decision && fam.decision.studentId) cuerpo.studentId = fam.decision.studentId;
+  if (fam.decision && fam.decision.nuevo) cuerpo.newStudent = true;
   var r = UrlFetchApp.fetch(ALTA_FAM.URL, {
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + clave },
-    payload: JSON.stringify({
-      submissionId: fam.envio,
-      authorized: true,
-      resend: reenviar === true,
-      student: { fullName: fam.alumno },
-      guardians: conCorreo.map(function (t) { return { fullName: t.nombre, email: t.correo, relationship: t.relacion }; }),
-    }),
+    payload: JSON.stringify(cuerpo),
     muteHttpExceptions: true,
   });
   var datos = {};
@@ -272,7 +378,9 @@ function altaFamTodas_(cab, fila, prefijo) {
     .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-function altaFamLeer_(cab, fila) {
+/** idAlumno: lo que hay en CAMPUS ID ALUMNO (un id, NUEVO o nada). */
+function altaFamLeer_(cab, fila, idAlumno) {
+  idAlumno = String(idAlumno || '').trim();
   var alumno = altaFamTodas_(cab, fila, 'Nombre y apellidos del alumno');
   var envio = altaFamVal_(cab, fila, 'Submission ID').replace(/[^A-Za-z0-9._:-]/g, '');
   if (!envio) {
@@ -310,16 +418,26 @@ function altaFamLeer_(cab, fila) {
     }
     tutores.push(t);
   });
-  return {
+  var decision = null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idAlumno)) decision = { studentId: idAlumno.toLowerCase() };
+  else if (/^nuevo$/i.test(idAlumno)) decision = { nuevo: true };
+  var fam = {
     envio: envio,
     alumno: alumno,
     autoriza: /^s[ií]/i.test(altaFamVal_(cab, fila, 'Autorización para crear una cuenta en la Plataforma Kiru')),
     tutores: tutores,
     avisos: avisos,
-    huella: [alumno, altaFamVal_(cab, fila, 'Autorización para crear una cuenta')].concat(tutores.map(function (t) {
+    decision: decision,
+    idAlumno: idAlumno,
+    // Huella de los datos de la fila; la casilla CAMPUS ID ALUMNO se añade aparte
+    // porque el propio script la rellena al terminar.
+    huellaDatos: [alumno, altaFamVal_(cab, fila, 'Autorización para crear una cuenta')].concat(tutores.map(function (t) {
       return t.nombre + '<' + (t.correo || t.correoMal) + '>';
     })).join('|'),
+    huella: '',
   };
+  fam.huella = fam.huellaDatos + '|' + idAlumno;
+  return fam;
 }
 
 // ===== Correos =====
@@ -333,24 +451,25 @@ function altaFamFecha_(iso) {
   return iso ? Utilities.formatDate(new Date(iso), 'Europe/Madrid', 'dd/MM/yyyy') : '';
 }
 
-/** Correo a un tutor: su acceso (si es nuevo) o un aviso, y si le toca, el acceso del alumno. */
+/** Correo a un tutor: su acceso (si tiene enlace) o un aviso, y si le toca, el acceso del alumno. */
 function altaFamCorreoTutor_(tutor, g, alumnoPila, acceso, loginUrl) {
   var pila = /^tutor \d$/i.test(tutor.nombre || '') ? '' : String(tutor.nombre || '').split(/\s+/)[0];
   var html = '<p>Hola' + (pila ? ' ' + kiruEscapar(pila) : '') + ':</p>';
   var texto = 'Hola' + (pila ? ' ' + pila : '') + ':\n\n';
   var queEs = 'En la Plataforma Kiru podréis seguir el acompañamiento de ' + alumnoPila + ': sus sesiones y su calendario, las observaciones de su mentor, ' +
     'los informes de progreso y las recompensas que consigue con sus SkillCoins.';
-  if (g.accessUrl) {
+  if (g.soloAlumno) {
+    html += '<p>Te enviamos el acceso a la cuenta de <strong>' + kiruEscapar(alumnoPila) + '</strong>.</p>';
+    texto += 'Te enviamos el acceso a la cuenta de ' + alumnoPila + '.\n\n';
+  } else if (g.accessUrl) {
     html += '<p>' + kiruEscapar(queEs) + '</p>' +
       '<p>Tu usuario es <strong>' + kiruEscapar(g.username) + '</strong>. Pulsa el botón, elige un PIN de 6 números y entrarás directamente.</p>' +
       '<p style="margin:20px 0">' + altaFamBoton_(g.accessUrl, 'Crear mi PIN y entrar') + '</p>' +
       '<p style="font-size:12px;color:#64748B">El botón es personal, solo vale una vez y caduca el ' + altaFamFecha_(g.expiresAt) +
+      (g.reenviado ? '. Si recibiste uno anterior, ya no vale: usa este' : '') +
       '. Después entrarás siempre en ' + kiruEscapar(loginUrl) + ' con tu usuario y tu PIN.</p>';
     texto += queEs + '\n\nTu usuario: ' + g.username + '\nCrea tu PIN (6 números) y entra: ' + g.accessUrl +
       '\nEl enlace es personal, vale una vez y caduca el ' + altaFamFecha_(g.expiresAt) + '.\n\n';
-  } else if (g.status === 'already') {
-    html += '<p>Te reenviamos el acceso a la cuenta de <strong>' + kiruEscapar(alumnoPila) + '</strong>.</p>';
-    texto += 'Te reenviamos el acceso a la cuenta de ' + alumnoPila + '.\n\n';
   } else {
     var entrar = g.hasSignedIn ? 'Entra como siempre con tu usuario <strong>' + kiruEscapar(g.username) + '</strong> y tu PIN.'
       : 'Tu usuario es <strong>' + kiruEscapar(g.username) + '</strong>. Si todavía no tienes PIN, en la entrada pulsa «¿Has olvidado tu PIN?» y te mandaremos un enlace para crearlo.';
@@ -372,7 +491,8 @@ function altaFamCorreoTutor_(tutor, g, alumnoPila, acceso, loginUrl) {
   }
   html += '<p>Un saludo,<br>Equipo Método Kiru</p>';
   texto += 'Un saludo,\nEquipo Método Kiru';
-  var asunto = g.accessUrl ? 'Método Kiru | Tu acceso a la Plataforma Kiru' : 'Método Kiru | ' + alumnoPila + ' ya está en tu cuenta';
+  var asunto = g.soloAlumno ? 'Método Kiru | Acceso de ' + alumnoPila + ' a la Plataforma Kiru'
+    : g.accessUrl ? 'Método Kiru | Tu acceso a la Plataforma Kiru' : 'Método Kiru | ' + alumnoPila + ' ya está en tu cuenta';
   GmailApp.sendEmail(g.email, asunto, texto, { htmlBody: html, name: KIRU_REMITENTE });
 }
 
@@ -386,9 +506,11 @@ function altaFamWhatsapp_(telefono) {
   return '';
 }
 
-function altaFamCaja_(titulo, cuerpo) {
+function altaFamCaja_(titulo, etiqueta, cuerpo) {
   return '<div style="margin:0 0 20px;padding:16px;border:1px solid #E7E2D8;border-radius:12px">' +
-    '<p style="margin:0 0 8px;font-size:16px"><strong>' + kiruEscapar(titulo) + '</strong></p>' + cuerpo + '</div>';
+    '<p style="margin:0 0 8px;font-size:16px"><strong>' + kiruEscapar(titulo) + '</strong>' +
+    (etiqueta ? ' <span style="font-size:12px;padding:2px 8px;border-radius:999px;background:#F3EFE6;color:#5B4A2F">' + kiruEscapar(etiqueta) + '</span>' : '') +
+    '</p>' + cuerpo + '</div>';
 }
 
 /** Botones de WhatsApp para pedir el correo a cada tutor que no lo tiene. */
@@ -410,30 +532,26 @@ function altaFamWhatsappHtml_(fam, sinCorreo) {
   return html;
 }
 
-function altaFamHtmlFamilia_(fam, res, sinCorreo) {
-  var etiquetas = {
-    created: 'cuenta creada · acceso enviado',
-    linked: 'ya tenía cuenta de familia · se le ha añadido el alumno y se le ha avisado (sin acceso nuevo)',
-    resent: 'acceso reenviado (el anterior ya no vale)',
-    already: 'ya estaba hecho',
-  };
+function altaFamHtmlFamilia_(fam, res, sinCorreo, titulo, log) {
   var s = res.student;
-  var dondeAlumno = res.guardians.filter(function (g) { return g.conAlumno; })[0];
   var html = '<ul style="margin:0;padding-left:18px">';
-  var alumnoTxt = s.status === 'created' || s.status === 'resent'
-    ? (s.status === 'created' ? 'cuenta creada' : 'acceso reenviado') + (dondeAlumno ? ' · su acceso ha ido a ' + kiruEscapar(dondeAlumno.email)
-      : ' · <strong style="color:#B91C1C">su acceso no se ha podido enviar; escribe REENVIAR en su casilla CAMPUS ALTA</strong>')
-    : 'ya existía';
+  var alumnoTxt = (s.status === 'created' ? 'cuenta creada' : 'ya existía') +
+    (log.a ? ' · su acceso se envió ' + kiruEscapar(log.a) : s.hasSignedIn ? ' · ya ha entrado' : ' · <strong style="color:#B91C1C">su acceso aún no ha salido</strong>');
   html += '<li>Alumno @' + kiruEscapar(s.username) + ' — ' + alumnoTxt + '. ID para Contabilidad: <code>' + kiruEscapar(s.id) + '</code></li>';
   res.guardians.forEach(function (g) {
-    var txt = g.status === 'error' ? '<strong style="color:#B91C1C">' + kiruEscapar(g.error) + '</strong> Corrige el correo en la hoja y vacía su casilla CAMPUS ALTA.'
-      : g.fallo ? '<strong style="color:#B91C1C">cuenta lista, pero el correo no ha salido (' + kiruEscapar(g.fallo) + '); escribe REENVIAR en su casilla CAMPUS ALTA</strong>'
-      : etiquetas[g.status];
+    var cuenta = { created: 'cuenta creada', linked: 'ya tenía cuenta de familia; se le ha enlazado el alumno', already: 'cuenta ya enlazada', resent: 'cuenta ya enlazada' }[g.status];
+    var txt = g.status === 'error'
+      ? '<strong style="color:#B91C1C">' + kiruEscapar(g.error) + '</strong> Corrige el correo en la hoja y vacía su casilla CAMPUS ALTA.'
+      : cuenta + ' · ' + (g.fallo ? '<strong style="color:#B91C1C">el correo no ha salido (' + kiruEscapar(g.fallo) + '); se reintentará solo</strong>'
+        : log.t[g.email] ? (g.accessUrl ? 'acceso enviado ' : 'aviso enviado ') + kiruEscapar(log.t[g.email]) : g.hasSignedIn ? 'ya ha entrado' : 'sin correo enviado');
     html += '<li>' + kiruEscapar(g.fullName) + ' (' + kiruEscapar(g.email) + ')' + (g.username ? ' @' + kiruEscapar(g.username) : '') + ' — ' + txt + '</li>';
+  });
+  sinCorreo.forEach(function (t) {
+    html += '<li>' + kiruEscapar(t.nombre) + ' — <strong>pendiente</strong>: sin correo, todavía no tiene cuenta.</li>';
   });
   html += '</ul><p style="margin:10px 0 0;font-size:12px;color:#64748B">El alumno aún no está activo: el alta no asigna mentor, horario, clases ni pagos. ' +
     'Se activa como siempre, con «Activa» en la pestaña Familias de Contabilidad y asignándole mentor.</p>';
-  return altaFamCaja_(fam.alumno, html + altaFamWhatsappHtml_(fam, sinCorreo));
+  return altaFamCaja_(fam.alumno, titulo, html + altaFamWhatsappHtml_(fam, sinCorreo));
 }
 
 function altaFamEnviarResumen_(lineas) {

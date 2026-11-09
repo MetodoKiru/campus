@@ -21,39 +21,58 @@ Kiru haga nada.
    lleva un botón de WhatsApp con el mensaje escrito para pedírselo. Al escribir
    el correo en la hoja, la siguiente pasada crea esa cuenta y le manda el acceso.
 
-## Nunca duplica
+## Nunca duplica ni adivina
 
 - El alumno se recuerda por el número de envío del formulario en
   `kiru_family_intakes` (solo el número y el id del alumno; nada del formulario).
-- Si un tutor ya tenía cuenta de familia y un alumno con el mismo nombre (alta a
-  mano), se reutiliza ese alumno.
+- **Nunca se reutiliza un alumno por el nombre.** Si ya hay en el campus un
+  alumno con el mismo nombre (aunque sea hijo del mismo tutor), el campus
+  responde `review` y no crea nada. La fila queda en REVISIÓN MANUAL; Sofía
+  escribe en CAMPUS ID ALUMNO el id de ese alumno (es el mismo) o NUEVO (es otro).
 - Los tutores se buscan por correo. Un correo que ya es de un mentor u otro rol
-  no se toca: sale como error en el resumen.
+  no se toca: sale como error y no bloquea al otro tutor.
 
 | Estado (tutor o alumno) | Qué significa |
 | --- | --- |
 | `created` | Cuenta nueva + enlace «Crea tu PIN» |
-| `linked` | Ya tenía cuenta de familia; se enlaza con el alumno y se le avisa, sin acceso nuevo |
+| `linked` | Ya tenía cuenta de familia; se enlaza con el alumno, sin enlace nuevo |
 | `already` | Hecho en una llamada anterior → nada |
-| `resent` | Solo si Sofía escribe REENVIAR en la hoja: enlace nuevo a quien nunca ha entrado |
+| `resent` | Enlace nuevo porque su correo venía en `resendTo` |
 | `error` | No se pudo (texto en `error`) |
 
-Nunca sale un acceso repetido: solo hay enlace al crear la cuenta o con REENVIAR.
+## Cada envío por separado
+
+- Solo hay enlace al crear una cuenta o para los correos de `resendTo`, uno a
+  uno. `issueAccessLink` solo invalida los enlaces de esa misma cuenta, así que
+  reenviar a un tutor nunca toca el enlace que ya recibió el otro.
+- El script apunta cada correo que sale bien en el momento
+  (`altaFamEnv|nº de envío` en Propiedades del script). Si Gmail falla con uno,
+  en la siguiente pasada pide enlace nuevo solo para ese tutor (y para el
+  alumno, solo si su acceso iba en el correo que falló). Tras 3 intentos para
+  y pide a Sofía que revise el correo y escriba REENVIAR.
 
 ## Estados en la hoja (columna CAMPUS ALTA)
 
-- `PENDIENTE · falta …`: falta el nombre del alumno o un correo válido de algún
-  tutor. No se crea nada. Al corregir la fila, se procesa sola.
+- `PENDIENTE · falta …`: falta el nombre del alumno o un correo válido. No se crea nada.
 - `SIN AUTORIZACIÓN`: la familia no autorizó crear la cuenta. No se crea nada.
-- `CUENTAS CREADAS · acceso sin enviar`: las cuentas existen pero el correo no
-  salió. Escribir REENVIAR.
-- `ACCESO ENVIADO` (con `· PENDIENTE correo de …` si falta un tutor).
+- `REVISIÓN MANUAL · …`: ya hay un alumno con ese nombre. No se crea nada.
+- `CUENTAS CREADAS · reintentando …` / `… no se ha podido enviar …`: un correo no salió.
+- `ALTA PARCIAL · acceso enviado a … · PENDIENTE correo de …`: alumno y un tutor
+  dados de alta; al escribir el correo que falta se completa sola.
+- `ACCESO ENVIADO`: todo hecho.
 - `CUENTA ENLAZADA · aviso enviado`: los tutores ya tenían acceso.
-- `ERROR · …`: tras 3 intentos o un error definitivo. Vaciar la casilla para reintentar.
+- `ERROR · …`: error del campus tras 3 intentos. Vaciar la casilla para reintentar.
 
 **Alumno activo** es otra cosa: el alta no asigna mentor, horario, clases ni
 pagos. El alumno se activa como hasta ahora, con «Activa» en la pestaña
 Familias de Contabilidad (usa el CAMPUS ID ALUMNO) y asignándole mentor y horario.
+
+## Pruebas
+
+`npm test` (Node 24): `tests/family-intake.test.mjs` prueba la lógica del
+campus y `tests/alta-familias-script.test.mjs` ejecuta el Apps Script con una
+hoja, un Gmail y unas propiedades falsos contra esa misma lógica (fallos de
+Gmail, nombres repetidos, alta parcial, datos que faltan, tutor duplicado).
 
 ## Protección de datos del menor
 
