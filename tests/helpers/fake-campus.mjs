@@ -8,6 +8,7 @@ export function fakeCampus() {
   const links = new Map(); // profileId → token válido (uno por cuenta)
   const guardians = new Set(); // "alumno|tutor"
   const intakes = new Map();
+  const issued = new Map(); // profileId → cuántos enlaces se han generado
   const store = {
     async findAccountIdByEmail(email) { return [...accounts.values()].find((a) => a.email === email)?.id ?? null; },
     async getProfile(id) { return accounts.get(id) ?? null; },
@@ -26,10 +27,11 @@ export function fakeCampus() {
     async issueLink(pid) {
       const token = `t-${++n}`;
       links.set(pid, token); // como issueAccessLink: solo sustituye el enlace de ESA cuenta
+      issued.set(pid, (issued.get(pid) ?? 0) + 1);
       return { accessUrl: `https://campus/acceso#t=${token}`, expiresAt: "2026-11-23T00:00:00Z" };
     },
   };
   const linkValid = (url) => [...links.values()].some((t) => url.endsWith("#t=" + t));
-  return { store, accounts, guardians, intakes, linkValid };
+  return { store, accounts, guardians, intakes, issued, linkValid };
 }
 

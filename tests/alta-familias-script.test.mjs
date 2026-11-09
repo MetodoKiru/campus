@@ -79,6 +79,7 @@ function entorno(filas) {
     estado: (r = 1) => String(datos[r][col("CAMPUS ALTA")] ?? ""),
     escribir: (r, nombre, v) => { const c = col(nombre); while (datos[r].length <= c) datos[r].push(""); datos[r][c] = v; },
     escribirCampo: (r, i, v) => { datos[r][i] = v; },
+    anadirFila: (f) => { datos.push(f.slice()); },
     enlaces: (texto) => [...texto.matchAll(/https:\/\/campus\/acceso#t=t-\d+/g)].map((m) => m[0]),
     campus,
     llamadas,
@@ -90,72 +91,72 @@ function entorno(filas) {
 const aTutor = (correos, to) => correos.filter((c) => c.to === to);
 const resumen = (correos) => correos.find((c) => c.to === "metodokiru@gmail.com");
 
-test("caso 1: Gmail falla con un tutor → solo se reintenta ese; el enlace del otro sigue valiendo", () => {
+
+const enlaceAlumno = (m) => (m.texto.match(/elegid su PIN de 6 números: (https:\/\/campus\/acceso#t=t-\d+)/) || [])[1];
+const sinReenvios = (e) => e.llamadas.every((b) => b.resendTo.length === 0 && b.resendStudent === false);
+
+test("los dos tutores reciben exactamente el mismo enlace del alumno, generado una sola vez", () => {
+  const e = entorno([fila()]);
+  try {
+    const c = e.pasada();
+    const [pepe] = aTutor(c, "pepe@x.com");
+    const [marta] = aTutor(c, "marta@x.com");
+    assert.ok(enlaceAlumno(pepe));
+    assert.equal(enlaceAlumno(pepe), enlaceAlumno(marta), "el mismo enlace en los dos correos");
+    assert.match(pepe.texto, /Este mismo botón lo ha recibido también Marta López/);
+    assert.match(marta.texto, /Es una sola cuenta con un solo PIN: basta con usar el botón una vez/);
+    const st = e.campus({ op: "estado", urls: [enlaceAlumno(pepe)] });
+    assert.equal(st.enlacesAlumno, 1, "un solo enlace del alumno");
+    assert.deepEqual(st.validos, [true]);
+    assert.equal(st.cuentas.filter((a) => a.role === "alumno").length, 1, "una sola cuenta de alumno");
+    assert.match(e.estado(), /^ACCESO ENVIADO/);
+    assert.equal(e.pasada().length, 0, "repetir la pasada no manda nada");
+  } finally { e.cerrar(); }
+});
+
+test("caso 1: Gmail falla con un tutor → el reintento reutiliza los mismos enlaces; no se genera ninguno", () => {
   const e = entorno([fila()]);
   try {
     e.falla(["marta@x.com"]);
     let c = e.pasada();
     assert.match(e.estado(), /^CUENTAS CREADAS · reintentando el correo a marta@x\.com \(intento 1 de 3\)/);
-    const dePepe = aTutor(c, "pepe@x.com");
-    assert.equal(dePepe.length, 1);
-    const enlacesPepe = e.enlaces(dePepe[0].texto); // el suyo y el del alumno
-    assert.equal(enlacesPepe.length, 2);
+    const [pepe] = aTutor(c, "pepe@x.com");
     assert.match(resumen(c).html, /el correo no ha salido/);
+    const antes = e.campus({ op: "estado" });
 
     e.falla([]);
     c = e.pasada();
+    assert.ok(sinReenvios(e), "no se pide ningún enlace nuevo al campus");
     assert.equal(aTutor(c, "pepe@x.com").length, 0, "a Pepe no se le vuelve a escribir");
-    const deMarta = aTutor(c, "marta@x.com");
-    assert.equal(deMarta.length, 1);
-    assert.match(deMarta[0].asunto, /Tu acceso/);
-    assert.equal(e.enlaces(deMarta[0].texto).length, 1, "solo su acceso: el del alumno no se regenera");
-    assert.match(deMarta[0].texto, /El botón para crear su PIN se envió .* a pepe@x\.com/);
-    // Solo se pidió enlace nuevo para Marta; el alumno ya lo tenía en el correo de Pepe.
-    const reenvio = e.llamadas.find((b) => b.resendTo.length);
-    assert.deepEqual(reenvio.resendTo, ["marta@x.com"]);
-    assert.equal(reenvio.resendStudent, false);
-    const validos = e.campus({ op: "estado", urls: [...enlacesPepe, ...e.enlaces(deMarta[0].texto)] }).validos;
-    assert.deepEqual(validos, [true, true, true], "los enlaces de Pepe y del alumno siguen valiendo, y el nuevo de Marta también");
-    assert.match(e.estado(), /^ACCESO ENVIADO/);
-
-    c = e.pasada();
-    assert.equal(c.length, 0, "una familia terminada no vuelve a recibir nada");
-  } finally { e.cerrar(); }
-});
-
-test("los dos tutores reciben el mismo acceso del alumno: una cuenta y un PIN", () => {
-  const e = entorno([fila()]);
-  try {
-    const c = e.pasada();
-    const [pepe] = aTutor(c, "pepe@x.com");
     const [marta] = aTutor(c, "marta@x.com");
-    const alumnoDe = (m) => e.enlaces(m.texto).filter((u) => m.texto.includes("elegid su PIN de 6 números: " + u));
-    assert.equal(alumnoDe(pepe).length, 1);
-    assert.deepEqual(alumnoDe(pepe), alumnoDe(marta), "el mismo enlace, no dos");
-    assert.match(pepe.texto, /Este mismo botón lo ha recibido también Marta López/);
-    assert.match(marta.texto, /Este mismo botón lo ha recibido también Pepe Pérez/);
-    assert.equal(e.campus({ op: "estado" }).cuentas.filter((a) => a.role === "alumno").length, 1);
+    assert.match(marta.asunto, /Tu acceso/);
+    assert.equal(enlaceAlumno(marta), enlaceAlumno(pepe), "Marta recibe el mismo enlace del alumno que Pepe");
+    const despues = e.campus({ op: "estado", urls: [...e.enlaces(pepe.texto), ...e.enlaces(marta.texto)] });
+    assert.equal(despues.enlacesTotal, antes.enlacesTotal, "ningún enlace nuevo");
+    assert.ok(despues.validos.every(Boolean), "todos los enlaces enviados siguen valiendo");
     assert.match(e.estado(), /^ACCESO ENVIADO/);
+    assert.equal(e.pasada().length, 0, "una familia terminada no vuelve a recibir nada");
   } finally { e.cerrar(); }
 });
 
-test("si Gmail falla con los dos, el reintento manda a ambos un acceso nuevo del alumno (el mismo)", () => {
+test("caso 1: Gmail falla con los dos → el reintento manda a ambos los enlaces originales", () => {
   const e = entorno([fila()]);
   try {
     e.falla(["pepe@x.com", "marta@x.com"]);
     e.pasada();
+    const antes = e.campus({ op: "estado" });
     e.falla([]);
     const c = e.pasada();
-    const reenvio = e.llamadas.find((b) => b.resendTo.length);
-    assert.deepEqual([reenvio.resendTo.sort(), reenvio.resendStudent], [["marta@x.com", "pepe@x.com"], true]);
+    assert.ok(sinReenvios(e));
     const [pepe] = aTutor(c, "pepe@x.com");
     const [marta] = aTutor(c, "marta@x.com");
-    const comunes = e.enlaces(pepe.texto).filter((u) => e.enlaces(marta.texto).includes(u));
-    assert.equal(comunes.length, 1, "comparten solo el enlace del alumno");
-    assert.match(e.estado(), /^ACCESO ENVIADO/);
+    assert.equal(enlaceAlumno(pepe), enlaceAlumno(marta));
+    const st = e.campus({ op: "estado", urls: [...e.enlaces(pepe.texto), ...e.enlaces(marta.texto)] });
+    assert.equal(st.enlacesTotal, antes.enlacesTotal);
+    assert.equal(st.enlacesAlumno, 1);
+    assert.ok(st.validos.every(Boolean));
   } finally { e.cerrar(); }
 });
-
 test("caso 1: si Gmail sigue fallando, tras 3 intentos se para y se pide REENVIAR", () => {
   const e = entorno([fila()]);
   try {
@@ -168,18 +169,38 @@ test("caso 1: si Gmail sigue fallando, tras 3 intentos se para y se pide REENVIA
   } finally { e.cerrar(); }
 });
 
-test("caso 1: si falla justo el correo que llevaba el acceso del alumno, se reenvía solo el del alumno", () => {
+
+test("caso 1: un solo tutor y falla Gmail → el reintento le manda los mismos enlaces", () => {
   const e = entorno([fila({ t2: "", c2: "" })]);
   try {
     e.falla(["pepe@x.com"]);
     e.pasada();
+    const antes = e.campus({ op: "estado" });
     e.falla([]);
     const c = e.pasada();
+    assert.ok(sinReenvios(e));
+    const [pepe] = aTutor(c, "pepe@x.com");
+    assert.equal(e.enlaces(pepe.texto).length, 2, "su acceso y el del alumno");
+    assert.equal(e.campus({ op: "estado" }).enlacesTotal, antes.enlacesTotal);
+  } finally { e.cerrar(); }
+});
+
+test("un tutor que ya tenía cuenta recibe un único correo (aviso + acceso del alumno) y el otro su bienvenida", () => {
+  const e = entorno([fila({ envio: "1", nombre: "Luis", t2: "", c2: "" })]);
+  try {
+    e.pasada(); // Pepe da de alta a su primer hijo, Luis
+    e.campus({ op: "entrar", email: "pepe@x.com" }); // y ya usa el campus
+    e.anadirFila(fila({ envio: "2" })); // llega el formulario de Ana, con Pepe y Marta
+    let c = e.pasada();
     const dePepe = aTutor(c, "pepe@x.com");
-    assert.equal(dePepe.length, 1);
-    assert.equal(e.enlaces(dePepe[0].texto).length, 2, "su acceso y el del alumno, nuevos los dos");
-    const reenvio = e.llamadas.find((b) => b.resendTo.length || b.resendStudent);
-    assert.deepEqual([reenvio.resendTo, reenvio.resendStudent], [["pepe@x.com"], true]);
+    assert.equal(dePepe.length, 1, "un solo correo a Pepe");
+    assert.match(dePepe[0].asunto, /Ana ya está en tu cuenta/);
+    assert.equal(e.enlaces(dePepe[0].texto).length, 1, "sin acceso propio nuevo, solo el del alumno");
+    const [marta] = aTutor(c, "marta@x.com");
+    assert.match(marta.asunto, /Tu acceso/);
+    assert.equal(enlaceAlumno(dePepe[0]), enlaceAlumno(marta), "el mismo enlace del alumno");
+    c = e.pasada();
+    assert.equal(c.length, 0, "nada repetido");
   } finally { e.cerrar(); }
 });
 
@@ -219,12 +240,13 @@ test("caso 2: Sofía indica que es el mismo alumno → se enlaza a ese, sin crea
   } finally { e.cerrar(); }
 });
 
-test("caso 3: tutor 2 sin correo → se dan de alta alumno y tutor 1, y el 2 queda pendiente", () => {
+
+test("caso 3: tutor 2 sin correo → alta de alumno y tutor 1; al llegar su correo, recibe el MISMO enlace del alumno", () => {
   const e = entorno([fila({ c2: "" })]);
   try {
     let c = e.pasada();
     assert.equal(e.estado(), "ALTA PARCIAL · acceso enviado a pepe@x.com · PENDIENTE correo de Marta López");
-    assert.equal(aTutor(c, "pepe@x.com").length, 1);
+    const [pepe] = aTutor(c, "pepe@x.com");
     const r = resumen(c);
     assert.match(r.html, /Alta parcial/);
     assert.match(r.html, /Marta López — <strong>pendiente<\/strong>/);
@@ -232,15 +254,48 @@ test("caso 3: tutor 2 sin correo → se dan de alta alumno y tutor 1, y el 2 que
     assert.equal(e.campus({ op: "estado" }).cuentas.length, 2, "alumno y Pepe");
     assert.equal(e.pasada().length, 0, "mientras no cambie la fila, no se repite el aviso");
 
-    // Sofía escribe el correo de Marta.
     e.escribirCampo(1, CAB.indexOf("Correo electrónico del progenitor/tutor 2"), "marta@x.com");
     c = e.pasada();
+    assert.ok(sinReenvios(e));
     assert.equal(aTutor(c, "pepe@x.com").length, 0, "a Pepe no se le reenvía nada");
-    assert.equal(aTutor(c, "marta@x.com").length, 1);
-    assert.equal(e.enlaces(aTutor(c, "marta@x.com")[0].texto).length, 1, "solo su acceso, no el del alumno");
-    assert.match(aTutor(c, "marta@x.com")[0].texto, /usuario alumno\.\d+\. El botón para crear su PIN se envió .* a pepe@x\.com/);
+    const [marta] = aTutor(c, "marta@x.com");
+    assert.equal(enlaceAlumno(marta), enlaceAlumno(pepe), "el mismo enlace del alumno, que sigue sin usarse");
+    const st = e.campus({ op: "estado", urls: [enlaceAlumno(pepe)] });
+    assert.equal(st.enlacesAlumno, 1);
+    assert.deepEqual(st.validos, [true]);
     assert.match(e.estado(), /^ACCESO ENVIADO/);
-    assert.equal(e.campus({ op: "estado" }).vinculos, 2);
+    assert.equal(st.vinculos, 2);
+  } finally { e.cerrar(); }
+});
+
+test("caso 3: si el alumno ya puso su PIN, el tutor que llega después no recibe enlace del alumno", () => {
+  const e = entorno([fila({ c2: "" })]);
+  try {
+    e.pasada();
+    e.campus({ op: "entrar", alumno: true });
+    e.escribirCampo(1, CAB.indexOf("Correo electrónico del progenitor/tutor 2"), "marta@x.com");
+    const c = e.pasada();
+    assert.ok(sinReenvios(e));
+    const [marta] = aTutor(c, "marta@x.com");
+    assert.equal(enlaceAlumno(marta), undefined);
+    assert.equal(e.enlaces(marta.texto).length, 1, "solo su propio acceso");
+    assert.equal(e.campus({ op: "estado" }).enlacesAlumno, 1);
+  } finally { e.cerrar(); }
+});
+
+test("REENVIAR (a mano): enlaces nuevos para quien no ha entrado, y el del alumno igual para los dos", () => {
+  const e = entorno([fila()]);
+  try {
+    e.pasada();
+    e.escribir(1, "CAMPUS ALTA", "REENVIAR");
+    const c = e.pasada();
+    const [pepe] = aTutor(c, "pepe@x.com");
+    const [marta] = aTutor(c, "marta@x.com");
+    assert.equal(enlaceAlumno(pepe), enlaceAlumno(marta));
+    assert.match(pepe.texto, /Si recibiste uno anterior, ya no vale/);
+    assert.equal(e.campus({ op: "estado" }).enlacesAlumno, 2);
+    assert.match(e.estado(), /^ACCESO ENVIADO/);
+    assert.equal(e.pasada().length, 0);
   } finally { e.cerrar(); }
 });
 

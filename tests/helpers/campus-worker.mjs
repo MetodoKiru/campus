@@ -26,11 +26,17 @@ port.on("message", async (msg) => {
         : { code: 200, body: { ok: true, loginUrl: "https://campus/", student: r.student, guardians: r.guardians } };
     } else if (msg.op === "crearAlumno") {
       reply = { id: await c.store.createAccount("alumno", msg.name, null) };
+    } else if (msg.op === "entrar") {
+      // Simula que esa cuenta ya ha entrado (ha puesto su PIN).
+      for (const a of c.accounts.values()) if (a.email === msg.email || (msg.alumno && a.role === "alumno")) a.signedIn = true;
+      reply = {};
     } else if (msg.op === "estado") {
       reply = {
         cuentas: [...c.accounts.values()].map((a) => ({ role: a.role, email: a.email, fullName: a.fullName })),
         vinculos: c.guardians.size,
         validos: (msg.urls || []).map((u) => c.linkValid(u)),
+        enlacesAlumno: [...c.accounts.values()].filter((a) => a.role === "alumno").reduce((n, a) => n + (c.issued.get(a.id) ?? 0), 0),
+        enlacesTotal: [...c.issued.values()].reduce((n, x) => n + x, 0),
       };
     }
   } catch (e) {

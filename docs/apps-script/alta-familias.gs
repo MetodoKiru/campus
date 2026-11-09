@@ -20,9 +20,12 @@
  *  4. Manda a metodokiru@gmail.com un resumen con lo hecho y lo pendiente.
  *
  * Cada envío se controla por separado: en cuanto un correo sale bien, queda
- * apuntado (Propiedades del script, «altaFamEnv|nº de envío»). Si Gmail falla
- * con uno, en la siguiente pasada se pide al campus un enlace nuevo SOLO para
- * ese tutor; el enlace que ya recibió el otro no se toca nunca.
+ * apuntado (Propiedades del script, «altaFamEnv|nº de envío»). Cada enlace se
+ * genera una sola vez y se guarda ahí mismo hasta que llega a su destino: si
+ * Gmail falla, el reintento manda ESE mismo enlace y no pide otro al campus,
+ * así que nunca se anula un enlace que otro tutor ya tiene. Los enlaces
+ * guardados se borran al entregarse o cuando el alumno ya ha puesto su PIN
+ * (las Propiedades del script solo las ve quien edita el proyecto).
  *
  * Columnas que añade a la hoja:
  *  - CAMPUS ALTA, el estado de la familia:
@@ -152,8 +155,17 @@ function altaFamiliasRevisar_() {
 
 // ===== Registro de envíos (uno por familia, una entrada por persona) =====
 
+/**
+ * t: correo de cada tutor ya enviado (fecha); enl: enlace propio de cada tutor
+ * aún sin entregar; al: el enlace del alumno (uno solo) mientras haga falta;
+ * ar: qué enlace del alumno ha recibido cada tutor; a: resumen legible.
+ * Los enlaces se borran en cuanto se entregan o el alumno ya tiene PIN.
+ */
 function altaFamLog_(props, envio) {
-  try { return JSON.parse(props.getProperty('altaFamEnv|' + envio) || '') || { t: {}, a: '' }; } catch (e) { return { t: {}, a: '' }; }
+  var log = {};
+  try { log = JSON.parse(props.getProperty('altaFamEnv|' + envio) || '{}') || {}; } catch (e) { log = {}; }
+  log.t = log.t || {}; log.enl = log.enl || {}; log.ar = log.ar || {}; log.a = log.a || '';
+  return log;
 }
 function altaFamGuardarLog_(props, envio, log) {
   props.setProperty('altaFamEnv|' + envio, JSON.stringify(log));
@@ -206,81 +218,101 @@ function altaFamProcesar_(fam, modo, props) {
     };
   }
 
-  // 2. ¿A quién le falta todavía su correo? Cada persona por separado, según el registro.
+  // 2. Enlaces. Cada enlace se genera UNA sola vez y se guarda en el registro
+  //    (Propiedades del script) hasta que llega a su destino: un reintento
+  //    reutiliza ese mismo enlace y nunca pide otro al campus. Solo se pide uno
+  //    nuevo si el anterior caducó sin entregarse, si se perdió antes de poder
+  //    guardarlo, o si Sofía escribe REENVIAR.
   var log = altaFamLog_(props, fam.envio);
   var manual = modo === 'reenviar';
-  var porCorreo = {};
-  res.guardians.forEach(function (g) { porCorreo[g.email] = g; });
-  var pedirEnlace = [];
-  res.guardians.forEach(function (g) {
-    if (g.status === 'error') return;
-    if (manual) { if (!g.hasSignedIn && !g.accessUrl) pedirEnlace.push(g.email); return; }
-    if (log.t[g.email]) return;                 // ya recibió su correo: no se toca
-    if (g.status === 'already' && !g.hasSignedIn) pedirEnlace.push(g.email); // su enlace se perdió (Gmail falló)
-  });
+  var ahora = new Date().toISOString();
+  var vigente = function (e) { return !!(e && e.u && String(e.x) > ahora); };
   var s = res.student;
-  var pedirAlumno = !s.accessUrl && !s.hasSignedIn && (manual || !log.a);
+  var guardarEnlaces = function (r) {
+    r.guardians.forEach(function (g) { if (g.accessUrl) log.enl[g.email] = { u: g.accessUrl, x: g.expiresAt }; });
+    if (r.student.accessUrl) log.al = { u: r.student.accessUrl, x: r.student.expiresAt };
+    altaFamGuardarLog_(props, fam.envio, log);
+  };
+  guardarEnlaces(res);
+  var tutores = res.guardians.filter(function (g) { return g.status !== 'error'; });
+
+  var pedirEnlace = [];
+  tutores.forEach(function (g) {
+    if (g.hasSignedIn || g.status === 'created') return;
+    if (manual) { pedirEnlace.push(g.email); return; }
+    if (log.t[g.email] || vigente(log.enl[g.email])) return;
+    if (g.status === 'already') pedirEnlace.push(g.email); // se generó pero no llegó a guardarse
+  });
+  // El enlace del alumno: solo si no tiene PIN y no hay uno vigente sin usar
+  // que no haya llegado aún a nadie (si ya lo recibió un tutor, no se toca).
+  var algunoTieneAlumno = Object.keys(log.ar).length > 0;
+  var pedirAlumno = !s.hasSignedIn && (manual || (!vigente(log.al) && !algunoTieneAlumno));
   if (pedirEnlace.length || pedirAlumno) {
     var res2 = altaFamLlamarCampus_(fam, conCorreo, pedirEnlace, pedirAlumno);
     if (res2.review) throw new Error('el campus pide revisión en el reenvío');
-    res2.guardians.forEach(function (g) {
-      if (g.accessUrl && porCorreo[g.email]) { porCorreo[g.email].accessUrl = g.accessUrl; porCorreo[g.email].expiresAt = g.expiresAt; porCorreo[g.email].reenviado = true; }
-    });
-    if (res2.student.accessUrl) { s.accessUrl = res2.student.accessUrl; s.expiresAt = res2.student.expiresAt; }
+    if (manual) pedirEnlace.forEach(function (e) { delete log.t[e]; });
+    guardarEnlaces(res2);
   }
+  if (s.hasSignedIn && log.al) { delete log.al; altaFamGuardarLog_(props, fam.envio, log); } // ya tiene PIN
 
-  // 3. Envíos, uno a uno; cada uno que sale bien queda apuntado al momento.
-  var envios = res.guardians.filter(function (g) {
-    if (g.status === 'error') return false;
-    if (g.accessUrl) return true;                               // cuenta nueva o enlace reenviado
-    if (manual) return false;
-    return !log.t[g.email] && (g.status === 'linked' || g.hasSignedIn); // aviso a quien ya tenía acceso
-  });
+  // 3. Qué necesita cada tutor. El alumno tiene una sola cuenta, un solo PIN y
+  //    un solo enlace: ese mismo enlace va a todos sus tutores enlazados, y a
+  //    cada uno solo una vez. A quien ya recibió todo no se le escribe.
   var alumnoPila = fam.alumno.split(/\s+/)[0];
-  // El alumno tiene una sola cuenta y un solo PIN. Su enlace (uno, de un solo
-  // uso) va a TODOS los tutores enlazados a los que se escribe en esta pasada,
-  // para que cualquiera de los dos pueda ayudarle a entrar. Nunca se genera un
-  // segundo enlace del alumno solo para un tutor, porque anularía el que ya
-  // tiene el otro: quien llega después recibe su usuario y a quién se le mandó.
-  var accesoAlumno = s.accessUrl ? s : null;
-  if (accesoAlumno && !envios.length) {
-    // Solo falta el acceso del alumno: va a todos los tutores enlazados.
-    res.guardians.filter(function (g) { return g.status !== 'error'; }).forEach(function (g) {
-      envios.push({ email: g.email, fullName: g.fullName, username: g.username, soloAlumno: true });
-    });
-  }
+  var enlaceAlumno = !s.hasSignedIn && vigente(log.al) ? log.al : null;
   var nombres = {};
   conCorreo.forEach(function (t) { nombres[t.correo] = t.nombre; });
-  var alumnoEnviado = false;
+  var porCorreo = {};
+  res.guardians.forEach(function (g) { porCorreo[g.email] = g; });
+  var envios = [];
+  tutores.forEach(function (g) {
+    var tarea = { email: g.email, fullName: g.fullName, username: g.username, hasSignedIn: g.hasSignedIn, status: g.status };
+    var propio = log.enl[g.email];
+    if (!log.t[g.email] && vigente(propio)) { tarea.accessUrl = propio.u; tarea.expiresAt = propio.x; tarea.reenviado = manual; }
+    var aviso = !log.t[g.email] && !tarea.accessUrl && (g.status === 'linked' || g.hasSignedIn);
+    tarea.alumnoPendiente = !!enlaceAlumno && log.ar[g.email] !== enlaceAlumno.u;
+    if (!tarea.accessUrl && !aviso && !tarea.alumnoPendiente) return;
+    if (!tarea.accessUrl && !aviso) tarea.soloAlumno = true;
+    envios.push(tarea);
+  });
+
   var fallos = [];
   envios.forEach(function (g) {
     var tutor = conCorreo.filter(function (t) { return t.correo === g.email; })[0] || { nombre: g.fullName };
     var alumno = null;
-    if (accesoAlumno) {
+    if (g.alumnoPendiente) {
       alumno = {
-        username: accesoAlumno.username, accessUrl: accesoAlumno.accessUrl, expiresAt: accesoAlumno.expiresAt,
-        otros: envios.filter(function (o) { return o.email !== g.email; }).map(function (o) { return nombres[o.email] || o.fullName; }),
+        username: s.username, accessUrl: enlaceAlumno.u, expiresAt: enlaceAlumno.x,
+        otros: tutores.filter(function (o) { return o.email !== g.email; }).map(function (o) { return nombres[o.email] || o.fullName; }),
       };
     } else if (!s.hasSignedIn && log.a) {
       alumno = { username: s.username, enviadoA: log.a };
     }
     try {
       altaFamCorreoTutor_(tutor, g, alumnoPila, alumno, res.loginUrl);
-      log.t[g.email] = altaFamAhora_();
-      if (alumno && alumno.accessUrl) {
-        log.a = (alumnoEnviado && log.a ? log.a + ', ' : altaFamAhora_() + ' a ') + g.email;
-        alumnoEnviado = true;
+      if (!log.t[g.email]) log.t[g.email] = altaFamAhora_();
+      if (g.accessUrl) delete log.enl[g.email];
+      if (g.alumnoPendiente) {
+        log.ar[g.email] = enlaceAlumno.u;
+        log.a = altaFamAhora_() + ' a ' + Object.keys(log.ar).filter(function (k) { return log.ar[k] === enlaceAlumno.u; }).join(', ');
       }
       altaFamGuardarLog_(props, fam.envio, log);
       g.enviado = true;
-      if (porCorreo[g.email]) porCorreo[g.email].enviado = true;
+      if (porCorreo[g.email]) { porCorreo[g.email].enviado = true; if (g.accessUrl) porCorreo[g.email].accessUrl = g.accessUrl; }
     } catch (e) {
       g.fallo = e.message;
       if (porCorreo[g.email]) porCorreo[g.email].fallo = e.message;
       fallos.push(g.email);
     }
   });
-  if (accesoAlumno && !alumnoEnviado) fallos.push('acceso de ' + alumnoPila);
+  if (enlaceAlumno && !Object.keys(log.ar).some(function (k) { return log.ar[k] === enlaceAlumno.u; }) && !fallos.length) {
+    fallos.push('acceso de ' + alumnoPila);
+  }
+  // Con todos los tutores servidos, el enlace del alumno ya no hace falta guardarlo.
+  if (enlaceAlumno && !sinCorreo.length && tutores.every(function (g) { return log.ar[g.email] === enlaceAlumno.u; })) {
+    delete log.al;
+    altaFamGuardarLog_(props, fam.envio, log);
+  }
 
   // 4. Estado de la familia.
   var errores = res.guardians.filter(function (g) { return g.status === 'error'; });
@@ -490,7 +522,8 @@ function altaFamCorreoTutor_(tutor, g, alumnoPila, acceso, loginUrl) {
       (g.reenviado ? '. Si recibiste uno anterior, ya no vale: usa este' : '') +
       '. Después entrarás siempre en ' + kiruEscapar(loginUrl) + ' con tu usuario y tu PIN.</p>';
     texto += queEs + '\n\nTu usuario: ' + g.username + '\nCrea tu PIN (6 números) y entra: ' + g.accessUrl +
-      '\nEl enlace es personal, vale una vez y caduca el ' + altaFamFecha_(g.expiresAt) + '.\n\n';
+      '\nEl enlace es personal, vale una vez y caduca el ' + altaFamFecha_(g.expiresAt) + '.' +
+      (g.reenviado ? ' Si recibiste uno anterior, ya no vale: usa este.' : '') + '\n\n';
   } else {
     var entrar = g.hasSignedIn ? 'Entra como siempre con tu usuario <strong>' + kiruEscapar(g.username) + '</strong> y tu PIN.'
       : 'Tu usuario es <strong>' + kiruEscapar(g.username) + '</strong>. Si todavía no tienes PIN, en la entrada pulsa «¿Has olvidado tu PIN?» y te mandaremos un enlace para crearlo.';

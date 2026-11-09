@@ -43,16 +43,21 @@ Kiru haga nada.
 | `resent` | Enlace nuevo porque su correo venía en `resendTo` |
 | `error` | No se pudo (texto en `error`) |
 
-## Cada envío por separado
+## Cada envío por separado, cada enlace una sola vez
 
-- Solo hay enlace al crear una cuenta o para los correos de `resendTo`, uno a
-  uno. `issueAccessLink` solo invalida los enlaces de esa misma cuenta, así que
-  reenviar a un tutor nunca toca el enlace que ya recibió el otro.
-- El script apunta cada correo que sale bien en el momento
-  (`altaFamEnv|nº de envío` en Propiedades del script). Si Gmail falla con uno,
-  en la siguiente pasada pide enlace nuevo solo para ese tutor (y para el
-  alumno, solo si su acceso iba en el correo que falló). Tras 3 intentos para
-  y pide a Sofía que revise el correo y escriba REENVIAR.
+- El alumno tiene una sola cuenta, un solo usuario y un solo PIN. Su enlace
+  «Crea tu PIN» se genera una vez y ese mismo enlace va a todos sus tutores
+  enlazados con correo válido. El correo explica que basta con usarlo una vez.
+- El script apunta cada correo que sale bien en el momento y guarda cada enlace
+  (Propiedades del script, `altaFamEnv|nº de envío`) hasta entregarlo. Si Gmail
+  falla, el reintento manda el mismo enlace: no pide otro al campus ni anula el
+  que ya tiene el otro tutor. Tras 3 intentos para y pide REENVIAR.
+- Un tutor que llega después (alta parcial) recibe el mismo enlace del alumno si
+  aún no se ha usado; si el alumno ya tiene PIN, solo su usuario.
+- A quien ya recibió todo no se le vuelve a escribir. Un tutor que ya tenía
+  cuenta recibe un único correo: el aviso del nuevo alumno con su acceso.
+- Solo REENVIAR (escrito por Sofía) genera enlaces nuevos, y entonces los
+  anteriores sin usar dejan de valer.
 
 ## Estados en la hoja (columna CAMPUS ALTA)
 
@@ -72,7 +77,7 @@ Familias de Contabilidad (usa el CAMPUS ID ALUMNO) y asignándole mentor y horar
 
 ## Pruebas
 
-`npm test` (Node 24, 22 pruebas): `tests/family-intake.test.mjs` prueba la lógica del
+`npm test` (Node 24, 25 pruebas): `tests/family-intake.test.mjs` prueba la lógica del
 campus y `tests/alta-familias-script.test.mjs` ejecuta el Apps Script con una
 hoja, un Gmail y unas propiedades falsos contra esa misma lógica (fallos de
 Gmail, nombres repetidos, alta parcial, datos que faltan, tutor duplicado).
