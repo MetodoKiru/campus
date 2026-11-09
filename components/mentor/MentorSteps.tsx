@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, MessageSquareText, Sprout, Upload } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -70,6 +70,13 @@ export function useMentorPanel() {
   }, []);
   return { data, error, reload };
 }
+
+/** Siempre visibles, también durante la incorporación. */
+const ACTIVITY: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [
+  { id: "sesiones", title: "Registro de sesiones", hint: "Tus clases registradas y su detalle", icon: ClipboardList },
+  { id: "pagos", title: "Mis pagos", hint: "Lo cobrado y lo pendiente de cobro", icon: Wallet },
+  { id: "justificaciones", title: "Justificaciones de SkillCoins", hint: "Solicitudes de coordinación y avisos", icon: MessageSquareText },
+];
 
 const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [
   { id: "reuniones", title: "Reuniones con tu coordinador", hint: "Reunión mensual y tu disponibilidad", icon: CalendarDays },
@@ -150,21 +157,31 @@ export function MentorMenu({ data, active, onSelect, onClose, pendingJustificati
           </>
         )}
         <div className="mx-3 my-2 border-t border-[#E7E3DC]" />
-        <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Supervisión</p>
-        <button
-          type="button"
-          onClick={() => onSelect("justificaciones")}
-          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${active === "justificaciones" ? "bg-[#F3EEE5]" : "hover:bg-[#FAF8F5]"}`}
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E7E3DC] text-[#806C50]"><MessageSquareText className="h-3.5 w-3.5" aria-hidden /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-semibold text-[#292825]">Justificaciones de SkillCoins</span>
-            <span className={`block text-[11px] ${pendingJustifications ? "font-semibold text-[#806C50]" : "text-[#77736B]"}`}>
-              {pendingJustifications ? `${pendingJustifications} pendiente${pendingJustifications > 1 ? "s" : ""} de tu respuesta` : "Solicitudes de coordinación y avisos"}
-            </span>
-          </span>
-          {pendingJustifications > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-[#806C50]" aria-label="Justificación pendiente" />}
-        </button>
+        <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Mi actividad</p>
+        <ul className="space-y-1">
+          {ACTIVITY.map((item) => {
+            const Icon = item.icon;
+            const alert = item.id === "justificaciones" && pendingJustifications > 0;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${active === item.id ? "bg-[#F3EEE5]" : "hover:bg-[#FAF8F5]"}`}
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E7E3DC] text-[#806C50]"><Icon className="h-3.5 w-3.5" aria-hidden /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold text-[#292825]">{item.title}</span>
+                    <span className={`block text-[11px] ${alert ? "font-semibold text-[#806C50]" : "text-[#77736B]"}`}>
+                      {alert ? `${pendingJustifications} pendiente${pendingJustifications > 1 ? "s" : ""} de tu respuesta` : item.hint}
+                    </span>
+                  </span>
+                  {alert && <span className="h-2 w-2 shrink-0 rounded-full bg-[#806C50]" aria-label="Justificación pendiente" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
         {active && (
           <button type="button" onClick={() => onSelect(null)} className="mt-1 w-full rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-[#6D6962] hover:bg-[#FAF8F5]">
             Volver a mi panel de alumnos

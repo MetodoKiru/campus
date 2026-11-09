@@ -430,6 +430,54 @@ export type SupervisionEventRow = {
   created_at: string;
 };
 
+// «Registro de sesiones» y «Mis pagos» del mentor (migración 20261109140000).
+/** Copia de solo lectura de una fila de la pestaña «Pagos» (la hoja manda). */
+export type MentorPayoutRow = {
+  id: string;
+  sheet_key: string;
+  sheet_row: number | null;
+  mentor_name: string;
+  student_name: string;
+  mentor_id: string | null;
+  student_id: string | null;
+  period_start: string;
+  /** «Hasta (no incluido)»: el día en que termina el periodo y se paga. */
+  period_end: string;
+  sheet_status: string;
+  sessions_registered: number;
+  extra_cents: number;
+  amount_cents: number;
+  paid_on: string | null;
+  removed_at: string | null;
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MentorPayoutHistoryRow = { id: number; payout_id: string; previous: Json; current: Json; changed_at: string };
+
+/** Una sesión registrada por un mentor (función kiru_mentor_sessions). */
+export type MentorSessionRow = {
+  log_id: string;
+  session_date: string;
+  submitted_at: string;
+  student_id: string | null;
+  student_name: string | null;
+  family: string | null;
+  incident: string;
+  answers: Json;
+  /** Si es un segundo registro del mismo alumno y día: el registro que cuenta. */
+  duplicate_of: string | null;
+  class_id: string | null;
+  class_kind: "regular" | "recuperacion" | null;
+  class_start: string | null;
+  class_mentor_id: string | null;
+  recovers_date: string | null;
+  slot_time: string | null;
+  payout_id: string | null;
+  first_class_date: string | null;
+};
+
 /** Solo se escriben con funciones (RLS sin INSERT/UPDATE/DELETE): estos tipos son de lectura. */
 type ReadOnlyTable<Row> = { Row: Row; Insert: never; Update: never; Relationships: [] };
 
@@ -724,6 +772,8 @@ export type Database = {
       kiru_skillcoin_review_messages: ReadOnlyTable<SkillcoinReviewMessageRow>;
       kiru_skillcoin_review_files: ReadOnlyTable<SkillcoinReviewFileRow>;
       kiru_methodology_warnings: ReadOnlyTable<MethodologyWarningRow>;
+      kiru_mentor_payouts: ReadOnlyTable<MentorPayoutRow>;
+      kiru_mentor_payout_history: ReadOnlyTable<MentorPayoutHistoryRow>;
       kiru_supervision_events: ReadOnlyTable<SupervisionEventRow>;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
@@ -764,7 +814,7 @@ export type Database = {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];
       };
-    } & ClassFunctions & SupervisionFunctions;
+    } & ClassFunctions & SupervisionFunctions & MentorPayFunctions;
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
@@ -810,4 +860,11 @@ type SupervisionFunctions = {
   kiru_methodology_warning_update: { Args: { p_warning: string; p_action: string; p_payload?: Json }; Returns: undefined };
   kiru_sc_review_correct: { Args: { p_review: string; p_new_score: number; p_reason: string }; Returns: undefined };
   kiru_supervision_tarea_diaria: { Args: Record<string, never>; Returns: Json };
+};
+
+/** Registro de sesiones y pagos del mentor. */
+type MentorPayFunctions = {
+  kiru_mentor_payouts_sync: { Args: { p_rows: Json }; Returns: Json };
+  kiru_mentor_sessions: { Args: { p_mentor?: string }; Returns: MentorSessionRow[] };
+  kiru_mentor_payout_checks: { Args: Record<string, never>; Returns: Json };
 };

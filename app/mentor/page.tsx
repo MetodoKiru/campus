@@ -26,6 +26,8 @@ import MentorMeetings from "@/components/mentor/MentorMeetings";
 import GrowWithKiru from "@/components/mentor/GrowWithKiru";
 import MentorClasses from "@/components/classes/MentorClasses";
 import MentorJustifications, { usePendingJustifications } from "@/components/mentor/MentorJustifications";
+import MentorSessions from "@/components/mentor/MentorSessions";
+import MentorPayments from "@/components/mentor/MentorPayments";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { MENTOR_SECTIONS, type MentorSection, type StepId } from "@/lib/mentor-steps";
 
@@ -92,15 +94,16 @@ export default function MentorPage() {
   const mentorPanel = useMentorPanel();
   const pendingJustifications = usePendingJustifications(authorized);
   const hasNewOffer = Boolean(mentorPanel.data?.offers.some((offer) => !offer.response));
-  // Enlace de los correos: /mentor?seccion=justificaciones&revision={id} (o &aviso={id}).
+  // Enlaces directos: /mentor?seccion=justificaciones&revision={id} (correos), ?seccion=sesiones o ?seccion=pagos.
   const [initialReview, setInitialReview] = useState<string | null>(null);
   useEffect(() => {
     if (!authorized) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("seccion") !== "justificaciones") return;
+    const target = params.get("seccion");
+    if (target !== "justificaciones" && target !== "sesiones" && target !== "pagos") return;
     const timer = window.setTimeout(() => {
-      setInitialReview(params.get("revision"));
-      setMenuStep("justificaciones");
+      setInitialReview(target === "justificaciones" ? params.get("revision") : null);
+      setMenuStep(target);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [authorized]);
@@ -244,6 +247,8 @@ export default function MentorPage() {
             </button>
             {section === "reuniones" && <MentorMeetings notify={setSavedMsg} />}
             {section === "crece" && <GrowWithKiru notify={setSavedMsg} />}
+            {section === "sesiones" && <MentorSessions onOpenReview={(id) => { setInitialReview(id); setMenuStep("justificaciones"); }} />}
+            {section === "pagos" && <MentorPayments />}
             {section === "justificaciones" && <MentorJustifications key={initialReview ?? "lista"} notify={setSavedMsg} initialReview={initialReview} />}
             {step && (mentorPanel.data
               ? <MentorStepView key={step} step={step} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />

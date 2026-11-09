@@ -10,6 +10,6 @@ psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/supabase_stubs.sql
 for f in supabase/migrations/*.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -1 -f "$f"
 done
-output=$(psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/rls_roles_test.sql 2>&1; psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/clases_test.sql 2>&1; psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/supervision_test.sql 2>&1)
+output=$(psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/rls_roles_test.sql 2>&1; psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/clases_test.sql 2>&1; psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/supervision_test.sql 2>&1; psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/mentor_pagos_test.sql 2>&1)
 echo "$output" | grep -E "ok  |FAIL|ERROR" | sed 's/^.*NOTICE:  //'
 if echo "$output" | grep -qE "FAIL|ERROR"; then exit 1; fi
