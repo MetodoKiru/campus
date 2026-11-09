@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import AdminNoClassDays from "@/components/classes/AdminNoClassDays";
+import AdminMentorPayouts from "@/components/mentor/AdminMentorPayouts";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
@@ -32,7 +33,8 @@ import {
   Coins,
   Sprout,
   UserCheck,
-  CalendarOff
+  CalendarOff,
+  Wallet
 } from "lucide-react";
 
 interface UserAccount {
@@ -131,7 +133,7 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion" | "dias-sin-clase">("usuarios");
+  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion" | "dias-sin-clase" | "pagos-mentores">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -672,6 +674,15 @@ export default function AdminPage() {
             <CalendarOff className="w-3.5 h-3.5" />
             <span>Días sin clase</span>
           </button>
+          <button
+            onClick={() => setActiveTab("pagos-mentores")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "pagos-mentores" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span>Pagos de mentores</span>
+          </button>
         </div>
 
         {activeTab === "skillcoins" && <AdminSkillcoins />}
@@ -679,6 +690,7 @@ export default function AdminPage() {
         {activeTab === "incorporacion" && <AdminOnboardingExceptions notify={notifyOffers} />}
         {activeTab === "crece" && <AdminOpportunities notify={notifyOffers} />}
         {activeTab === "dias-sin-clase" && <AdminNoClassDays notify={notifyOffers} />}
+        {activeTab === "pagos-mentores" && <AdminMentorPayouts />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}
         {activeTab === "usuarios" && (
