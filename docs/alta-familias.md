@@ -15,8 +15,11 @@ Kiru haga nada.
 3. El campus crea (o reutiliza) la cuenta del alumno y una cuenta de familia
    por tutor, las enlaza en `student_guardians` y devuelve los enlaces «Crea tu
    PIN» de un solo uso (14 días), los mismos que usan los mentores (`/acceso`).
-4. El script manda a cada tutor su usuario y su botón. El botón del alumno va
-   en el correo del primer tutor, porque el alumno no tiene correo.
+4. El script manda a cada tutor su usuario y su botón. El alumno no tiene
+   correo y tiene una sola cuenta con un solo PIN: el mismo botón para crearlo
+   va a todos los tutores enlazados a los que se escribe, y basta con usarlo una
+   vez. Un tutor que llega después (alta parcial o reintento) recibe el usuario
+   del alumno y a quién se le mandó el botón, sin anular el enlace del otro.
 5. A metodokiru@gmail.com le llega un resumen; si falta el correo de un tutor,
    lleva un botón de WhatsApp con el mensaje escrito para pedírselo. Al escribir
    el correo en la hoja, la siguiente pasada crea esa cuenta y le manda el acceso.
@@ -69,7 +72,7 @@ Familias de Contabilidad (usa el CAMPUS ID ALUMNO) y asignándole mentor y horar
 
 ## Pruebas
 
-`npm test` (Node 24): `tests/family-intake.test.mjs` prueba la lógica del
+`npm test` (Node 24, 22 pruebas): `tests/family-intake.test.mjs` prueba la lógica del
 campus y `tests/alta-familias-script.test.mjs` ejecuta el Apps Script con una
 hoja, un Gmail y unas propiedades falsos contra esa misma lógica (fallos de
 Gmail, nombres repetidos, alta parcial, datos que faltan, tutor duplicado).

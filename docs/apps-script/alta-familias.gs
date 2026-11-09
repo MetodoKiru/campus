@@ -14,8 +14,9 @@
  *     por cada tutor con correo, enlazadas con el alumno. Si un tutor ya tiene
  *     cuenta de familia (un hermano), se reutiliza y solo se enlaza.
  *  3. Manda a cada tutor nuevo su usuario y el botón «Crear mi PIN y entrar».
- *     El acceso del alumno (que no tiene correo) va en el correo del primer
- *     tutor. Un tutor que ya tenía cuenta recibe solo un aviso.
+ *     El alumno (que no tiene correo) tiene una sola cuenta y un solo PIN: el
+ *     mismo botón para crearlo va a todos sus tutores enlazados, y basta con
+ *     usarlo una vez. Un tutor que ya tenía cuenta recibe solo un aviso.
  *  4. Manda a metodokiru@gmail.com un resumen con lo hecho y lo pendiente.
  *
  * Cada envío se controla por separado: en cuanto un correo sale bien, queda
@@ -236,20 +237,40 @@ function altaFamProcesar_(fam, modo, props) {
     return !log.t[g.email] && (g.status === 'linked' || g.hasSignedIn); // aviso a quien ya tenía acceso
   });
   var alumnoPila = fam.alumno.split(/\s+/)[0];
+  // El alumno tiene una sola cuenta y un solo PIN. Su enlace (uno, de un solo
+  // uso) va a TODOS los tutores enlazados a los que se escribe en esta pasada,
+  // para que cualquiera de los dos pueda ayudarle a entrar. Nunca se genera un
+  // segundo enlace del alumno solo para un tutor, porque anularía el que ya
+  // tiene el otro: quien llega después recibe su usuario y a quién se le mandó.
   var accesoAlumno = s.accessUrl ? s : null;
   if (accesoAlumno && !envios.length) {
-    // Solo falta el acceso del alumno: va al primer tutor que pueda recibirlo.
-    var destino = res.guardians.filter(function (g) { return g.status !== 'error'; })[0];
-    if (destino) envios.push({ email: destino.email, fullName: destino.fullName, username: destino.username, soloAlumno: true });
+    // Solo falta el acceso del alumno: va a todos los tutores enlazados.
+    res.guardians.filter(function (g) { return g.status !== 'error'; }).forEach(function (g) {
+      envios.push({ email: g.email, fullName: g.fullName, username: g.username, soloAlumno: true });
+    });
   }
+  var nombres = {};
+  conCorreo.forEach(function (t) { nombres[t.correo] = t.nombre; });
+  var alumnoEnviado = false;
   var fallos = [];
   envios.forEach(function (g) {
     var tutor = conCorreo.filter(function (t) { return t.correo === g.email; })[0] || { nombre: g.fullName };
-    var conAlumno = accesoAlumno;
+    var alumno = null;
+    if (accesoAlumno) {
+      alumno = {
+        username: accesoAlumno.username, accessUrl: accesoAlumno.accessUrl, expiresAt: accesoAlumno.expiresAt,
+        otros: envios.filter(function (o) { return o.email !== g.email; }).map(function (o) { return nombres[o.email] || o.fullName; }),
+      };
+    } else if (!s.hasSignedIn && log.a) {
+      alumno = { username: s.username, enviadoA: log.a };
+    }
     try {
-      altaFamCorreoTutor_(tutor, g, alumnoPila, conAlumno, res.loginUrl);
+      altaFamCorreoTutor_(tutor, g, alumnoPila, alumno, res.loginUrl);
       log.t[g.email] = altaFamAhora_();
-      if (conAlumno) { log.a = altaFamAhora_() + ' a ' + g.email; accesoAlumno = null; }
+      if (alumno && alumno.accessUrl) {
+        log.a = (alumnoEnviado && log.a ? log.a + ', ' : altaFamAhora_() + ' a ') + g.email;
+        alumnoEnviado = true;
+      }
       altaFamGuardarLog_(props, fam.envio, log);
       g.enviado = true;
       if (porCorreo[g.email]) porCorreo[g.email].enviado = true;
@@ -259,7 +280,7 @@ function altaFamProcesar_(fam, modo, props) {
       fallos.push(g.email);
     }
   });
-  if (accesoAlumno) fallos.push('acceso de ' + alumnoPila);
+  if (accesoAlumno && !alumnoEnviado) fallos.push('acceso de ' + alumnoPila);
 
   // 4. Estado de la familia.
   var errores = res.guardians.filter(function (g) { return g.status === 'error'; });
@@ -478,16 +499,25 @@ function altaFamCorreoTutor_(tutor, g, alumnoPila, acceso, loginUrl) {
     texto += 'Hemos añadido a ' + alumnoPila + ' a tu cuenta de la Plataforma Kiru (' + loginUrl + '). Tu usuario: ' + g.username + '.' +
       (g.hasSignedIn ? '' : ' Si todavía no tienes PIN, pulsa «¿Has olvidado tu PIN?» en la entrada.') + '\n\n';
   }
-  if (acceso) {
+  if (acceso && acceso.accessUrl) {
+    var otros = acceso.otros && acceso.otros.length ? acceso.otros.join(' y ') : '';
+    var compartido = (otros ? 'Este mismo botón lo ha recibido también ' + otros + '. ' : '') +
+      'Es una sola cuenta con un solo PIN: basta con usar el botón una vez' + (otros ? ', lo use quien lo use' : '') +
+      '. Guardad el PIN; si se olvida, escribidnos y lo cambiamos.';
     html += '<div style="margin:24px 0;padding:18px;border-radius:12px;background:#F3EFE6">' +
       '<p style="margin:0 0 8px"><strong>La cuenta de ' + kiruEscapar(alumnoPila) + '</strong></p>' +
       '<p style="margin:0 0 8px">' + kiruEscapar(alumnoPila) + ' también tiene su propia cuenta para ver sus tareas y sus SkillCoins. Su usuario es <strong>' +
       kiruEscapar(acceso.username) + '</strong>. Abrid juntos este botón y elegid su PIN de 6 números:</p>' +
       '<p style="margin:12px 0 0">' + altaFamBoton_(acceso.accessUrl, 'Crear el PIN de ' + alumnoPila, '#8A775B') + '</p>' +
       '<p style="margin:12px 0 0;font-size:12px;color:#64748B">Solo vale una vez y caduca el ' + altaFamFecha_(acceso.expiresAt) + '. ' +
-      'Guardad el PIN: si se olvida, escribidnos y lo cambiamos.</p></div>';
+      kiruEscapar(compartido) + '</p></div>';
     texto += 'La cuenta de ' + alumnoPila + ': usuario ' + acceso.username + '. Abrid juntos este enlace y elegid su PIN de 6 números: ' + acceso.accessUrl +
-      '\nVale una vez y caduca el ' + altaFamFecha_(acceso.expiresAt) + '.\n\n';
+      '\nVale una vez y caduca el ' + altaFamFecha_(acceso.expiresAt) + '. ' + compartido + '\n\n';
+  } else if (acceso && acceso.enviadoA) {
+    var nota = alumnoPila + ' tiene su propia cuenta, con el usuario ' + acceso.username + '. El botón para crear su PIN se envió ' + acceso.enviadoA +
+      ': es una sola cuenta con un solo PIN, así que pedidle el PIN a quien lo cree.';
+    html += '<div style="margin:24px 0;padding:18px;border-radius:12px;background:#F3EFE6"><p style="margin:0">' + kiruEscapar(nota) + '</p></div>';
+    texto += nota + '\n\n';
   }
   html += '<p>Un saludo,<br>Equipo Método Kiru</p>';
   texto += 'Un saludo,\nEquipo Método Kiru';
