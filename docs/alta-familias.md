@@ -32,11 +32,28 @@ Kiru haga nada.
 
 | Estado (tutor o alumno) | Qué significa |
 | --- | --- |
-| `created` | Cuenta nueva + enlace |
-| `link` | Ya existía, nunca ha entrado, se acaba de enlazar → enlace nuevo |
-| `active` | Ya existía y ya ha entrado → solo se le avisa |
+| `created` | Cuenta nueva + enlace «Crea tu PIN» |
+| `linked` | Ya tenía cuenta de familia; se enlaza con el alumno y se le avisa, sin acceso nuevo |
 | `already` | Hecho en una llamada anterior → nada |
+| `resent` | Solo si Sofía escribe REENVIAR en la hoja: enlace nuevo a quien nunca ha entrado |
 | `error` | No se pudo (texto en `error`) |
+
+Nunca sale un acceso repetido: solo hay enlace al crear la cuenta o con REENVIAR.
+
+## Estados en la hoja (columna CAMPUS ALTA)
+
+- `PENDIENTE · falta …`: falta el nombre del alumno o un correo válido de algún
+  tutor. No se crea nada. Al corregir la fila, se procesa sola.
+- `SIN AUTORIZACIÓN`: la familia no autorizó crear la cuenta. No se crea nada.
+- `CUENTAS CREADAS · acceso sin enviar`: las cuentas existen pero el correo no
+  salió. Escribir REENVIAR.
+- `ACCESO ENVIADO` (con `· PENDIENTE correo de …` si falta un tutor).
+- `CUENTA ENLAZADA · aviso enviado`: los tutores ya tenían acceso.
+- `ERROR · …`: tras 3 intentos o un error definitivo. Vaciar la casilla para reintentar.
+
+**Alumno activo** es otra cosa: el alta no asigna mentor, horario, clases ni
+pagos. El alumno se activa como hasta ahora, con «Activa» en la pestaña
+Familias de Contabilidad (usa el CAMPUS ID ALUMNO) y asignándole mentor y horario.
 
 ## Protección de datos del menor
 

@@ -18,12 +18,17 @@ type Link = { accessUrl: string; expiresAt: string } | null;
 /**
  * Estado de cada cuenta en la respuesta:
  * - created: cuenta nueva + enlace «Crea tu PIN».
- * - link: la cuenta ya existía, se acaba de enlazar con el alumno y nunca ha entrado → enlace nuevo.
- * - active: la cuenta ya existía, se acaba de enlazar y ya ha entrado alguna vez → sin enlace.
+ * - linked: la cuenta ya existía (un hermano, un alta a mano) y se acaba de
+ *   enlazar con el alumno. No se manda acceso nuevo: entra con su usuario y PIN
+ *   (o con «¿Has olvidado tu PIN?»). hasSignedIn dice si ha entrado alguna vez.
  * - already: ya estaba hecho en una llamada anterior → nada que enviar.
+ * - resent: solo con resend: true (reenvío pedido a mano) → enlace nuevo; el anterior deja de valer.
  * - error: no se pudo (por ejemplo, el correo es de una cuenta de mentor); el texto va en error.
+ *
+ * Así nunca sale un acceso repetido: solo hay enlace al crear la cuenta o
+ * cuando administración pide expresamente reenviarlo.
  */
-type Status = "created" | "link" | "active" | "already" | "error";
+type Status = "created" | "linked" | "already" | "resent" | "error";
 
 function cleanName(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -72,6 +77,10 @@ async function createAccount(
  * correo, las enlaza (student_guardians) y devuelve los usuarios y los enlaces
  * «Crea tu PIN» de un solo uso para meterlos en los correos.
  *
+ * Crear cuentas no activa ningún servicio: no asigna mentor, ni horario, ni
+ * clases, ni pagos. Eso sigue saliendo de la pestaña «Familias» de Contabilidad
+ * y del panel de administración.
+ *
  * Se puede llamar las veces que haga falta con el mismo submissionId: el
  * alumno se crea una sola vez (kiru_family_intakes) y los tutores se buscan
  * por correo, así que nunca se duplica nada. Cuando la familia manda después
@@ -91,9 +100,10 @@ export async function POST(request: Request) {
   }
   if (secret !== "ok") return NextResponse.json({ error: "Clave no válida." }, { status: 401 });
 
-  let body: { submissionId?: unknown; authorized?: unknown; student?: unknown; guardians?: unknown };
+  let body: { submissionId?: unknown; authorized?: unknown; student?: unknown; guardians?: unknown; resend?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 }); }
 
+  const resend = body.resend === true;
   const submissionId = typeof body.submissionId === "string" ? body.submissionId.trim() : "";
   if (!SUBMISSION_RE.test(submissionId)) return NextResponse.json({ error: "Falta el número de envío del formulario." }, { status: 400 });
   if (body.authorized !== true) {
@@ -169,9 +179,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "La cuenta del alumno no está bien. Revísala en el panel de administración." }, { status: 409 });
   }
   let studentLink: Link = null;
-  if (studentStatus === "created") {
+  if (studentStatus === "created" || (resend && (await neverSignedIn(admin, student.id)))) {
     studentLink = await issueAccessLink(admin, student.id, request.url, LINK_MS);
     if (!studentLink) return NextResponse.json({ error: "No se pudo generar el enlace del alumno." }, { status: 500 });
+    if (studentStatus !== "created") studentStatus = "resent";
   }
 
   // 3. Tutores: se buscan por correo o se crean, y se enlazan con el alumno.
@@ -179,8 +190,10 @@ export async function POST(request: Request) {
   const alreadyLinked = new Set((linkedRows ?? []).map((r) => r.guardian_id));
   const results = [];
   for (const g of guardians) {
-    const out: { email: string; fullName: string; status: Status; username?: string; error?: string; accessUrl?: string; expiresAt?: string } =
-      { email: g.email, fullName: g.fullName, status: "error" };
+    const out: {
+      email: string; fullName: string; status: Status; username?: string; hasSignedIn?: boolean;
+      error?: string; accessUrl?: string; expiresAt?: string;
+    } = { email: g.email, fullName: g.fullName, status: "error" };
     results.push(out);
 
     let id = found.get(g.email)?.id ?? null;
@@ -206,21 +219,25 @@ export async function POST(request: Request) {
     if (!profile.username) { out.error = "La cuenta de familia no tiene usuario. Revísala en el panel de administración."; continue; }
     out.username = profile.username;
 
-    if (alreadyLinked.has(id)) { out.status = "already"; continue; }
-    const { error: linkError } = await admin
-      .from("student_guardians")
-      .upsert({ student_id: student.id, guardian_id: id, relationship: g.relationship }, { onConflict: "student_id,guardian_id", ignoreDuplicates: true });
-    if (linkError) { out.error = "No se pudo enlazar con el alumno."; continue; }
+    const fresh = created ? true : await neverSignedIn(admin, id);
+    out.hasSignedIn = !fresh;
 
-    if (created || (await neverSignedIn(admin, id))) {
+    if (!alreadyLinked.has(id)) {
+      const { error: linkError } = await admin
+        .from("student_guardians")
+        .upsert({ student_id: student.id, guardian_id: id, relationship: g.relationship }, { onConflict: "student_id,guardian_id", ignoreDuplicates: true });
+      if (linkError) { out.error = "No se pudo enlazar con el alumno."; continue; }
+    }
+
+    let status: Status = created ? "created" : alreadyLinked.has(id) ? "already" : "linked";
+    if (created || (resend && fresh)) {
       const link = await issueAccessLink(admin, id, request.url, LINK_MS);
       if (!link) { out.error = "Cuenta enlazada, pero no se pudo generar el enlace de acceso."; continue; }
-      out.status = created ? "created" : "link";
+      if (!created) status = "resent";
       out.accessUrl = link.accessUrl;
       out.expiresAt = link.expiresAt;
-    } else {
-      out.status = "active";
     }
+    out.status = status;
   }
 
   return NextResponse.json({
