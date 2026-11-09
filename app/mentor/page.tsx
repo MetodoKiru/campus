@@ -25,6 +25,7 @@ import { MentorMenu, MentorStepView, StepPager, useMentorPanel } from "@/compone
 import MentorMeetings from "@/components/mentor/MentorMeetings";
 import GrowWithKiru from "@/components/mentor/GrowWithKiru";
 import MentorClasses from "@/components/classes/MentorClasses";
+import MentorJustifications, { usePendingJustifications } from "@/components/mentor/MentorJustifications";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { MENTOR_SECTIONS, type MentorSection, type StepId } from "@/lib/mentor-steps";
 
@@ -89,7 +90,25 @@ export default function MentorPage() {
   const section = MENTOR_SECTIONS.find((id) => id === menuStep) ?? null;
   const step = section ? null : (menuStep as StepId | null);
   const mentorPanel = useMentorPanel();
+  const pendingJustifications = usePendingJustifications(authorized);
   const hasNewOffer = Boolean(mentorPanel.data?.offers.some((offer) => !offer.response));
+  // Enlace de los correos: /mentor?seccion=justificaciones&revision={id} (o &aviso={id}).
+  const [initialReview, setInitialReview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!authorized) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("seccion") !== "justificaciones") return;
+    const timer = window.setTimeout(() => {
+      setInitialReview(params.get("revision"));
+      setMenuStep("justificaciones");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [authorized]);
+  const openNotification = (item: { review_id?: string | null; warning_id?: string | null }) => {
+    if (!item.review_id && !item.warning_id) return;
+    setInitialReview(item.review_id ?? null);
+    setMenuStep("justificaciones");
+  };
 
   useEffect(() => {
     let active = true;
@@ -172,13 +191,14 @@ export default function MentorPage() {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4" aria-hidden>
               <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
             </svg>
-            {hasNewOffer && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#806C50] border-2 border-white" aria-label="Tienes una propuesta nueva" />}
+            {(hasNewOffer || pendingJustifications > 0) && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#806C50] border-2 border-white" aria-label="Tienes algo pendiente" />}
           </button>
           {menuOpen && (
             <MentorMenu
               data={mentorPanel.data}
               active={menuStep}
-              onSelect={(step) => { setMenuStep(step); setMenuOpen(false); }}
+              pendingJustifications={pendingJustifications}
+              onSelect={(step) => { setInitialReview(null); setMenuStep(step); setMenuOpen(false); }}
               onClose={() => setMenuOpen(false)}
             />
           )}
@@ -202,7 +222,7 @@ export default function MentorPage() {
             <ExternalLink className="w-3.5 h-3.5 text-[#77736B]" />
           </a>
 
-          <NotificationBell />
+          <NotificationBell onOpenItem={openNotification} />
           <Link
             href="/"
             title="Cerrar sesión"
@@ -224,6 +244,7 @@ export default function MentorPage() {
             </button>
             {section === "reuniones" && <MentorMeetings notify={setSavedMsg} />}
             {section === "crece" && <GrowWithKiru notify={setSavedMsg} />}
+            {section === "justificaciones" && <MentorJustifications key={initialReview ?? "lista"} notify={setSavedMsg} initialReview={initialReview} />}
             {step && (mentorPanel.data
               ? <MentorStepView key={step} step={step} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
               : <p className="text-xs text-[#77736B]">{mentorPanel.error ?? "Cargando…"}</p>)}
@@ -233,6 +254,16 @@ export default function MentorPage() {
         {menuStep && savedMsg && <Toast text={savedMsg} type={/^(No |Selecciona)/.test(savedMsg) ? "error" : "success"} onClose={() => setSavedMsg(null)} />}
 
         <div className={menuStep ? "hidden" : "space-y-6"}>
+        {pendingJustifications > 0 && (
+          <button
+            type="button"
+            onClick={() => { setInitialReview(null); setMenuStep("justificaciones"); }}
+            className="w-full rounded-2xl border border-[#E4D8C5] bg-[#F3EEE5] p-4 text-left text-sm text-[#292825] shadow-xs transition hover:bg-[#EFE7DA]"
+          >
+            <strong className="font-semibold">Coordinación te ha pedido {pendingJustifications === 1 ? "una justificación" : `${pendingJustifications} justificaciones`} de SkillCoins.</strong>{" "}
+            <span className="text-[#6D6962]">Pulsa para responder →</span>
+          </button>
+        )}
         <MentorClasses notify={setSavedMsg} />
         <MentorMissingSc rows={missingSc} />
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E7E3DC] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -2,9 +2,13 @@
 
 export type StepId = "certificado" | "nuestro_equipo" | "llamadas" | "asignacion";
 
-/** Apartados del menú ☰ que se abren al completar la incorporación. */
-export type MentorSection = "reuniones" | "crece";
-export const MENTOR_SECTIONS: MentorSection[] = ["reuniones", "crece"];
+/**
+ * Apartados del menú ☰. «Reuniones» y «Crece con Kiru» se abren al completar la
+ * incorporación; «Justificaciones de SkillCoins» está siempre (coordinación
+ * puede pedir una justificación a cualquier mentor con alumnos).
+ */
+export type MentorSection = "reuniones" | "crece" | "justificaciones";
+export const MENTOR_SECTIONS: MentorSection[] = ["reuniones", "crece", "justificaciones"];
 
 /** Estados que se enseñan al mentor. Cada uno sale de un dato real de la base. */
 export type StepStatus = "pendiente" | "en_curso" | "enviado" | "en_revision" | "completado" | "requiere_correccion";

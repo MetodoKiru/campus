@@ -348,7 +348,7 @@ export type SkillcoinReviewRow = {
   reason_code: "maximo_repetido" | "sin_variacion" | "posible_contradiccion" | "maximo_sin_evolucion" | "otro";
   reason: string;
   question: string;
-  due_date?: string | null;
+  due_date: string | null;
   status: SkillcoinReviewStatus;
   status_since: string;
   round: number;
