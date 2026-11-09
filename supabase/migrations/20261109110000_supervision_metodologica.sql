@@ -117,6 +117,8 @@ CREATE TABLE public.kiru_skillcoin_reviews (
     CHECK (reason_code IN ('maximo_repetido', 'sin_variacion', 'posible_contradiccion', 'maximo_sin_evolucion', 'otro')),
   reason text NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 1000),
   question text NOT NULL CHECK (length(trim(question)) BETWEEN 1 AND 2000),
+  -- Plazo opcional para responder.
+  due_date date,
   status text NOT NULL DEFAULT 'pendiente_respuesta'
     CHECK (status IN ('pendiente_respuesta', 'respondida', 'pendiente_valoracion', 'cerrada')),
   status_since timestamptz NOT NULL DEFAULT now(),
@@ -548,7 +550,7 @@ GRANT EXECUTE ON FUNCTION public.kiru_supervision_evaluations(date) TO authentic
 
 -- 13. Solicitar justificación (coordinador del mentor o administración) -------------------
 CREATE OR REPLACE FUNCTION public.kiru_request_sc_review(
-  p_log uuid, p_competencia text, p_reason_code text, p_reason text, p_question text)
+  p_log uuid, p_competencia text, p_reason_code text, p_reason text, p_question text, p_due_date date DEFAULT NULL)
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -575,6 +577,9 @@ BEGIN
   IF length(trim(coalesce(p_reason, ''))) = 0 OR length(trim(coalesce(p_question, ''))) = 0 THEN
     RAISE EXCEPTION 'Escribe el motivo y la pregunta para el mentor.' USING ERRCODE = 'P0001';
   END IF;
+  IF p_due_date IS NOT NULL AND p_due_date < (now() AT TIME ZONE 'Europe/Madrid')::date THEN
+    RAISE EXCEPTION 'El plazo no puede ser anterior a hoy.' USING ERRCODE = 'P0001';
+  END IF;
   SELECT * INTO v_week FROM kiru_private.skillcoin_week_logs(v_log.student_id) w WHERE w.log_id = p_log;
   IF v_week.log_id IS NULL THEN
     RAISE EXCEPTION 'Ese registro no es el que cuenta para las SkillCoins de su semana.' USING ERRCODE = 'P0001';
@@ -588,12 +593,12 @@ BEGIN
 
   INSERT INTO public.kiru_skillcoin_reviews
     (student_id, mentor_id, session_log_id, week, competencia, score_snapshot, week_scores, requested_by, requested_role,
-     reason_code, reason, question)
+     reason_code, reason, question, due_date)
   VALUES (v_log.student_id, v_log.mentor_id, p_log, v_week.week, p_competencia, v_score,
           jsonb_build_object('estudios', v_week.estudios, 'compromiso', v_week.compromiso, 'organizacion', v_week.organizacion, 'bienestar', v_week.bienestar),
           v_me, v_role,
           CASE WHEN p_reason_code IN ('maximo_repetido', 'sin_variacion', 'posible_contradiccion', 'maximo_sin_evolucion') THEN p_reason_code ELSE 'otro' END,
-          left(trim(p_reason), 1000), left(trim(p_question), 2000))
+          left(trim(p_reason), 1000), left(trim(p_question), 2000), p_due_date)
   RETURNING id INTO v_id;
 
   PERFORM kiru_private.supervision_event(v_id, NULL, v_log.mentor_id, 'solicitada',
@@ -602,6 +607,7 @@ BEGIN
     'Coordinación te pide justificar una nota de SkillCoins',
     kiru_private.first_name(v_log.student_id) || ', ' || kiru_private.competencia_label(p_competencia) || ' (' || v_score || '/10), '
       || kiru_private.week_label(v_week.week) || '. Pregunta: ' || left(trim(p_question), 600)
+      || CASE WHEN p_due_date IS NOT NULL THEN ' Plazo para responder: ' || to_char(p_due_date, 'DD/MM/YYYY') || '.' ELSE '' END
       || ' Puedes responder con una explicación, observaciones de la sesión o fotos del trabajo.',
     'justificacion_solicitada:' || v_id, true);
   RETURN v_id;
@@ -1039,12 +1045,18 @@ DECLARE
 BEGIN
   FOR r IN
     SELECT * FROM public.kiru_skillcoin_reviews
-    WHERE status = 'pendiente_respuesta' AND status_since < now() - make_interval(days => v_mentor_days)
+    WHERE status = 'pendiente_respuesta'
+      AND CASE WHEN due_date IS NOT NULL AND round = 1
+               -- Con plazo: el día antes de que venza (o ya vencido).
+               THEN (now() AT TIME ZONE 'Europe/Madrid')::date >= due_date - 1
+               ELSE status_since < now() - make_interval(days => v_mentor_days) END
   LOOP
     PERFORM kiru_private.supervision_notify(r.mentor_id, r.student_id, r.id, NULL, 'justificacion_recordatorio',
       'Tienes una justificación de SkillCoins pendiente',
       kiru_private.first_name(r.student_id) || ', ' || kiru_private.competencia_label(r.competencia) || ' (' || r.score_snapshot || '/10), '
-        || kiru_private.week_label(r.week) || '. Cuando puedas, responde desde tu panel.',
+        || kiru_private.week_label(r.week)
+        || CASE WHEN r.due_date IS NOT NULL AND r.round = 1 THEN '. El plazo para responder es el ' || to_char(r.due_date, 'DD/MM/YYYY') || '.'
+                ELSE '. Cuando puedas, responde desde tu panel.' END,
       'justificacion_recordatorio:' || r.id || ':' || r.round, true);
     v_mentor := v_mentor + 1;
   END LOOP;
@@ -1067,7 +1079,7 @@ $$;
 
 -- 21. Permisos de las funciones ------------------------------------------------------------
 REVOKE ALL ON FUNCTION
-  public.kiru_request_sc_review(uuid, text, text, text, text),
+  public.kiru_request_sc_review(uuid, text, text, text, text, date),
   public.kiru_answer_sc_review(uuid, text, text),
   public.kiru_sc_review_add_file(uuid, text, text, text, integer),
   public.kiru_sc_review_start_assessment(uuid),
@@ -1080,7 +1092,7 @@ REVOKE ALL ON FUNCTION
   public.kiru_supervision_tarea_diaria()
 FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION
-  public.kiru_request_sc_review(uuid, text, text, text, text),
+  public.kiru_request_sc_review(uuid, text, text, text, text, date),
   public.kiru_answer_sc_review(uuid, text, text),
   public.kiru_sc_review_add_file(uuid, text, text, text, integer),
   public.kiru_sc_review_start_assessment(uuid),

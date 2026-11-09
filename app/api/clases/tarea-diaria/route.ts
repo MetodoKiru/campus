@@ -20,5 +20,8 @@ export async function GET(request: Request) {
     console.error("Tarea diaria de clases:", error.code, error.message);
     return NextResponse.json({ error: "La tarea diaria falló." }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, resultado: data });
+  // Recordatorios de justificaciones de SkillCoins (no duplica si ya los mandó pg_cron).
+  const supervision = await admin.rpc("kiru_supervision_tarea_diaria", {});
+  if (supervision.error) console.error("Tarea diaria de supervisión:", supervision.error.code, supervision.error.message);
+  return NextResponse.json({ ok: true, resultado: data, supervision: supervision.data ?? null });
 }

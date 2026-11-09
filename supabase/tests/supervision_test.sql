@@ -233,6 +233,13 @@ update kiru_skillcoin_reviews set status_since = now() - interval '4 days' where
 select public.kiru_supervision_tarea_diaria();
 select public.kiru_supervision_tarea_diaria();
 select pg_temp.expect('recordatorio al mentor una sola vez', (select count(*) from kiru_notifications where kind = 'justificacion_recordatorio' and review_id = pg_temp.r('r3')), 1);
+select pg_temp.as_user('C');
+select pg_temp.expect_denied('el plazo no puede ser pasado', format($q$select public.kiru_request_sc_review(%L,'estudios','otro','x','y', current_date - 1)$q$, pg_temp.log('s1-w2')));
+insert into rv values ('r5', public.kiru_request_sc_review(pg_temp.log('s1-w2'), 'estudios', 'otro', 'Con plazo', '¿Ejemplo?', current_date + 1));
+reset role;
+select pg_temp.expect('con plazo mañana, se recuerda hoy aunque sea nueva', (select count(*) from kiru_notifications where review_id = pg_temp.r('r5') and kind = 'justificacion_solicitada' and body like '%Plazo para responder%'), 1);
+select public.kiru_supervision_tarea_diaria();
+select pg_temp.expect('recordatorio por plazo una vez', (select count(*) from kiru_notifications where kind = 'justificacion_recordatorio' and review_id = pg_temp.r('r5')), 1);
 select pg_temp.expect('la recién creada no recuerda nada', (select count(*) from kiru_notifications where kind = 'justificacion_recordatorio' and review_id = pg_temp.r('r4')), 0);
 select pg_temp.as_user('M');
 select public.kiru_answer_sc_review(pg_temp.r('r3'), 'Trajo los deberes hechos toda la semana');
@@ -260,7 +267,7 @@ select pg_temp.expect_denied('un coordinador no corrige notas', format($q$select
 reset role;
 select pg_temp.as_user('A');
 select public.kiru_sc_review_correct(pg_temp.r('r1'), 6, 'Acordado tras la revisión');
-select pg_temp.expect('administración ve todas las revisiones', (select count(*) from kiru_skillcoin_reviews), 4);
+select pg_temp.expect('administración ve todas las revisiones', (select count(*) from kiru_skillcoin_reviews), 5);
 reset role;
 select pg_temp.expect_text('la corrección queda enlazada y guarda la nota anterior', (
   select organizacion||'/'||(previous->>'organizacion')||'/'||(review_id = pg_temp.r('r1'))::text from kiru_skillcoin_corrections where student_id = pg_temp.i('S1')), '6/10/true');

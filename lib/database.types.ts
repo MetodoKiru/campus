@@ -301,6 +301,7 @@ export type SkillcoinCorrectionRow = {
   reason: string;
   corrected_by: string | null;
   corrected_role: "mentor" | "admin";
+  review_id?: string | null;
   created_at: string;
 };
 
@@ -415,6 +416,18 @@ export type MethodologyWarningRow = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Historial de supervisión (solo coordinación y administración lo leen). */
+export type SupervisionEventRow = {
+  id: string;
+  review_id: string | null;
+  warning_id: string | null;
+  mentor_id: string;
+  actor_id: string | null;
+  action: string;
+  detail: Json;
+  created_at: string;
 };
 
 /** Solo se escriben con funciones (RLS sin INSERT/UPDATE/DELETE): estos tipos son de lectura. */
@@ -711,6 +724,7 @@ export type Database = {
       kiru_skillcoin_review_messages: ReadOnlyTable<SkillcoinReviewMessageRow>;
       kiru_skillcoin_review_files: ReadOnlyTable<SkillcoinReviewFileRow>;
       kiru_methodology_warnings: ReadOnlyTable<MethodologyWarningRow>;
+      kiru_supervision_events: ReadOnlyTable<SupervisionEventRow>;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {
