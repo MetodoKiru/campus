@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { ClassSessionRow, Json } from "@/lib/database.types";
 import {
   NOTICE_HOURS, parseOption, parseOptions,
-  type FamilyClassesData, type StaffClass, type StaffClassesData, type StaffRequest,
+  type FamilyClassesData, type StaffClass, type StaffClassesData, type StaffRequest, type UnavailableSlot,
 } from "@/lib/classes";
 import { cleanOptions, DAY_RE, optionalIndex, rpcError, text, userClient } from "@/lib/server/classes";
 import { requireStaff, UUID_RE } from "@/lib/server/require-staff";
@@ -13,6 +13,13 @@ const OPEN_RECOVERY = ["pendiente", "propuesta", "sin_encaje", "programada"] as 
 const OPEN_REQUEST = ["pendiente", "mas_info", "contrapropuesta"] as const;
 const PAST_DAYS = 28;
 const AHEAD_DAYS = 35;
+
+const hhmm = (t: string) => t.slice(0, 5);
+type UnavailableRow = { student_id: string; weekday: number; start_time: string; end_time: string };
+const toSlots = (rows: UnavailableRow[] | null): UnavailableSlot[] =>
+  (rows ?? []).map((u) => ({ studentId: u.student_id, weekday: u.weekday, start: hhmm(u.start_time), end: hhmm(u.end_time) }))
+    .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
+const UNAVAILABLE_COLS = "student_id,weekday,start_time,end_time";
 
 const dayOffset = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -31,15 +38,16 @@ export async function GET(request: Request) {
   const until = dayOffset(AHEAD_DAYS);
 
   if (auth.role === "padre") {
-    const [links, sessions, requests, periods] = await Promise.all([
+    const [links, sessions, requests, periods, unavailable] = await Promise.all([
       db.from("student_guardians").select("student_id").eq("guardian_id", auth.user.id),
       db.from("kiru_family_classes").select("*").gte("scheduled_start", from).lte("scheduled_start", until).order("scheduled_start").limit(500),
       db.from("kiru_family_class_requests").select("*").order("created_at", { ascending: false }).limit(200),
       db.from("kiru_period_session_summary").select("*").order("coverage_start", { ascending: false }).limit(24),
+      db.from("kiru_family_unavailability").select(UNAVAILABLE_COLS).is("removed_at", null),
     ]);
     // Recuperaciones abiertas de clases más antiguas que la ventana.
     const older = await db.from("kiru_family_classes").select("*").lt("scheduled_start", from).in("recovery", [...OPEN_RECOVERY]).limit(100);
-    if (links.error || sessions.error || requests.error || periods.error || older.error) {
+    if (links.error || sessions.error || requests.error || periods.error || older.error || unavailable.error) {
       return NextResponse.json({ error: "No se pudieron cargar las clases." }, { status: 500 });
     }
     const ids = (links.data ?? []).map((l) => l.student_id);
@@ -47,6 +55,7 @@ export async function GET(request: Request) {
     const data: FamilyClassesData = {
       role: "padre",
       noticeHours: NOTICE_HOURS,
+      unavailable: toSlots(unavailable.data),
       students: (names.data ?? []).map((p) => ({ id: p.id, name: p.full_name })),
       sessions: [...(older.data ?? []), ...(sessions.data ?? [])].map((s) => ({
         id: s.id, studentId: s.student_id, kind: s.kind, recoversSessionId: s.recovers_session_id,
@@ -72,14 +81,15 @@ export async function GET(request: Request) {
   }
 
   const cols = "id,student_id,mentor_id,kind,recovers_session_id,original_start,scheduled_start,scheduled_end,delivery,consumption,recovery,cancel_cause,cancel_note,recovery_status_since,recovery_exception_note,delivered_by";
-  const [windowed, openRecoveries, requests, unlinked, noClass] = await Promise.all([
+  const [windowed, openRecoveries, requests, unlinked, noClass, unavailable] = await Promise.all([
     db.from("kiru_class_sessions").select(cols).gte("scheduled_start", from).lte("scheduled_start", until).neq("delivery", "anulada").order("scheduled_start").limit(2000),
     db.from("kiru_class_sessions").select(cols).in("recovery", [...OPEN_RECOVERY]).lt("scheduled_start", from).limit(500),
     db.from("kiru_class_requests").select("*").or(`status.in.(${OPEN_REQUEST.join(",")}),created_at.gte.${from}`).order("created_at", { ascending: false }).limit(1000),
     db.from("kiru_unlinked_session_logs").select("*").gte("session_date", from).order("session_date", { ascending: false }).limit(300),
     db.from("kiru_no_class_days").select("day,reason").eq("is_active", true).gte("day", from).order("day"),
+    db.from("kiru_family_unavailability").select(UNAVAILABLE_COLS).is("removed_at", null).limit(2000),
   ]);
-  if (windowed.error || openRecoveries.error || requests.error || unlinked.error || noClass.error) {
+  if (windowed.error || openRecoveries.error || requests.error || unlinked.error || noClass.error || unavailable.error) {
     return NextResponse.json({ error: "No se pudieron cargar las clases." }, { status: 500 });
   }
   const rows = [...(openRecoveries.data ?? []), ...(windowed.data ?? [])] as Pick<ClassSessionRow, keyof ClassSessionRow>[];
@@ -122,6 +132,7 @@ export async function GET(request: Request) {
       mentorId: l.mentor_id, mentorName: l.mentor_name, probableDuplicate: l.probable_duplicate,
     })),
     noClassDays: (noClass.data ?? []).map((d) => ({ day: d.day, reason: d.reason })),
+    unavailable: toSlots(unavailable.data),
   };
   return NextResponse.json(data);
 }
@@ -144,6 +155,7 @@ const ACTIONS: Record<string, Role[]> = {
   gestionar_aviso: STAFF,
   revisar_incidencia: STAFF,
   dia_sin_clase: ["admin"],
+  no_disponible: ["padre", "admin"],
 };
 
 const bad = (message: string) => NextResponse.json({ error: message }, { status: 400 });
@@ -263,6 +275,22 @@ export async function POST(request: Request) {
       const day = text(body.day, 10);
       if (!DAY_RE.test(day)) return bad("Indica el día.");
       call = admin.rpc("kiru_dias_sin_clase_guardar", { p_actor: user.id, p_day: day, p_reason: text(body.reason, 200), p_active: body.active !== false });
+      break;
+    }
+    case "no_disponible": {
+      const student = id("studentId");
+      const raw = Array.isArray(body.slots) ? body.slots.slice(0, 15) : null;
+      if (!student || !raw || raw.length > 14) return bad("Faltan datos.");
+      const slots = raw.flatMap((x) => {
+        const o = x as Record<string, unknown>;
+        const weekday = Number(o?.weekday);
+        const start = text(o?.start, 5);
+        const end = text(o?.end, 5);
+        return Number.isInteger(weekday) && weekday >= 1 && weekday <= 7 && /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && end > start
+          ? [{ weekday, start, end }] : [];
+      });
+      if (slots.length !== raw.length) return bad("Revisa las horas: la de fin tiene que ser posterior a la de inicio.");
+      call = admin.rpc("kiru_familia_no_disponible_guardar", { p_actor: user.id, p_student: student, p_slots: slots });
       break;
     }
     default:

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { CalendarClock, RotateCcw, Send } from "lucide-react";
 import {
   CAUSE_LABEL, NOTICE_HOURS, REASON_CODE_LABEL, REQUEST_STATUS_LABEL, classDateLabel, hoursUntil,
-  type StaffClass, type StaffClassesData, type StaffRequest,
+  type StaffClass, type StaffClassesData, type StaffRequest, type UnavailableSlot,
   mentorProposalProblems,
 } from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
@@ -82,7 +82,7 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
                 );
               })()}
               {open === `rec:${s.id}`
-                ? <ProposeForm session={s} onCancel={() => setOpen(null)} onDone={done} />
+                ? <ProposeForm session={s} blocked={data.unavailable.filter((u) => u.studentId === s.studentId)} onCancel={() => setOpen(null)} onDone={done} />
                 : <button type="button" className={btnLight} onClick={() => setOpen(`rec:${s.id}`)}>{s.recovery === "propuesta" ? "Proponer otras fechas" : "Proponer fechas"}</button>}
             </div>
           ))}
@@ -101,7 +101,7 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
                   ? <Badge tone="warn">{REQUEST_STATUS_LABEL[pending.status]}</Badge>
                   : open !== `ges:${s.id}` && <button type="button" className={btnLight} onClick={() => setOpen(`ges:${s.id}`)}>Gestionar</button>}
               </div>
-              {open === `ges:${s.id}` && <RequestForm session={s} onCancel={() => setOpen(null)} onDone={done} />}
+              {open === `ges:${s.id}` && <RequestForm session={s} blocked={data.unavailable.filter((u) => u.studentId === s.studentId)} onCancel={() => setOpen(null)} onDone={done} />}
             </div>
           );
         })}
@@ -140,7 +140,7 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
   );
 }
 
-function RequestForm({ session, onCancel, onDone }: { session: StaffClass; onCancel: () => void; onDone: (m: string | null, ok: string) => void }) {
+function RequestForm({ session, blocked, onCancel, onDone }: { session: StaffClass; blocked: UnavailableSlot[]; onCancel: () => void; onDone: (m: string | null, ok: string) => void }) {
   const [kind, setKind] = useState<"cambio" | "cancelacion">("cambio");
   const [reason, setReason] = useState("");
   const [options, setOptions] = useState<ClassOption[]>([]);
@@ -165,17 +165,17 @@ function RequestForm({ session, onCancel, onDone }: { session: StaffClass; onCan
       )}
       {kind === "cancelacion" && <p className="text-[11px] text-[#77736B]">Si se aprueba, la familia conserva la sesión y tendrás que proponer fechas para recuperarla.</p>}
       <textarea className={input} rows={2} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} />
-      {kind === "cambio" && <OptionsEditor value={options} onChange={setOptions} realistic />}
+      {kind === "cambio" && <OptionsEditor value={options} onChange={setOptions} realistic blocked={blocked} />}
       <div className="flex gap-2">
-        <button type="button" className={btnDark} disabled={busy || reason.trim().length < 3 || (kind === "cambio" && mentorProposalProblems(options).length > 0)} onClick={submit}><Send className="mr-1 inline h-3 w-3" />Enviar</button>
+        <button type="button" className={btnDark} disabled={busy || reason.trim().length < 3 || (kind === "cambio" && mentorProposalProblems(options, undefined, blocked).length > 0)} onClick={submit}><Send className="mr-1 inline h-3 w-3" />Enviar</button>
         <button type="button" className={btnLight} onClick={onCancel}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-export function ProposeForm({ session, onCancel, onDone, realistic = true }: {
-  session: StaffClass; onCancel: () => void; onDone: (m: string | null, ok: string) => void;
+export function ProposeForm({ session, blocked = [], onCancel, onDone, realistic = true }: {
+  session: StaffClass; blocked?: UnavailableSlot[]; onCancel: () => void; onDone: (m: string | null, ok: string) => void;
   /** El mentor solo puede proponer fechas realistas; coordinación no tiene ese límite. */
   realistic?: boolean;
 }) {
@@ -186,10 +186,10 @@ export function ProposeForm({ session, onCancel, onDone, realistic = true }: {
   return (
     <div className="space-y-2 border-t border-[#E7E3DC] pt-2">
       <p className="text-[11px] text-[#77736B]">Propón varias fechas libres. La familia elige una y el campus comprueba que el hueco sigue libre antes de confirmarla.</p>
-      <OptionsEditor value={options} onChange={setOptions} defaultMinutes={minutes} realistic={realistic} />
+      <OptionsEditor value={options} onChange={setOptions} defaultMinutes={minutes} realistic={realistic} blocked={blocked} />
       <input className={input} placeholder="Nota para la familia (opcional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
       <div className="flex gap-2">
-        <button type="button" className={btnDark} disabled={busy || !options.length || (realistic && mentorProposalProblems(options).length > 0)}
+        <button type="button" className={btnDark} disabled={busy || !options.length || (realistic && mentorProposalProblems(options, undefined, blocked).length > 0)}
           onClick={async () => { setBusy(true); const m = await classAction({ action: "proponer_recuperacion", sessionId: session.id, options, note }); setBusy(false); onDone(m, "Fechas enviadas a la familia."); }}>
           Enviar a la familia
         </button>

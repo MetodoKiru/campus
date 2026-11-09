@@ -563,6 +563,18 @@ export type ClassEventRow = {
   created_at: string;
 };
 
+export type FamilyUnavailabilityRow = {
+  id: string;
+  student_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  created_by: string | null;
+  created_at: string;
+  removed_at: string | null;
+  removed_by: string | null;
+};
+
 export type NoClassDayRow = {
   id: string;
   day: string;
@@ -768,6 +780,7 @@ export type Database = {
       kiru_class_requests: Table<ClassRequestRow, Timestamps | "id" | "session_id" | "session_log_id" | "student_id" | "reason" | "reason_code" | "details" | "preferences" | "options" | "hours_notice" | "late" | "status" | "chosen_option" | "decided_by" | "decided_at" | "decision_note" | "reply" | "incident" | "incident_note" | "incident_reviewed_by" | "incident_reviewed_at">;
       kiru_class_events: Table<ClassEventRow, "id" | "session_id" | "request_id" | "actor_id" | "detail" | "created_at">;
       kiru_no_class_days: Table<NoClassDayRow, Timestamps | "id" | "is_active" | "created_by" | "cancelled_by" | "cancelled_at">;
+      kiru_family_unavailability: Table<FamilyUnavailabilityRow, "id" | "created_at" | "created_by" | "removed_at" | "removed_by">;
       kiru_skillcoin_reviews: ReadOnlyTable<SkillcoinReviewRow>;
       kiru_skillcoin_review_messages: ReadOnlyTable<SkillcoinReviewMessageRow>;
       kiru_skillcoin_review_files: ReadOnlyTable<SkillcoinReviewFileRow>;
@@ -835,6 +848,7 @@ type ClassFunctions = {
   kiru_registros_gestionar_aviso: { Args: { p_actor: string; p_request: string; p_action: string; p_note?: string; p_session?: string }; Returns: Json };
   kiru_registros_responder_aviso: { Args: { p_actor: string; p_request: string; p_reply: string }; Returns: Json };
   kiru_incidencias_revisar: { Args: { p_actor: string; p_request: string; p_verdict: string; p_note?: string }; Returns: Json };
+  kiru_familia_no_disponible_guardar: { Args: { p_actor: string; p_student: string; p_slots: Json }; Returns: Json };
   kiru_dias_sin_clase_guardar: { Args: { p_actor: string; p_day: string; p_reason: string; p_active?: boolean }; Returns: Json };
   kiru_familias_estado: { Args: { p_rows: Json }; Returns: Json };
   kiru_clases_tarea_diaria: { Args: Record<string, never>; Returns: Json };
