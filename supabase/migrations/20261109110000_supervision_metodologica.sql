@@ -99,7 +99,7 @@ $$;
 REVOKE ALL ON FUNCTION kiru_private.competencia_label(text) FROM PUBLIC;
 
 -- 2. Solicitudes de justificación --------------------------------------------------
-CREATE TABLE public.kiru_skillcoin_reviews (
+CREATE TABLE IF NOT EXISTS public.kiru_skillcoin_reviews (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   -- Mentor que puso la nota (el del registro de sesión).
@@ -137,24 +137,25 @@ CREATE TABLE public.kiru_skillcoin_reviews (
   CHECK ((status = 'cerrada') = (resolved_at IS NOT NULL))
 );
 -- Una sola revisión abierta por nota.
-CREATE UNIQUE INDEX kiru_skillcoin_reviews_open_uidx
+CREATE UNIQUE INDEX IF NOT EXISTS kiru_skillcoin_reviews_open_uidx
   ON public.kiru_skillcoin_reviews (student_id, week, competencia) WHERE status <> 'cerrada';
-CREATE INDEX kiru_skillcoin_reviews_mentor_idx ON public.kiru_skillcoin_reviews (mentor_id, created_at DESC);
-CREATE INDEX kiru_skillcoin_reviews_student_idx ON public.kiru_skillcoin_reviews (student_id, week);
-CREATE INDEX kiru_skillcoin_reviews_status_idx ON public.kiru_skillcoin_reviews (status, status_since);
-CREATE INDEX kiru_skillcoin_reviews_log_idx ON public.kiru_skillcoin_reviews (session_log_id);
-CREATE INDEX kiru_skillcoin_reviews_requested_by_idx ON public.kiru_skillcoin_reviews (requested_by);
-CREATE INDEX kiru_skillcoin_reviews_resolved_by_idx ON public.kiru_skillcoin_reviews (resolved_by);
-CREATE INDEX kiru_skillcoin_reviews_assessment_by_idx ON public.kiru_skillcoin_reviews (assessment_started_by);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_mentor_idx ON public.kiru_skillcoin_reviews (mentor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_student_idx ON public.kiru_skillcoin_reviews (student_id, week);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_status_idx ON public.kiru_skillcoin_reviews (status, status_since);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_log_idx ON public.kiru_skillcoin_reviews (session_log_id);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_requested_by_idx ON public.kiru_skillcoin_reviews (requested_by);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_resolved_by_idx ON public.kiru_skillcoin_reviews (resolved_by);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_reviews_assessment_by_idx ON public.kiru_skillcoin_reviews (assessment_started_by);
 COMMENT ON TABLE public.kiru_skillcoin_reviews IS
   'Solicitudes de justificación de una nota de SkillCoins. Nunca cambian la nota. Solo se escriben con las funciones kiru_*_sc_review*; no se borran.';
 
+DROP TRIGGER IF EXISTS kiru_skillcoin_reviews_touch ON public.kiru_skillcoin_reviews;
 CREATE TRIGGER kiru_skillcoin_reviews_touch
 BEFORE UPDATE ON public.kiru_skillcoin_reviews
 FOR EACH ROW EXECUTE FUNCTION kiru_private.touch_updated_at();
 
 -- 3. Mensajes (respuestas y repreguntas): solo se añaden ---------------------------
-CREATE TABLE public.kiru_skillcoin_review_messages (
+CREATE TABLE IF NOT EXISTS public.kiru_skillcoin_review_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   review_id uuid NOT NULL REFERENCES public.kiru_skillcoin_reviews(id) ON DELETE RESTRICT,
   round integer NOT NULL,
@@ -166,12 +167,12 @@ CREATE TABLE public.kiru_skillcoin_review_messages (
   criteria text NOT NULL DEFAULT '' CHECK (length(criteria) <= 2000),
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX kiru_skillcoin_review_messages_review_idx ON public.kiru_skillcoin_review_messages (review_id, created_at);
-CREATE INDEX kiru_skillcoin_review_messages_author_idx ON public.kiru_skillcoin_review_messages (author_id);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_review_messages_review_idx ON public.kiru_skillcoin_review_messages (review_id, created_at);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_review_messages_author_idx ON public.kiru_skillcoin_review_messages (author_id);
 COMMENT ON TABLE public.kiru_skillcoin_review_messages IS 'Respuestas del mentor y repreguntas de coordinación. No se editan ni se borran.';
 
 -- 4. Adjuntos (evidencias): solo se añaden ------------------------------------------
-CREATE TABLE public.kiru_skillcoin_review_files (
+CREATE TABLE IF NOT EXISTS public.kiru_skillcoin_review_files (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   review_id uuid NOT NULL REFERENCES public.kiru_skillcoin_reviews(id) ON DELETE RESTRICT,
   message_id uuid NOT NULL REFERENCES public.kiru_skillcoin_review_messages(id) ON DELETE RESTRICT,
@@ -184,14 +185,14 @@ CREATE TABLE public.kiru_skillcoin_review_files (
   uploaded_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX kiru_skillcoin_review_files_review_idx ON public.kiru_skillcoin_review_files (review_id);
-CREATE INDEX kiru_skillcoin_review_files_message_idx ON public.kiru_skillcoin_review_files (message_id);
-CREATE INDEX kiru_skillcoin_review_files_uploaded_by_idx ON public.kiru_skillcoin_review_files (uploaded_by);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_review_files_review_idx ON public.kiru_skillcoin_review_files (review_id);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_review_files_message_idx ON public.kiru_skillcoin_review_files (message_id);
+CREATE INDEX IF NOT EXISTS kiru_skillcoin_review_files_uploaded_by_idx ON public.kiru_skillcoin_review_files (uploaded_by);
 COMMENT ON TABLE public.kiru_skillcoin_review_files IS
   'Evidencias adjuntas (fotos del cuaderno, ejercicios, PDF). Datos de menores: solo las ven el mentor, su coordinador y administración.';
 
 -- 5. Avisos metodológicos -------------------------------------------------------------
-CREATE TABLE public.kiru_methodology_warnings (
+CREATE TABLE IF NOT EXISTS public.kiru_methodology_warnings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   mentor_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   review_id uuid REFERENCES public.kiru_skillcoin_reviews(id) ON DELETE RESTRICT,
@@ -229,19 +230,20 @@ CREATE TABLE public.kiru_methodology_warnings (
   CHECK ((status = 'resuelto') = (resolved_at IS NOT NULL))
 );
 -- Una revisión genera como mucho un aviso.
-CREATE UNIQUE INDEX kiru_methodology_warnings_review_uidx ON public.kiru_methodology_warnings (review_id) WHERE review_id IS NOT NULL;
-CREATE INDEX kiru_methodology_warnings_mentor_idx ON public.kiru_methodology_warnings (mentor_id, competencia, created_at DESC);
-CREATE INDEX kiru_methodology_warnings_created_by_idx ON public.kiru_methodology_warnings (created_by);
-CREATE INDEX kiru_methodology_warnings_resolved_by_idx ON public.kiru_methodology_warnings (resolved_by);
+CREATE UNIQUE INDEX IF NOT EXISTS kiru_methodology_warnings_review_uidx ON public.kiru_methodology_warnings (review_id) WHERE review_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS kiru_methodology_warnings_mentor_idx ON public.kiru_methodology_warnings (mentor_id, competencia, created_at DESC);
+CREATE INDEX IF NOT EXISTS kiru_methodology_warnings_created_by_idx ON public.kiru_methodology_warnings (created_by);
+CREATE INDEX IF NOT EXISTS kiru_methodology_warnings_resolved_by_idx ON public.kiru_methodology_warnings (resolved_by);
 COMMENT ON TABLE public.kiru_methodology_warnings IS
   'Avisos metodológicos por mentor. No conllevan sanciones automáticas. No se borran: los que tienen más de 6 meses dejan de contar para el nivel pero siguen en el historial.';
 
+DROP TRIGGER IF EXISTS kiru_methodology_warnings_touch ON public.kiru_methodology_warnings;
 CREATE TRIGGER kiru_methodology_warnings_touch
 BEFORE UPDATE ON public.kiru_methodology_warnings
 FOR EACH ROW EXECUTE FUNCTION kiru_private.touch_updated_at();
 
 -- 6. Historial de auditoría -----------------------------------------------------------
-CREATE TABLE public.kiru_supervision_events (
+CREATE TABLE IF NOT EXISTS public.kiru_supervision_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   review_id uuid REFERENCES public.kiru_skillcoin_reviews(id) ON DELETE RESTRICT,
   warning_id uuid REFERENCES public.kiru_methodology_warnings(id) ON DELETE RESTRICT,
@@ -252,10 +254,10 @@ CREATE TABLE public.kiru_supervision_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (review_id IS NOT NULL OR warning_id IS NOT NULL)
 );
-CREATE INDEX kiru_supervision_events_review_idx ON public.kiru_supervision_events (review_id, created_at);
-CREATE INDEX kiru_supervision_events_warning_idx ON public.kiru_supervision_events (warning_id, created_at);
-CREATE INDEX kiru_supervision_events_mentor_idx ON public.kiru_supervision_events (mentor_id, created_at DESC);
-CREATE INDEX kiru_supervision_events_actor_idx ON public.kiru_supervision_events (actor_id);
+CREATE INDEX IF NOT EXISTS kiru_supervision_events_review_idx ON public.kiru_supervision_events (review_id, created_at);
+CREATE INDEX IF NOT EXISTS kiru_supervision_events_warning_idx ON public.kiru_supervision_events (warning_id, created_at);
+CREATE INDEX IF NOT EXISTS kiru_supervision_events_mentor_idx ON public.kiru_supervision_events (mentor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS kiru_supervision_events_actor_idx ON public.kiru_supervision_events (actor_id);
 COMMENT ON TABLE public.kiru_supervision_events IS 'Historial de supervisión: quién hizo qué y cuándo. No se edita ni se borra.';
 
 -- Mensajes, adjuntos e historial no se modifican ni se borran nunca; revisiones y
@@ -270,14 +272,19 @@ BEGIN
 END
 $$;
 REVOKE ALL ON FUNCTION kiru_private.supervision_append_only() FROM PUBLIC;
+DROP TRIGGER IF EXISTS kiru_skillcoin_review_messages_append_only ON public.kiru_skillcoin_review_messages;
 CREATE TRIGGER kiru_skillcoin_review_messages_append_only BEFORE UPDATE OR DELETE ON public.kiru_skillcoin_review_messages
 FOR EACH ROW EXECUTE FUNCTION kiru_private.supervision_append_only();
+DROP TRIGGER IF EXISTS kiru_skillcoin_review_files_append_only ON public.kiru_skillcoin_review_files;
 CREATE TRIGGER kiru_skillcoin_review_files_append_only BEFORE UPDATE OR DELETE ON public.kiru_skillcoin_review_files
 FOR EACH ROW EXECUTE FUNCTION kiru_private.supervision_append_only();
+DROP TRIGGER IF EXISTS kiru_supervision_events_append_only ON public.kiru_supervision_events;
 CREATE TRIGGER kiru_supervision_events_append_only BEFORE UPDATE OR DELETE ON public.kiru_supervision_events
 FOR EACH ROW EXECUTE FUNCTION kiru_private.supervision_append_only();
+DROP TRIGGER IF EXISTS kiru_skillcoin_reviews_no_delete ON public.kiru_skillcoin_reviews;
 CREATE TRIGGER kiru_skillcoin_reviews_no_delete BEFORE DELETE ON public.kiru_skillcoin_reviews
 FOR EACH ROW EXECUTE FUNCTION kiru_private.supervision_append_only();
+DROP TRIGGER IF EXISTS kiru_methodology_warnings_no_delete ON public.kiru_methodology_warnings;
 CREATE TRIGGER kiru_methodology_warnings_no_delete BEFORE DELETE ON public.kiru_methodology_warnings
 FOR EACH ROW EXECUTE FUNCTION kiru_private.supervision_append_only();
 
@@ -331,17 +338,22 @@ $$;
 REVOKE ALL ON FUNCTION kiru_private.can_see_review(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION kiru_private.can_see_review(uuid) TO authenticated;
 
+DROP POLICY IF EXISTS kiru_skillcoin_reviews_read ON public.kiru_skillcoin_reviews;
 CREATE POLICY kiru_skillcoin_reviews_read ON public.kiru_skillcoin_reviews
 FOR SELECT TO authenticated
 USING (mentor_id = (SELECT kiru_private.active_uid()) OR (SELECT kiru_private.is_admin()) OR kiru_private.coordinates_mentor(mentor_id));
+DROP POLICY IF EXISTS kiru_skillcoin_review_messages_read ON public.kiru_skillcoin_review_messages;
 CREATE POLICY kiru_skillcoin_review_messages_read ON public.kiru_skillcoin_review_messages
 FOR SELECT TO authenticated USING (kiru_private.can_see_review(review_id));
+DROP POLICY IF EXISTS kiru_skillcoin_review_files_read ON public.kiru_skillcoin_review_files;
 CREATE POLICY kiru_skillcoin_review_files_read ON public.kiru_skillcoin_review_files
 FOR SELECT TO authenticated USING (kiru_private.can_see_review(review_id));
+DROP POLICY IF EXISTS kiru_methodology_warnings_read ON public.kiru_methodology_warnings;
 CREATE POLICY kiru_methodology_warnings_read ON public.kiru_methodology_warnings
 FOR SELECT TO authenticated
 USING (mentor_id = (SELECT kiru_private.active_uid()) OR (SELECT kiru_private.is_admin()) OR kiru_private.coordinates_mentor(mentor_id));
 -- El historial completo es de coordinación y administración.
+DROP POLICY IF EXISTS kiru_supervision_events_read ON public.kiru_supervision_events;
 CREATE POLICY kiru_supervision_events_read ON public.kiru_supervision_events
 FOR SELECT TO authenticated
 USING ((SELECT kiru_private.is_admin()) OR kiru_private.coordinates_mentor(mentor_id));
