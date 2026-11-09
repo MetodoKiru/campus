@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CalendarClock, RotateCcw } from "lucide-react";
-import { REQUEST_STATUS_LABEL, classDateLabel, hoursUntil, type FamilyClass, type FamilyClassesData, type FamilyRequest } from "@/lib/classes";
+import { REQUEST_STATUS_LABEL, classDateLabel, hoursUntil, mentorProposalProblems, type FamilyClass, type FamilyClassesData, type FamilyRequest } from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
 import { Badge, Empty, OptionsEditor, btnDark, btnLight, card, classAction, input, subtle, timeRange, useClasses } from "./shared";
 
@@ -41,7 +41,8 @@ export default function FamilyClasses({ studentId, notify }: { studentId: string
 
   const sessions = data.sessions.filter((s) => s.studentId === studentId);
   const requests = data.requests.filter((r) => r.studentId === studentId);
-  const proposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente");
+  const proposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole !== "padre");
+  const ourProposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole === "padre");
   const upcoming = sessions.filter((s) => s.delivery === "programada" && new Date(s.scheduledStart).getTime() > now).slice(0, 12);
   const past = sessions.filter((s) => s.kind === "regular" && new Date(s.originalStart).getTime() <= now || s.delivery === "no_impartida").slice(-12).reverse();
   const myRequests = requests.filter((r) => r.kind !== "propuesta_recuperacion" && (OPEN.includes(r.status) || hoursUntil(r.createdAt) > -14 * 24));
@@ -74,6 +75,22 @@ export default function FamilyClasses({ studentId, notify }: { studentId: string
         <div className="space-y-2">
           <h4 className="flex items-center gap-1.5 text-sm font-bold text-[#292825]"><RotateCcw className="h-4 w-4" /> Elegid la fecha de recuperación</h4>
           {proposals.map((r) => <ProposalCard key={r.id} request={r} session={sessions.find((s) => s.id === r.sessionId)} onDone={done} />)}
+        </div>
+      )}
+
+      {ourProposals.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="flex items-center gap-1.5 text-sm font-bold text-[#292825]"><RotateCcw className="h-4 w-4" /> Fechas que habéis propuesto</h4>
+          {ourProposals.map((r) => {
+            const s = sessions.find((x) => x.id === r.sessionId);
+            return (
+              <div key={r.id} className={`${subtle} space-y-1 text-xs`}>
+                <p>Para recuperar la clase del <span className="capitalize">{s ? classDateLabel(s.originalStart) : ""}</span>:</p>
+                <ul className="list-inside list-disc text-[11px] capitalize">{r.options.map((o) => <li key={o.start}>{timeRange(o)}</li>)}</ul>
+                <p className="text-[11px] text-[#77736B]">Esperando a que el mentor acepte una o proponga otras. Os llegará un correo.</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -165,6 +182,8 @@ function FamilyRequestForm({ session, hours, onCancel, onDone }: { session: Fami
 function ProposalCard({ request: r, session, onDone }: { request: FamilyRequest; session?: FamilyClass; onDone: (m: string | null, ok: string) => void }) {
   const [none, setNone] = useState(false);
   const [note, setNote] = useState("");
+  const [mine, setMine] = useState<ClassOption[]>([]);
+  const [busy, setBusy] = useState(false);
   return (
     <div className={`${subtle} space-y-2 text-xs`}>
       <p>Para recuperar la clase del <span className="capitalize">{session ? classDateLabel(session.originalStart) : ""}</span>:</p>
@@ -177,8 +196,13 @@ function ProposalCard({ request: r, session, onDone }: { request: FamilyRequest;
       </div>
       {none && (
         <div className="space-y-2">
-          <input className={input} placeholder="¿Qué días y horas os vendrían bien?" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
-          <button type="button" className={btnDark} onClick={() => classAction({ action: "elegir_recuperacion", requestId: r.id, option: null, note }).then((m) => onDone(m, "Avisado: coordinación buscará otras fechas."))}>Enviar</button>
+          <p className="text-[11px] text-[#77736B]">Decidnos qué días y horas os vienen bien. Se lo mandamos al mentor para que acepte una o proponga otras.</p>
+          <OptionsEditor value={mine} onChange={setMine} max={3} realistic family />
+          <input className={input} placeholder="Comentario (opcional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
+          <button type="button" className={btnDark} disabled={busy || mentorProposalProblems(mine, 1).length > 0}
+            onClick={async () => { setBusy(true); const m = await classAction({ action: "contraproponer_recuperacion", requestId: r.id, options: mine, note }); setBusy(false); onDone(m, "Enviado al mentor. Os llegará un correo con su respuesta."); }}>
+            Enviar al mentor
+          </button>
         </div>
       )}
     </div>

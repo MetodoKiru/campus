@@ -135,7 +135,8 @@ const ACTIONS: Record<string, Role[]> = {
   responder: ["mentor", "padre"],
   decidir: STAFF,
   proponer_recuperacion: ["mentor", ...STAFF],
-  elegir_recuperacion: ["padre", ...STAFF],
+  elegir_recuperacion: ["padre", "mentor", ...STAFF],
+  contraproponer_recuperacion: ["padre"],
   gestionar_recuperacion: STAFF,
   registrar_cancelacion: STAFF,
   avisar_registro: ["mentor"],
@@ -208,6 +209,13 @@ export async function POST(request: Request) {
       const option = optionalIndex(body.option);
       if (!req || option === undefined) return bad("Elige una fecha o indica que ninguna encaja.");
       call = admin.rpc("kiru_recuperaciones_elegir", { p_actor: user.id, p_request: req, p_option: option, p_note: note });
+      break;
+    }
+    case "contraproponer_recuperacion": {
+      const req = id("requestId");
+      const options = cleanOptions(body.options);
+      if (!req || !options || !(options as Json[]).length) return bad("Indica al menos una fecha que os venga bien.");
+      call = admin.rpc("kiru_recuperaciones_contraproponer", { p_actor: user.id, p_request: req, p_options: options, p_note: note });
       break;
     }
     case "gestionar_recuperacion": {

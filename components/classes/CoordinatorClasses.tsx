@@ -189,7 +189,7 @@ function RecoveryRow({ session: s, recovery, onDone }: { session: StaffClass; re
           <button type="button" className={btnLight} onClick={() => setMode(mode === "excepcion" ? "" : "excepcion")}>Excepción de plazo</button>
         </div>
       )}
-      {mode === "proponer" && <ProposeForm session={s} onCancel={() => setMode("")} onDone={(m, ok) => { setMode(""); void onDone(m, ok); }} />}
+      {mode === "proponer" && <ProposeForm session={s} realistic={false} onCancel={() => setMode("")} onDone={(m, ok) => { setMode(""); void onDone(m, ok); }} />}
       {mode === "excepcion" && (
         <div className="space-y-2">
           <input className={input} placeholder="Motivo y fecha acordada (después del fin del periodo)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />

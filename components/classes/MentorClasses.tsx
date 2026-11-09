@@ -5,6 +5,7 @@ import { CalendarClock, RotateCcw, Send } from "lucide-react";
 import {
   CAUSE_LABEL, NOTICE_HOURS, REASON_CODE_LABEL, REQUEST_STATUS_LABEL, classDateLabel, hoursUntil,
   type StaffClass, type StaffClassesData, type StaffRequest,
+  mentorProposalProblems,
 } from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
 import { Badge, Empty, OptionsEditor, btnDark, btnLight, card, classAction, input, subtle, timeRange, useClasses } from "./shared";
@@ -28,6 +29,7 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
   const noticedLogs = new Set(notices.map((n) => n.sessionLogId));
   const unlinked = (data?.unlinkedLogs ?? []).filter((l) => l.mentorId === data?.viewerId && !l.probableDuplicate);
   const openRequestFor = (id: string) => requests.find((r) => r.sessionId === id && OPEN.includes(r.status));
+  const familyProposal = (id: string) => requests.find((r) => r.sessionId === id && r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole === "padre");
 
   const done = async (message: string | null, ok: string) => {
     if (message) { notify(`No se pudo: ${message}`); return; }
@@ -56,11 +58,29 @@ export default function MentorClasses({ notify }: { notify: (text: string) => vo
             <div key={s.id} className={`${subtle} space-y-2`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span><strong>{s.studentName}</strong> · clase del {classDateLabel(s.originalStart)}</span>
-                <Badge tone={s.recovery === "propuesta" ? "neutral" : "warn"}>
-                  {s.recovery === "propuesta" ? "Esperando a la familia" : s.recovery === "sin_encaje" ? "Ninguna fecha encajó" : "Propón fechas"}
+                <Badge tone={s.recovery === "propuesta" && !familyProposal(s.id) ? "neutral" : "warn"}>
+                  {familyProposal(s.id) ? "La familia propone fechas" : s.recovery === "propuesta" ? "Esperando a la familia" : s.recovery === "sin_encaje" ? "Ninguna fecha encajó" : "Propón fechas"}
                 </Badge>
               </div>
               {s.cancelCause && <p className="text-[11px] text-[#77736B]">{CAUSE_LABEL[s.cancelCause]}</p>}
+              {(() => {
+                const fp = familyProposal(s.id);
+                if (!fp) return null;
+                return (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-[#45433F]">Ninguna de tus fechas les encajaba. Acepta una de las suyas o propón otras:</p>
+                    {fp.reason && <p className="text-[11px] text-[#77736B]">«{fp.reason}»</p>}
+                    <div className="flex flex-wrap gap-2">
+                      {fp.options.map((o, i) => (
+                        <button key={o.start} type="button" className={btnDark}
+                          onClick={() => classAction({ action: "elegir_recuperacion", requestId: fp.id, option: i }).then((m) => done(m, "Recuperación confirmada. La familia recibirá un correo."))}>
+                          Aceptar {timeRange(o)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {open === `rec:${s.id}`
                 ? <ProposeForm session={s} onCancel={() => setOpen(null)} onDone={done} />
                 : <button type="button" className={btnLight} onClick={() => setOpen(`rec:${s.id}`)}>{s.recovery === "propuesta" ? "Proponer otras fechas" : "Proponer fechas"}</button>}
@@ -145,16 +165,20 @@ function RequestForm({ session, onCancel, onDone }: { session: StaffClass; onCan
       )}
       {kind === "cancelacion" && <p className="text-[11px] text-[#77736B]">Si se aprueba, la familia conserva la sesión y tendrás que proponer fechas para recuperarla.</p>}
       <textarea className={input} rows={2} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} />
-      {kind === "cambio" && <OptionsEditor value={options} onChange={setOptions} />}
+      {kind === "cambio" && <OptionsEditor value={options} onChange={setOptions} realistic />}
       <div className="flex gap-2">
-        <button type="button" className={btnDark} disabled={busy || reason.trim().length < 3 || (kind === "cambio" && !options.length)} onClick={submit}><Send className="mr-1 inline h-3 w-3" />Enviar</button>
+        <button type="button" className={btnDark} disabled={busy || reason.trim().length < 3 || (kind === "cambio" && mentorProposalProblems(options).length > 0)} onClick={submit}><Send className="mr-1 inline h-3 w-3" />Enviar</button>
         <button type="button" className={btnLight} onClick={onCancel}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-export function ProposeForm({ session, onCancel, onDone }: { session: StaffClass; onCancel: () => void; onDone: (m: string | null, ok: string) => void }) {
+export function ProposeForm({ session, onCancel, onDone, realistic = true }: {
+  session: StaffClass; onCancel: () => void; onDone: (m: string | null, ok: string) => void;
+  /** El mentor solo puede proponer fechas realistas; coordinación no tiene ese límite. */
+  realistic?: boolean;
+}) {
   const [options, setOptions] = useState<ClassOption[]>([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -162,10 +186,10 @@ export function ProposeForm({ session, onCancel, onDone }: { session: StaffClass
   return (
     <div className="space-y-2 border-t border-[#E7E3DC] pt-2">
       <p className="text-[11px] text-[#77736B]">Propón varias fechas libres. La familia elige una y el campus comprueba que el hueco sigue libre antes de confirmarla.</p>
-      <OptionsEditor value={options} onChange={setOptions} defaultMinutes={minutes} />
+      <OptionsEditor value={options} onChange={setOptions} defaultMinutes={minutes} realistic={realistic} />
       <input className={input} placeholder="Nota para la familia (opcional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
       <div className="flex gap-2">
-        <button type="button" className={btnDark} disabled={busy || !options.length}
+        <button type="button" className={btnDark} disabled={busy || !options.length || (realistic && mentorProposalProblems(options).length > 0)}
           onClick={async () => { setBusy(true); const m = await classAction({ action: "proponer_recuperacion", sessionId: session.id, options, note }); setBusy(false); onDone(m, "Fechas enviadas a la familia."); }}>
           Enviar a la familia
         </button>

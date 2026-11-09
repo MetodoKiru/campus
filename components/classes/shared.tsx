@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { classDateLabel, madridToIso } from "@/lib/classes";
+import { MENTOR_PROPOSAL_RULES, classDateLabel, madridToIso, mentorProposalProblems } from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
 
 async function token(): Promise<string> {
@@ -69,10 +69,17 @@ export function timeRange(o: ClassOption): string {
 type Draft = { day: string; start: string; end: string };
 
 /** Editor de varias fechas propuestas (día + hora de inicio y fin, en hora de Madrid). */
-export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60 }: {
+export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60, realistic = false, family = false }: {
   value: ClassOption[]; onChange: (options: ClassOption[]) => void; max?: number; defaultMinutes?: number;
+  /** Fechas de un mentor: mínimo 3 en días distintos, sin viernes y terminando como tarde a las 20:30. */
+  realistic?: boolean;
+  /** Fechas de la familia: de 1 a 3, con el mismo límite de día y hora. */
+  family?: boolean;
 }) {
-  const [drafts, setDrafts] = useState<Draft[]>([{ day: "", start: "", end: "" }]);
+  const empty = { day: "", start: "", end: "" };
+  const minOptions = family ? 1 : MENTOR_PROPOSAL_RULES.minOptions;
+  const [drafts, setDrafts] = useState<Draft[]>(realistic && !family ? Array.from({ length: minOptions }, () => ({ ...empty })) : [{ ...empty }]);
+  const problems = realistic && value.length > 0 ? mentorProposalProblems(value, minOptions) : [];
   const update = (next: Draft[]) => {
     setDrafts(next);
     onChange(next.flatMap((d) => {
@@ -88,6 +95,14 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60 }:
   };
   return (
     <div className="space-y-2">
+      {realistic && (
+        <p className="rounded-lg bg-[#F3EFE6] p-2 text-[11px] text-[#45433F]">
+          {family
+            ? "Indicad hasta 3 días y horas que os vengan bien. "
+            : `Propón al menos ${MENTOR_PROPOSAL_RULES.minOptions} fechas, cada una en un día distinto y a horas que sepas que encajan a la familia. `}
+          No se pueden proponer viernes y la clase tiene que terminar como tarde a las {MENTOR_PROPOSAL_RULES.latestEnd}.
+        </p>
+      )}
       {drafts.map((d, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
           <input type="date" aria-label="Día" className={`${input} w-auto`} value={d.day}
@@ -97,7 +112,7 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60 }:
           <span className="text-xs text-[#77736B]">a</span>
           <input type="time" aria-label="Termina" className={`${input} w-auto`} value={d.end}
             onChange={(e) => update(drafts.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-          {drafts.length > 1 && (
+          {drafts.length > (realistic ? minOptions : 1) && (
             <button type="button" aria-label="Quitar fecha" className="p-1 text-[#8D887F] hover:text-[#292825]" onClick={() => update(drafts.filter((_, j) => j !== i))}>
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -109,6 +124,11 @@ export function OptionsEditor({ value, onChange, max = 5, defaultMinutes = 60 }:
           onClick={() => update([...drafts, { day: "", start: "", end: "" }])}>
           <Plus className="h-3.5 w-3.5" /> Añadir otra fecha
         </button>
+      )}
+      {problems.length > 0 && (
+        <ul className="space-y-0.5 text-[11px] text-orange-800">
+          {[...new Set(problems)].map((p) => <li key={p}>• {p}</li>)}
+        </ul>
       )}
       {value.length > 0 && <p className="text-[11px] text-[#77736B]">{value.length === 1 ? "1 fecha lista" : `${value.length} fechas listas`}. El campus comprueba al guardar que el hueco está libre.</p>}
     </div>
