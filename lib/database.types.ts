@@ -673,6 +673,7 @@ export type OnboardingExceptionRow = {
   id: string; mentor_id: string; reason: string; granted_by: string | null; granted_at: string;
   revoked_at: string | null; revoked_by: string | null; revoke_reason: string;
 };
+export type MentorSpecialtyRow = { email: string; specialties: string[]; hours: number; updated_at: string };
 export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
 export type CoordinationMeetingRow = {
   id: string; coordinator_id: string; scheduled_at: string; duration_minutes: number; zoom_url: string;
@@ -772,6 +773,7 @@ export type Database = {
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
       kiru_onboarding_exceptions: Table<OnboardingExceptionRow, "id" | "granted_by" | "granted_at" | "revoked_at" | "revoked_by" | "revoke_reason">;
       kiru_mentor_availability: Table<MentorAvailabilityRow, "days" | "slots" | "notes" | "updated_at">;
+      kiru_mentor_specialties: Table<MentorSpecialtyRow, "specialties" | "hours" | "updated_at">;
       kiru_coordination_meetings: Table<CoordinationMeetingRow, Timestamps | "id" | "duration_minutes" | "zoom_url" | "status" | "agenda" | "confirmed_at" | "held_at" | "cancelled_at" | "cancel_reason" | "report_sent_at" | "created_by">;
       kiru_opportunities: Table<OpportunityRow, Timestamps | "id" | "description" | "functions" | "requirements" | "dedication" | "modality" | "remuneration" | "remuneration_authorized" | "positions_count" | "deadline" | "status" | "published_at" | "closed_at" | "created_by" | "updated_by">;
       kiru_opportunity_applications: Table<OpportunityApplicationRow, "id" | "motivation" | "status" | "submitted_at" | "status_changed_at" | "status_changed_by">;
