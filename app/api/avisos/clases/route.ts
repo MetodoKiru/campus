@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const { data: pending, error } = await admin.from("kiru_notifications")
     .select("id,recipient_id,kind,title,body,review_id,warning_id")
     .eq("email_status", "pendiente")
-    .in("kind", [...CLASS_NOTIFICATION_KINDS, ...SUPERVISION_EMAIL_KINDS])
+    .in("kind", [...CLASS_NOTIFICATION_KINDS, ...SUPERVISION_EMAIL_KINDS, "periodo_especial"])
     .gt("created_at", since)
     .order("created_at")
     .limit(MAX_PER_CALL);
@@ -96,6 +96,7 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
   const supervision = (SUPERVISION_EMAIL_KINDS as string[]).includes(n.kind);
   // Administración supervisa desde el panel de coordinación.
   const url = new URL(supervision && role === "admin" ? "/coordinador" : PANEL[role], base);
+  if (n.kind === "periodo_especial") url.searchParams.set(role === "mentor" ? "seccion" : "tab", "vacaciones");
   if (supervision) {
     if (role === "mentor") {
       url.searchParams.set("seccion", "justificaciones");

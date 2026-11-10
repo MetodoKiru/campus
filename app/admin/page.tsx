@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import AdminNoClassDays from "@/components/classes/AdminNoClassDays";
 import AdminMentorPayouts from "@/components/mentor/AdminMentorPayouts";
+import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
 import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
@@ -133,7 +134,7 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion" | "dias-sin-clase" | "pagos-mentores">("usuarios");
+  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion" | "dias-sin-clase" | "pagos-mentores" | "periodos-especiales">("usuarios");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -675,6 +676,15 @@ export default function AdminPage() {
             <span>Días sin clase</span>
           </button>
           <button
+            onClick={() => setActiveTab("periodos-especiales")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
+              activeTab === "periodos-especiales" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <CalendarOff className="w-3.5 h-3.5" />
+            <span>Navidad y Semana Santa</span>
+          </button>
+          <button
             onClick={() => setActiveTab("pagos-mentores")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
               activeTab === "pagos-mentores" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
@@ -691,6 +701,7 @@ export default function AdminPage() {
         {activeTab === "crece" && <AdminOpportunities notify={notifyOffers} />}
         {activeTab === "dias-sin-clase" && <AdminNoClassDays notify={notifyOffers} />}
         {activeTab === "pagos-mentores" && <AdminMentorPayouts />}
+        {activeTab === "periodos-especiales" && <StaffSpecialPeriods notify={notifyOffers} />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}
         {activeTab === "usuarios" && (
