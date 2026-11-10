@@ -355,13 +355,18 @@ function PlanEditor({ student: s, sel, isAdmin, run, used }: { student: StaffStu
             <div key={b.start} className="flex flex-wrap items-center gap-2">
               <span>Del {shortDate(b.start)} al {shortDate(b.end)} · cuota {b.price != null ? euro(b.price) : "—"} · {b.kept} de {b.expected} sesiones</span>
               {b.suggested != null && anyRemoved && <span className="text-slate-500">· sugerencia proporcional {euro(b.suggested)}</span>}
+              {b.price != null && b.expected > 0 && (s.answer?.extraSessions ?? 0) > 0 && (
+                <span className="text-slate-500">· referencia por clase extra {euro(Math.round((b.price / b.expected) * 100) / 100)} (cuota ÷ {b.expected} previstas)</span>
+              )}
               <input className={`${input} w-28`} inputMode="decimal" value={amounts[b.start] ?? ""} onChange={(e) => setAmounts({ ...amounts, [b.start]: e.target.value.replace(",", ".") })} />
               <span>€</span>
             </div>
           ))}
           <p className="text-[11px] text-slate-500">
-            La sugerencia aplica la fórmula proporcional (cuota × sesiones que se mantienen ÷ previstas) solo por las clases que la familia quita con acuerdo previo; las
-            que Kiru no puede cubrir no restan, se recuperan. Nada se cobra solo: el importe que apruebes es el que llevará la renovación de esa mensualidad.
+            Reglas confirmadas por Sofía (10/11/2026): las sesiones previstas son las de la mensualidad de la familia, de fecha a fecha. La sugerencia es cuota × sesiones
+            que se mantienen ÷ previstas, y solo cuenta las clases que la familia quita con acuerdo previo. Las que Kiru no puede cubrir no restan: se recuperan, y si no se
+            pueden recuperar lo decide administración caso por caso. Una clase extra tiene como referencia cuota ÷ previstas. Nada se cobra solo: la renovación de esa
+            mensualidad espera a que apruebes el plan y lleva el importe que escribas aquí.
           </p>
         </div>
       )}
