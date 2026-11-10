@@ -314,7 +314,7 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial";
   title: string;
   body: string;
   event_key: string;
@@ -673,6 +673,29 @@ export type OnboardingExceptionRow = {
   id: string; mentor_id: string; reason: string; granted_by: string | null; granted_at: string;
   revoked_at: string | null; revoked_by: string | null; revoke_reason: string;
 };
+// Periodos especiales (migración 20261110160000). Solo servidor (service role).
+export type SpecialPeriodRow = {
+  id: string; name: string; kind: "navidad" | "semana_santa" | "verano" | "otro"; country: string; region: string;
+  starts_on: string; ends_on: string; form_opens_on: string; deadline_on: string; exceptions_until: string; closes_on: string;
+  zones: string[]; notes: string; is_active: boolean; created_by: string | null; created_at: string; updated_at: string;
+};
+export type SpecialPeriodFamilyRow = {
+  id: string; period_id: string; student_id: string; choices: Json; accepts_substitute: boolean; extra_sessions: number;
+  comments: string; late: boolean; answered_by: string | null; answered_at: string;
+};
+export type SpecialPeriodMentorRow = {
+  id: string; period_id: string; mentor_id: string | null; external_name: string; external_email: string; own_classes: Json;
+  wants_to_substitute: boolean; slots: Json; zones: string[]; max_sessions: number; comments: string;
+  answered_by: string | null; answered_at: string;
+};
+export type SpecialPeriodPlanRow = {
+  id: string; period_id: string; student_id: string; assignments: Json; amounts: Json; status: "borrador" | "propuesto" | "aprobado";
+  notes: string; revision: number; proposed_by: string | null; proposed_at: string | null; approved_by: string | null;
+  approved_at: string | null; updated_at: string;
+};
+export type SpecialPeriodLogRow = {
+  id: string; period_id: string | null; student_id: string | null; actor_id: string | null; action: string; details: Json; created_at: string;
+};
 export type MentorSpecialtyRow = { email: string; specialties: string[]; hours: number; updated_at: string };
 export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
 export type CoordinationMeetingRow = {
@@ -790,6 +813,11 @@ export type Database = {
       kiru_mentor_payouts: ReadOnlyTable<MentorPayoutRow>;
       kiru_mentor_payout_history: ReadOnlyTable<MentorPayoutHistoryRow>;
       kiru_supervision_events: ReadOnlyTable<SupervisionEventRow>;
+      kiru_special_periods: Table<SpecialPeriodRow, "id" | "kind" | "country" | "region" | "zones" | "notes" | "is_active" | "created_by" | "created_at" | "updated_at">;
+      kiru_special_period_family: Table<SpecialPeriodFamilyRow, "id" | "choices" | "accepts_substitute" | "extra_sessions" | "comments" | "late" | "answered_by" | "answered_at">;
+      kiru_special_period_mentors: Table<SpecialPeriodMentorRow, "id" | "mentor_id" | "external_name" | "external_email" | "own_classes" | "wants_to_substitute" | "slots" | "zones" | "max_sessions" | "comments" | "answered_by" | "answered_at">;
+      kiru_special_period_plans: Table<SpecialPeriodPlanRow, "id" | "assignments" | "amounts" | "status" | "notes" | "revision" | "proposed_by" | "proposed_at" | "approved_by" | "approved_at" | "updated_at">;
+      kiru_special_period_log: Table<SpecialPeriodLogRow, "id" | "period_id" | "student_id" | "actor_id" | "details" | "created_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {

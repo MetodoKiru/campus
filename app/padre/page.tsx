@@ -14,6 +14,7 @@ import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
+import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -500,6 +501,7 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
+              <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => void reloadRenewals()} />
               {childNeedsAnswer && (
                 <button

@@ -16,6 +16,7 @@ import CoordinatorClasses from "@/components/classes/CoordinatorClasses";
 import CoordinatorSupervision from "@/components/supervision/CoordinatorSupervision";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
+import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
 interface SessionLog {
@@ -60,7 +61,7 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision">("mentores");
+  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones">("mentores");
   // Enlaces de los correos: /coordinador?tab=supervision&revision=…
   const [linkedReview, setLinkedReview] = useState<string | null>(null);
   useEffect(() => {
@@ -283,6 +284,7 @@ export default function CoordinadorPage() {
             <TabButton active={tab === "supervision"} onClick={() => setTab("supervision")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Supervisión" />
             <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
+            <TabButton active={tab === "vacaciones"} onClick={() => setTab("vacaciones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Navidad y Semana Santa" />
             <TabButton active={tab === "reuniones"} onClick={() => setTab("reuniones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Reuniones de coordinación" />
             {!me.isAdmin && <TabButton active={tab === "crece"} onClick={() => setTab("crece")} icon={<Sprout className="w-3.5 h-3.5" />} label="Crece con Kiru" />}
             {me.isAdmin && <TabButton active={tab === "sin-asignar"} onClick={() => setTab("sin-asignar")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Sin asignar${unassigned.length ? ` (${unassigned.length})` : ""}`} />}
@@ -301,6 +303,7 @@ export default function CoordinadorPage() {
         {tab === "informes" && <CoordinatorReportsPanel />}
         {tab === "supervision" && me && <CoordinatorSupervision key={linkedReview ?? "supervision"} meId={me.id} isAdmin={me.isAdmin} people={people}
           coordinatorOf={coordinatorOf} initialReviewId={linkedReview} notify={notifyOffers} />}
+        {tab === "vacaciones" && <StaffSpecialPeriods notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}
         {tab === "crece" && !me.isAdmin && <CoordinatorRecommendations notify={notifyOffers} />}
 
