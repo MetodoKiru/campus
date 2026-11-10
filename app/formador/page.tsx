@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, GraduationCap, KeyRound, LogOut, UserPlus } from 
 import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import MentorStepsReview from "@/components/mentor/MentorStepsReview";
+import ActiveMentors from "@/components/formador/ActiveMentors";
 
 interface OnboardingMentor {
   id: string;
@@ -172,6 +173,8 @@ export default function FormadorPage() {
         </section>
 
         <MentorStepsReview api={api} notify={notify} />
+
+        <ActiveMentors api={api} />
 
         <section className="space-y-3">
           <h2 className="font-serif text-lg font-bold text-slate-900">Pendientes ({pending.length})</h2>
