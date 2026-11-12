@@ -704,7 +704,7 @@ export type EvaluationRow = {
   id: string; token: string; student_id: string; target: EvaluationTarget; cycle: number; mentor_id: string | null;
   anchor_on: string; due_on: string; original_due_on: string; status: EvaluationStatus;
   opened_at: string | null; opened_on: string | null; completed_at: string | null; completed_by: string | null;
-  completed_via: "formulario" | "manual" | "escaneo" | null; submission_id: string | null; answers: Json | null; late: boolean; steps: string[];
+  completed_via: "formulario" | "manual" | "escaneo" | null; submission_id: string | null; answers: Json | null; sheet_exported_at: string | null; late: boolean; steps: string[];
   academic_path: string | null; academic_name: string; academic_by: string | null; academic_status: AcademicStatus;
   academic_reviewed_by: string | null; academic_reviewed_at: string | null;
   scan_paths: string[]; scan_by: string | null; scan_at: string | null; given_by: string; note: string; moved_by: string | null;
@@ -836,7 +836,7 @@ export type Database = {
       kiru_special_period_mentors: Table<SpecialPeriodMentorRow, "id" | "mentor_id" | "external_name" | "external_email" | "own_classes" | "wants_to_substitute" | "slots" | "zones" | "max_sessions" | "comments" | "answered_by" | "answered_at">;
       kiru_special_period_plans: Table<SpecialPeriodPlanRow, "id" | "assignments" | "amounts" | "status" | "notes" | "revision" | "proposed_by" | "proposed_at" | "approved_by" | "approved_at" | "updated_at">;
       kiru_special_period_log: Table<SpecialPeriodLogRow, "id" | "period_id" | "student_id" | "actor_id" | "details" | "created_at">;
-      kiru_evaluations: Table<EvaluationRow, "id" | "token" | "mentor_id" | "status" | "opened_at" | "opened_on" | "completed_at" | "completed_by" | "completed_via" | "submission_id" | "answers" | "late" | "steps" | "academic_path" | "academic_name" | "academic_by" | "academic_status" | "academic_reviewed_by" | "academic_reviewed_at" | "scan_paths" | "scan_by" | "scan_at" | "given_by" | "note" | "moved_by" | "created_at" | "updated_at">;
+      kiru_evaluations: Table<EvaluationRow, "id" | "token" | "mentor_id" | "status" | "opened_at" | "opened_on" | "completed_at" | "completed_by" | "completed_via" | "submission_id" | "answers" | "sheet_exported_at" | "late" | "steps" | "academic_path" | "academic_name" | "academic_by" | "academic_status" | "academic_reviewed_by" | "academic_reviewed_at" | "scan_paths" | "scan_by" | "scan_at" | "given_by" | "note" | "moved_by" | "created_at" | "updated_at">;
       kiru_evaluation_students: Table<EvaluationStudentRow, "family_start_on" | "skip_initial" | "paused" | "updated_by" | "updated_at">;
       kiru_settings: Table<SettingRow, "updated_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;

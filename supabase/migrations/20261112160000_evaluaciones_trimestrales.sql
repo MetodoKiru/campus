@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS public.kiru_evaluations (
   submission_id text CHECK (submission_id IS NULL OR length(submission_id) <= 64),
   -- Copia de las respuestas que manda Jotform (además de Jotform y su hoja de Google).
   answers jsonb CHECK (answers IS NULL OR (jsonb_typeof(answers) = 'object' AND pg_column_size(answers) < 200000)),
+  -- Cuándo se copió la respuesta a la hoja de Google (lo hace el Apps Script).
+  sheet_exported_at timestamptz,
   late boolean NOT NULL DEFAULT false,
   -- Avisos ya creados para esta evaluación (abre, r1, r2, coord, elegir, imprimir, academica_falta).
   steps text[] NOT NULL DEFAULT '{}',

@@ -41,9 +41,11 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "No está configurado." }, { status: 503 });
   let raw: Record<string, unknown> = {};
   let submissionId = "";
+  let pretty = "";
   try {
     const form = await request.formData();
     submissionId = String(form.get("submissionID") ?? "").slice(0, 64);
+    pretty = String(form.get("pretty") ?? "").slice(0, 20000);
     const rawRequest = form.get("rawRequest");
     if (typeof rawRequest === "string") raw = JSON.parse(rawRequest);
     // Por si el campo llega suelto y no dentro de rawRequest.
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const { error } = await admin.from("kiru_evaluations").update({
     status: "completada", completed_at: now, completed_via: "formulario", submission_id: submissionId || null, late,
-    answers: cleanAnswers(raw) as Json,
+    answers: { ...cleanAnswers(raw), ...(pretty ? { _resumen: pretty } : {}) } as Json,
     updated_at: now,
   }).eq("id", e.id);
   if (error) return NextResponse.json({ ok: false }, { status: 500 });
