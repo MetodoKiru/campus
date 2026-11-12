@@ -149,7 +149,7 @@ export const CAUSE_LABEL: Record<ClassCancelCause, string> = {
 /** Los cinco puntos del seguimiento de recuperaciones del coordinador. */
 export const RECOVERY_STAGE: Partial<Record<ClassRecovery, string>> = {
   pendiente: "Pendiente de organizar",
-  propuesta: "Propuestas esperando a la familia",
+  propuesta: "Fechas propuestas, esperando respuesta",
   sin_encaje: "Ninguna fecha encaja",
   programada: "Confirmada, pendiente de hacer",
   realizada: "Realizada",
@@ -186,6 +186,20 @@ export function classDateLabel(iso: string, withTime = true): string {
 
 export function hoursUntil(iso: string, now = Date.now()): number {
   return (new Date(iso).getTime() - now) / 3_600_000;
+}
+
+/**
+ * Desde cuándo está una recuperación en su punto actual, en palabras: «desde hoy,
+ * 08:15», «desde ayer, 21:02» o «desde hace 4 días». Cuenta días de calendario
+ * en Madrid, no bloques de 24 h.
+ */
+export function sinceLabel(iso: string, now = Date.now()): string {
+  const day = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" });
+  const diff = Math.round((Date.parse(day(now)) - Date.parse(day(new Date(iso).getTime()))) / 86_400_000);
+  const time = new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
+  if (diff <= 0) return `desde hoy, ${time}`;
+  if (diff === 1) return `desde ayer, ${time}`;
+  return `desde hace ${diff} días`;
 }
 
 /** Días completos desde una fecha (para «lleva N días»). */

@@ -233,7 +233,7 @@ export async function POST(request: Request) {
     case "gestionar_recuperacion": {
       const session = id("sessionId");
       const what = text(body.manage, 30);
-      if (!session || !["recordar_mentor", "recordar_familia", "excepcion_plazo"].includes(what)) return bad("Faltan datos.");
+      if (!session || !["recordar_mentor", "recordar_familia", "pedir_otras_fechas", "excepcion_plazo"].includes(what)) return bad("Faltan datos.");
       call = admin.rpc("kiru_recuperaciones_gestionar", { p_actor: user.id, p_session: session, p_action: what, p_note: note });
       break;
     }

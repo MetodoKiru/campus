@@ -290,6 +290,15 @@ select pg_temp.expect_denied('también se aplica al pedir un cambio de clase', f
 insert into req select 'real_ok', (public.kiru_recuperaciones_proponer(pg_temp.i('M'), pg_temp.s('pronto_familia'),
   jsonb_build_array(pg_temp.wd(1,'19:30'), pg_temp.wd(3,'17:00'), pg_temp.wd(6,'11:00')))->>'id')::uuid;
 select pg_temp.expect('3 días distintos, sin viernes y acabando a las 20:30: se envía', (select jsonb_array_length(options) from kiru_class_requests where id = pg_temp.r('real_ok')), 3);
+-- Coordinación retira las fechas del mentor y le pide otras.
+select pg_temp.expect_denied('el mentor no retira sus fechas desde coordinación', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', 'x')$q$, pg_temp.i('M'), pg_temp.s('pronto_familia')));
+select pg_temp.expect_denied('otro coordinador no las retira', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', 'x')$q$, pg_temp.i('C2'), pg_temp.s('pronto_familia')));
+select public.kiru_recuperaciones_gestionar(pg_temp.i('C'), pg_temp.s('pronto_familia'), 'pedir_otras_fechas', 'Esas horas no le van a Álvaro');
+select pg_temp.expect('la propuesta del mentor queda retirada', (select count(*) from kiru_class_requests where id = pg_temp.r('real_ok') and status = 'retirada' and decision_note = 'Esas horas no le van a Álvaro'), 1);
+select pg_temp.expect('vuelve a «Pendiente de organizar»', (select count(*) from kiru_class_sessions where id = pg_temp.s('pronto_familia') and recovery = 'pendiente'), 1);
+select pg_temp.expect('al mentor le llega el aviso con la nota', (select count(*) from kiru_notifications where recipient_id = pg_temp.i('M') and request_id = pg_temp.r('real_ok') and body like '%Esas horas no le van%'), 1);
+select pg_temp.expect('la familia sabe que ya no tiene que elegir', (select count(*) from kiru_notifications where recipient_id = pg_temp.i('P') and request_id = pg_temp.r('real_ok') and title = 'Las fechas de recuperación van a cambiar'), 1);
+select pg_temp.expect_denied('sin propuesta abierta no hay nada que retirar', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', '')$q$, pg_temp.i('C'), pg_temp.s('pronto_familia')));
 insert into req select 'coord_libre', (public.kiru_recuperaciones_proponer(pg_temp.i('C'), pg_temp.s('pronto_familia'),
   jsonb_build_array(pg_temp.wd(5,'20:00')))->>'id')::uuid;
 select pg_temp.expect('coordinación no tiene ese límite', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre')), 1);
@@ -301,6 +310,7 @@ select pg_temp.expect_denied('otra familia no responde', format($q$select public
   jsonb_build_array(pg_temp.wd(2,'17:00'))));
 insert into req select 'fam_prop', (public.kiru_recuperaciones_contraproponer(pg_temp.i('P'), pg_temp.r('coord_libre'),
   jsonb_build_array(pg_temp.wd(2,'17:00'), pg_temp.wd(4,'18:00')), 'Mejor martes o jueves por la tarde')->>'id')::uuid;
+select pg_temp.expect_denied('si propuso la familia, coordinación no retira sus fechas (le toca al mentor)', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', '')$q$, pg_temp.i('C'), pg_temp.s('pronto_familia')));
 select pg_temp.expect('la propuesta anterior queda como «ninguna encaja»', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre') and status = 'sin_encaje'), 1);
 select pg_temp.expect('al mentor le llega la propuesta de la familia', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('M') and request_id = pg_temp.r('fam_prop')), 1);
 select pg_temp.expect('y a su coordinador también', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('C') and request_id = pg_temp.r('fam_prop')), 1);

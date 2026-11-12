@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, ClipboardCheck, RotateCcw } from "lucide-react";
 import {
-  CAUSE_LABEL, NOTICE_HOURS, REASON_CODE_LABEL, RECOVERY_STAGE, REQUEST_STATUS_LABEL, classDateLabel, daysSince, hoursUntil,
+  CAUSE_LABEL, NOTICE_HOURS, REASON_CODE_LABEL, RECOVERY_STAGE, REQUEST_STATUS_LABEL, classDateLabel, daysSince, hoursUntil, sinceLabel,
   type StaffClass, type StaffClassesData, type StaffRequest, type UnavailableSlot,
 } from "@/lib/classes";
 import type { ClassOption, ClassRecovery } from "@/lib/database.types";
@@ -81,7 +81,7 @@ export default function CoordinatorClasses({ notify }: { notify: (text: string, 
               <div key={stage} className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[#6D6962]">{RECOVERY_STAGE[stage]} · {rows.length}</h4>
                 {rows.length === 0 ? <p className="text-[11px] text-[#8D887F]">Ninguna.</p>
-                  : rows.map((s) => <RecoveryRow key={s.id} session={s} blocked={data.unavailable.filter((u) => u.studentId === s.studentId)} recovery={sessions.find((x) => x.recoversSessionId === s.id && x.delivery !== "no_impartida")} onDone={done} />)}
+                  : rows.map((s) => <RecoveryRow key={s.id} session={s} blocked={data.unavailable.filter((u) => u.studentId === s.studentId)} recovery={sessions.find((x) => x.recoversSessionId === s.id && x.delivery !== "no_impartida")} proposal={s.recovery === "propuesta" ? data.requests.find((r) => r.sessionId === s.id && r.kind === "propuesta_recuperacion" && r.status === "pendiente") : undefined} onDone={done} />)}
               </div>
             );
           })}
@@ -165,28 +165,53 @@ function PendingRequest({ request: r, session, onDone }: { request: StaffRequest
   );
 }
 
-function RecoveryRow({ session: s, blocked, recovery, onDone }: { session: StaffClass; blocked: UnavailableSlot[]; recovery?: StaffClass; onDone: (m: string | null, ok: string) => void }) {
-  const [mode, setMode] = useState<"" | "proponer" | "excepcion">("");
+function RecoveryRow({ session: s, blocked, recovery, proposal, onDone }: { session: StaffClass; blocked: UnavailableSlot[]; recovery?: StaffClass; proposal?: StaffRequest; onDone: (m: string | null, ok: string) => void }) {
+  const [mode, setMode] = useState<"" | "proponer" | "excepcion" | "otras">("");
   const [note, setNote] = useState("");
   const days = daysSince(s.recoveryStatusSince);
+  const familyProposed = proposal?.requesterRole === "padre";
+  // A quién le toca ahora (lo que hay que perseguir).
+  const turn = s.recovery === "pendiente" || s.recovery === "sin_encaje" || familyProposed ? `Le toca al mentor (${s.mentorName})`
+    : s.recovery === "propuesta" ? "Le toca a la familia elegir" : "";
   const manage = (what: string, ok: string) => classAction({ action: "gestionar_recuperacion", sessionId: s.id, manage: what, note }).then((m) => onDone(m, ok));
+  const toggle = (next: typeof mode) => { setNote(""); setMode(mode === next ? "" : next); };
   return (
     <div className={`${subtle} space-y-2 text-xs`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span><strong>{s.studentName}</strong> · {s.mentorName} · clase del {classDateLabel(s.originalStart)}</span>
         <span className="flex gap-1">
-          {s.recovery !== "realizada" && <Badge tone={days >= 3 ? "warn" : "neutral"}>{days === 0 ? "Hoy" : `${days} ${days === 1 ? "día" : "días"} en este punto`}</Badge>}
+          {s.recovery !== "realizada" && <Badge tone={days >= 3 ? "warn" : "neutral"}>En este punto {sinceLabel(s.recoveryStatusSince)}</Badge>}
           {s.cancelCause && <Badge>{CAUSE_LABEL[s.cancelCause]}</Badge>}
         </span>
       </div>
+      {turn && s.recovery !== "realizada" && <p className="text-[11px] font-semibold text-[#292825]">{turn}</p>}
+      {proposal && (
+        <div className="space-y-1 rounded-lg border border-[#E7E3DC] bg-white p-2">
+          <p className="text-[11px] text-[#6D6962]">
+            {familyProposed ? "La familia" : proposal.requestedByName || "El mentor"} propuso {proposal.options.length === 1 ? "esta fecha" : `estas ${proposal.options.length} fechas`} el {classDateLabel(proposal.createdAt)}:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4 capitalize">
+            {proposal.options.map((o) => <li key={o.start}>{timeRange(o)}</li>)}
+          </ul>
+          {proposal.reason && <p className="text-[11px] text-[#77736B]">Nota: «{proposal.reason}»</p>}
+        </div>
+      )}
       {recovery && <p className="text-[11px] text-[#38523A]">Recuperación: <span className="capitalize">{classDateLabel(recovery.scheduledStart)}</span>{recovery.deliveredByName && ` · la dio ${recovery.deliveredByName}`}</p>}
       {s.recoveryExceptionNote && <p className="text-[11px] text-[#77736B]">Excepción de plazo: «{s.recoveryExceptionNote}»</p>}
       {s.recovery !== "realizada" && s.recovery !== "programada" && (
         <div className="flex flex-wrap gap-2">
-          {(s.recovery === "pendiente" || s.recovery === "sin_encaje") && <button type="button" className={btnLight} onClick={() => manage("recordar_mentor", "Recordatorio enviado al mentor.")}>Recordar al mentor</button>}
-          {s.recovery === "propuesta" && <button type="button" className={btnLight} onClick={() => manage("recordar_familia", "Recordatorio enviado a la familia.")}>Recordar a la familia</button>}
-          <button type="button" className={btnLight} onClick={() => setMode(mode === "proponer" ? "" : "proponer")}>Proponer fechas</button>
-          <button type="button" className={btnLight} onClick={() => setMode(mode === "excepcion" ? "" : "excepcion")}>Excepción de plazo</button>
+          {(s.recovery === "pendiente" || s.recovery === "sin_encaje" || familyProposed) && <button type="button" className={btnLight} onClick={() => manage("recordar_mentor", "Recordatorio enviado al mentor.")}>Recordar al mentor</button>}
+          {s.recovery === "propuesta" && !familyProposed && <button type="button" className={btnLight} onClick={() => manage("recordar_familia", "Recordatorio enviado a la familia.")}>Recordar a la familia</button>}
+          {s.recovery === "propuesta" && !familyProposed && proposal && <button type="button" className={btnLight} onClick={() => toggle("otras")}>Pedir otras fechas al mentor</button>}
+          <button type="button" className={btnLight} onClick={() => toggle("proponer")}>Proponer fechas</button>
+          <button type="button" className={btnLight} onClick={() => toggle("excepcion")}>Excepción de plazo</button>
+        </div>
+      )}
+      {mode === "otras" && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-[#77736B]">Se retiran estas fechas, la familia recibe un aviso de que ya no tiene que elegir y al mentor le llega tu nota pidiéndole otras. La recuperación vuelve a «Pendiente de organizar».</p>
+          <input className={input} placeholder="Nota para el mentor (por qué, qué días le vendrían mejor…)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+          <button type="button" className={btnDark} disabled={note.trim().length < 3} onClick={() => manage("pedir_otras_fechas", "Fechas retiradas: se ha pedido al mentor que proponga otras.").then(() => setMode(""))}>Retirar fechas y pedir otras</button>
         </div>
       )}
       {mode === "proponer" && <ProposeForm session={s} blocked={blocked} realistic={false} onCancel={() => setMode("")} onDone={(m, ok) => { setMode(""); void onDone(m, ok); }} />}
