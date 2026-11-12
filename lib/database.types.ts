@@ -385,6 +385,9 @@ export type SkillcoinReviewFileRow = {
   size_bytes: number;
   uploaded_by: string | null;
   created_at: string;
+  /** Cuándo se eliminó el archivo del almacén (fin de curso); la fila se conserva. */
+  deleted_at?: string | null;
+  deleted_reason?: string | null;
 };
 
 export type MethodologyWarningRow = {
@@ -905,6 +908,8 @@ type SupervisionFunctions = {
   kiru_methodology_warning_update: { Args: { p_warning: string; p_action: string; p_payload?: Json }; Returns: undefined };
   kiru_sc_review_correct: { Args: { p_review: string; p_new_score: number; p_reason: string }; Returns: undefined };
   kiru_supervision_tarea_diaria: { Args: Record<string, never>; Returns: Json };
+  kiru_evidence_expired: { Args: { p_limit?: number }; Returns: { id: string; storage_path: string }[] };
+  kiru_evidence_mark_deleted: { Args: { p_ids: string[] }; Returns: number };
 };
 
 /** Registro de sesiones y pagos del mentor. */

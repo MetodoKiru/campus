@@ -274,6 +274,7 @@ function ReviewDetail({ review, data, onBack, onSaved, notify }: {
 function MessageItem({ message, files, notify }: { message: SkillcoinReviewMessageRow; files: SkillcoinReviewFileRow[]; notify: (text: string) => void }) {
   const mine = message.author_role === "mentor";
   const openFile = async (file: SkillcoinReviewFileRow) => {
+    if (file.deleted_at) return; // eliminado al acabar el curso: ya no está en el almacén
     const { data, error } = await supabase.storage.from(EVIDENCE_BUCKET).createSignedUrl(file.storage_path, 300);
     if (error || !data?.signedUrl) { notify("No se pudo abrir el archivo."); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
@@ -295,10 +296,18 @@ function MessageItem({ message, files, notify }: { message: SkillcoinReviewMessa
         <ul className="flex flex-wrap gap-2">
           {files.map((file) => (
             <li key={file.id}>
+              {file.deleted_at ? (
+                <button type="button" disabled title="Los archivos se conservan hasta el 31 de agosto de cada curso."
+                  className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-dashed border-[#E7E3DC] px-3 py-1.5 text-[11px] font-semibold text-[#A19D95]">
+                  {file.mime_type.startsWith("image/") ? <ImageIcon className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                  {file.file_name} · eliminado el {formatDay(file.deleted_at)}
+                </button>
+              ) : (
               <button type="button" onClick={() => void openFile(file)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] px-3 py-1.5 text-[11px] font-semibold text-[#45433F] hover:bg-[#F3F0EA]">
                 {file.mime_type.startsWith("image/") ? <ImageIcon className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
                 {file.file_name} <span className="font-normal text-[#77736B]">({formatSize(file.size_bytes)})</span>
               </button>
+              )}
             </li>
           ))}
         </ul>
