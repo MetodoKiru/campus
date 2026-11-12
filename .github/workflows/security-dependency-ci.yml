@@ -18,7 +18,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
       SUPABASE_SERVICE_ROLE_KEY: build-placeholder
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -54,6 +54,6 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Apply all migrations and test role isolation
         run: supabase/tests/run.sh
