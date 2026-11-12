@@ -210,6 +210,14 @@ export default function MentorEnglishTasks({
     try {
       const { data } = await supabase.auth.getUser();
       if (!data.user) throw new Error("Debes iniciar sesión.");
+      // All tabs of a browser share one session: signing in as the student in another tab
+      // turns this page into the student's session, and the database rightly refuses the task.
+      const role = data.user.app_metadata?.kiru_role;
+      if (data.user.id === student.id || (role && role !== "mentor" && role !== "admin")) {
+        throw new Error(
+          "En este navegador se ha iniciado sesión con otra cuenta (por ejemplo, la del alumno en otra pestaña). Recarga la página y entra como mentor; para probar como alumno a la vez, usa una ventana de incógnito u otro navegador.",
+        );
+      }
       const task: EnglishTask = {
         kind: "english_task",
         version: 1,
