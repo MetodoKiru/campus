@@ -12,13 +12,15 @@ import {
   Plus,
   Send,
   Award,
-  PenLine
+  PenLine,
+  CalendarDays
 } from "lucide-react";
 import MentorSkillcoins from "@/components/skillcoins/MentorSkillcoins";
 import { MentorMissingSc, useMissingScWeeks } from "@/components/skillcoins/MissingScWeeks";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
+import MentorSchedulePayroll from "@/components/mentor/MentorSchedulePayroll";
 import Toast from "@/components/Toast";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { MentorMenu, MentorStepView, StepPager, useMentorPanel } from "@/components/mentor/MentorSteps";
@@ -69,7 +71,7 @@ export default function MentorPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "lengua" | "skillcoins" | "informes">("asignaturas");
+  const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "lengua" | "skillcoins" | "informes" | "horario_remuneracion">("asignaturas");
   const [students, setStudents] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -361,6 +363,13 @@ export default function MentorPage() {
             <BookOpen className="w-3.5 h-3.5" />
             <span>Informes compartidos</span>
           </button>
+          <button
+            onClick={() => setActiveTab("horario_remuneracion")}
+            className={activeTab === "horario_remuneracion" ? "flex items-center gap-1.5 px-4 py-2 rounded-xl transition bg-[#242321] text-white shadow-xs" : "flex items-center gap-1.5 px-4 py-2 rounded-xl transition text-[#6D6962] hover:bg-[#FAF8F5]"}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Horario y remuneración</span>
+          </button>
         </div>
 
         {activeTab === "asignaturas" && (
@@ -563,6 +572,7 @@ export default function MentorPage() {
 
         {activeTab === "lengua" && <LenguaMentor student={students.find((item) => item.username === selectedStudent)} onStatus={setSavedMsg} />}
         {activeTab === "informes" && students.find((item) => item.username === selectedStudent) && <PublishedProgressReports studentId={students.find((item) => item.username === selectedStudent)!.id} />}
+        {activeTab === "horario_remuneracion" && <MentorSchedulePayroll />}
 
         {activeTab === "skillcoins" && (() => {
           const student = students.find((item) => item.username === selectedStudent);
