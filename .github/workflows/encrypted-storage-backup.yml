@@ -92,7 +92,7 @@ jobs:
           printf 'Encrypted Storage backup created: %s.age\n' "$ARCHIVE"
 
       - name: Store encrypted Storage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kiru-encrypted-storage-backup-${{ github.run_id }}
           path: backup/*.age*
