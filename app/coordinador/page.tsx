@@ -17,6 +17,7 @@ import CoordinatorSupervision from "@/components/supervision/CoordinatorSupervis
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
 import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
+import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
 interface SessionLog {
@@ -61,11 +62,16 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones">("mentores");
+  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones" | "evaluaciones">("mentores");
   // Enlaces de los correos: /coordinador?tab=supervision&revision=…
   const [linkedReview, setLinkedReview] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // /coordinador?tab=evaluaciones (correos de las evaluaciones trimestrales).
+    if (params.get("tab") === "evaluaciones") {
+      const timer = window.setTimeout(() => setTab("evaluaciones"), 0);
+      return () => window.clearTimeout(timer);
+    }
     if (params.get("tab") !== "supervision") return;
     const timer = window.setTimeout(() => { setTab("supervision"); setLinkedReview(params.get("revision")); }, 0);
     return () => window.clearTimeout(timer);
@@ -253,6 +259,7 @@ export default function CoordinadorPage() {
           <NotificationBell onOpenItem={(n) => {
             if (n.review_id || n.warning_id) { setLinkedReview(n.review_id ?? null); setTab("supervision"); }
             else if (n.session_id || n.request_id) setTab("clases");
+            else if (n.kind === "evaluacion_trimestral") setTab("evaluaciones");
           }} />
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
@@ -282,6 +289,7 @@ export default function CoordinadorPage() {
             <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
             <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
             <TabButton active={tab === "supervision"} onClick={() => setTab("supervision")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Supervisión" />
+            <TabButton active={tab === "evaluaciones"} onClick={() => setTab("evaluaciones")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Evaluaciones" />
             <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
             <TabButton active={tab === "vacaciones"} onClick={() => setTab("vacaciones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Navidad y Semana Santa" />
@@ -304,6 +312,7 @@ export default function CoordinadorPage() {
         {tab === "supervision" && me && <CoordinatorSupervision key={linkedReview ?? "supervision"} meId={me.id} isAdmin={me.isAdmin} people={people}
           coordinatorOf={coordinatorOf} initialReviewId={linkedReview} notify={notifyOffers} />}
         {tab === "vacaciones" && <StaffSpecialPeriods notify={notifyOffers} />}
+        {tab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}
         {tab === "crece" && !me.isAdmin && <CoordinatorRecommendations notify={notifyOffers} />}
 
