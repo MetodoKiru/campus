@@ -1,37 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { createClient, type User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
-import { ACCESS_LINK_DAYS, issueAccessLink, usernameBase } from "@/lib/server/access-links";
+import { ACCESS_LINK_DAYS, findAuthUserByEmail, freeUsername, issueAccessLink } from "@/lib/server/access-links";
 import { EMAIL_RE } from "@/lib/server/require-staff";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
 export const runtime = "nodejs";
-type Admin = SupabaseClient<Database>;
-
-async function findAuthUserByEmail(admin: Admin, email: string): Promise<User | null> {
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw error;
-    const found = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
-    if (found) return found;
-    if (data.users.length < 1000) return null;
-  }
-  return null;
-}
-
-/** Primer usuario libre: maria.lopez, maria.lopez2, maria.lopez3… */
-async function freeUsername(admin: Admin, fullName: string): Promise<string | null> {
-  const base = usernameBase(fullName);
-  const { data, error } = await admin.from("profiles").select("username").like("username", `${base}%`);
-  if (error) return null;
-  const taken = new Set((data ?? []).map((p) => p.username));
-  for (let n = 1; n < 100; n++) {
-    const candidate = n === 1 ? base : `${base}${n}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-  return null;
-}
 
 /**
  * La llama el Apps Script de «Solicitud mentores» al enviar el correo de

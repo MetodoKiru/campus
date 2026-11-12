@@ -46,7 +46,7 @@ interface UserAccount {
   password?: string;
   role: "alumno" | "mentor" | "padre" | "formador" | "coordinador" | "admin";
   createdAt: string;
-  assignedParent?: string; // Vinculación alumno -> padre
+  assignedParents?: string[]; // Vinculación alumno -> padre y/o madre (usuarios)
 }
 
 // Fila que devuelve /api/admin/users
@@ -210,8 +210,13 @@ export default function AdminPage() {
         if (!active) return;
         // Si la migración del coordinador aún no está aplicada, el resto del panel sigue funcionando.
         if (!coordinatorLinks.error) setCoordinatorByMentor(Object.fromEntries((coordinatorLinks.data || []).map((l) => [l.mentor_id, l.coordinator_id])));
-        const guardianByStudent = new Map((guardianLinks.data || []).map((link) => [link.student_id, link.guardian_id]));
-        const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", email: u.email, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParent: guardianByStudent.has(u.id) ? (userResponse.find((candidate) => candidate.id === guardianByStudent.get(u.id))?.username || undefined) : undefined }));
+        const guardianUsernames = new Map(userResponse.map((u) => [u.id, u.username ?? ""]));
+        const guardiansByStudent = new Map<string, string[]>();
+        for (const link of guardianLinks.data || []) {
+          const username = guardianUsernames.get(link.guardian_id);
+          if (username) guardiansByStudent.set(link.student_id, [...(guardiansByStudent.get(link.student_id) ?? []), username]);
+        }
+        const mappedUsers: UserAccount[] = userResponse.map((u) => ({ id: u.id, name: u.full_name, username: u.username ?? "", email: u.email, role: u.role, createdAt: u.created_at ? String(u.created_at).slice(0, 10) : "", assignedParents: guardiansByStudent.get(u.id) }));
         setUsers(mappedUsers);
         const usernameById = new Map(mappedUsers.map((u) => [u.id, u.username]));
         setLinks((mentorLinks.data || []).map((link) => ({ studentUsername: usernameById.get(link.student_id) || "", mentorUsername: usernameById.get(link.mentor_id) || "" })).filter((link: MentorStudentLink) => link.studentUsername && link.mentorUsername));
@@ -395,16 +400,24 @@ export default function AdminPage() {
     }
   };
 
-  // Quitar la familia de un alumno. No borra ninguna cuenta.
+  // Quitar la familia de un alumno. Si hay un tutor elegido y está enlazado, solo
+  // se quita ese; si no, se quitan todos. No borra ninguna cuenta.
   const handleRemoveParent = async () => {
     const student = alumnos.find((u) => u.username === selectedChild);
     if (!student) { setMsg({ text: "Elige el alumno.", type: "error" }); return; }
-    if (!window.confirm(`¿Quitar la familia de ${student.name}? El alumno se queda sin familia enlazada, pero no se borra ninguna cuenta.`)) return;
+    const guardian = padres.find((u) => u.username === selectedParent && student.assignedParents?.includes(u.username));
+    const question = guardian
+      ? `¿Quitar a ${guardian.name} de la familia de ${student.name}? No se borra ninguna cuenta.`
+      : `¿Quitar toda la familia de ${student.name}? El alumno se queda sin familia enlazada, pero no se borra ninguna cuenta.`;
+    if (!window.confirm(question)) return;
     try {
-      const { error } = await supabase.from("student_guardians").delete().eq("student_id", student.id);
+      let query = supabase.from("student_guardians").delete().eq("student_id", student.id);
+      if (guardian) query = query.eq("guardian_id", guardian.id);
+      const { error } = await query;
       if (error) throw error;
-      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: undefined } : u));
-      setMsg({ text: `${student.name} se ha quedado sin familia enlazada.`, type: "success" });
+      const remaining = guardian ? (student.assignedParents ?? []).filter((u) => u !== guardian.username) : [];
+      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParents: remaining.length ? remaining : undefined } : u));
+      setMsg({ text: guardian ? `${guardian.name} ya no está enlazado/a con ${student.name}.` : `${student.name} se ha quedado sin familia enlazada.`, type: "success" });
     } catch (error) {
       setMsg({ text: error instanceof Error ? error.message : "No se pudo quitar la familia.", type: "error" });
     }
@@ -436,18 +449,17 @@ export default function AdminPage() {
   };
 
   // Padre <-> Alumno: la relación se guarda en la tabla protegida por RLS.
+  // Un alumno puede tener padre y madre: enlazar uno nuevo no quita al que ya estaba.
   const handleAssignParent = async (e: React.FormEvent) => {
     e.preventDefault();
     const student = alumnos.find((u) => u.username === selectedChild);
     const guardian = padres.find((u) => u.username === selectedParent);
     if (!student || !guardian) { setMsg({ text: "Selecciona un alumno y una familia válidos.", type: "error" }); return; }
     try {
-      const { data: existing, error: lookupError } = await supabase.from("student_guardians").select("student_id,guardian_id").eq("student_id", student.id);
-      if (lookupError) throw lookupError;
-      for (const row of existing || []) { const { error } = await supabase.from("student_guardians").delete().eq("student_id", row.student_id).eq("guardian_id", row.guardian_id); if (error) throw error; }
+      if (student.assignedParents?.includes(guardian.username)) { setMsg({ text: `@${guardian.username} ya estaba enlazado/a con @${student.username}.`, type: "success" }); return; }
       const { error } = await supabase.from("student_guardians").insert({ student_id: student.id, guardian_id: guardian.id });
       if (error) throw error;
-      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParent: guardian.username } : u));
+      setUsers((current) => current.map((u) => u.id === student.id ? { ...u, assignedParents: [...(u.assignedParents ?? []), guardian.username] } : u));
       setMsg({ text: "Vinculación guardada en Supabase: @" + selectedChild + " ↔ @" + selectedParent + ".", type: "success" });
     } catch (error) { setMsg({ text: error instanceof Error ? error.message : "No se pudo guardar la vinculación familiar.", type: "error" }); }
   };
@@ -829,10 +841,10 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <button type="submit" disabled={!selectedChild || !selectedParent} className="w-full py-3 bg-amber-700 text-white text-xs font-semibold rounded-2xl hover:bg-amber-800 transition shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-40">
-                    <Link2 className="w-4 h-4" /> Asignar Familia
+                    <Link2 className="w-4 h-4" /> Añadir a la familia
                   </button>
-                  <button type="button" onClick={() => void handleRemoveParent()} disabled={!selectedChild || !alumnos.find((a) => a.username === selectedChild)?.assignedParent} className="w-full py-2.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-2xl hover:bg-slate-50 transition disabled:opacity-40">
-                    Quitar familia de este alumno
+                  <button type="button" onClick={() => void handleRemoveParent()} disabled={!selectedChild || !alumnos.find((a) => a.username === selectedChild)?.assignedParents?.length} className="w-full py-2.5 border border-slate-200 text-slate-600 text-xs font-semibold rounded-2xl hover:bg-slate-50 transition disabled:opacity-40">
+                    {alumnos.find((a) => a.username === selectedChild)?.assignedParents?.includes(selectedParent) ? "Quitar a este tutor del alumno" : "Quitar toda la familia de este alumno"}
                   </button>
                 </form>
               </div>
@@ -886,8 +898,8 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3.5">
                             {user.role === "alumno" ? (
-                              user.assignedParent ? (
-                                <span className="text-[11px] font-semibold text-amber-700">@{user.assignedParent}</span>
+                              user.assignedParents?.length ? (
+                                <span className="text-[11px] font-semibold text-amber-700">{user.assignedParents.map((u) => `@${u}`).join(" · ")}</span>
                               ) : <span className="text-[11px] text-slate-400 italic">Sin asignar</span>
                             ) : "—"}
                           </td>
