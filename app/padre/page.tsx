@@ -24,6 +24,7 @@ import { latestWeekInfo } from "@/lib/skillcoins";
 import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renovaciones/RenewalCard";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 import FamilySessionCalendar from "@/components/family/FamilySessionCalendar";
+import FamilyScheduleChange from "@/components/horarios/FamilyScheduleChange";
 
 interface Child {
   id: string;
@@ -127,6 +128,7 @@ export default function PadrePage() {
   // Hijos con una renovación de mensualidad esperando respuesta.
   const [renewalPending, setRenewalPending] = useState<Set<string>>(new Set());
   const childIds = childrenList.map((c) => c.id).join(",");
+  const [scheduleRefresh, setScheduleRefresh] = useState(0);
   const reloadRenewals = React.useCallback(async () => {
     try {
       const open = await fetchOpenRenewals(childIds ? childIds.split(",") : []);
@@ -510,7 +512,8 @@ export default function PadrePage() {
             <div className="space-y-4">
               <FamilyEvaluations studentId={selectedChild.id} onOpenReports={() => setActiveTab("informes")} />
               <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
-              <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => void reloadRenewals()} />
+              <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => { void reloadRenewals(); setScheduleRefresh((n) => n + 1); }} />
+              <FamilyScheduleChange studentId={selectedChild.id} studentName={selectedChild.name} refreshKey={scheduleRefresh} />
               {childNeedsAnswer && (
                 <button
                   onClick={() => setActiveTab("recompensas")}

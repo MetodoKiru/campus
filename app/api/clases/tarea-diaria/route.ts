@@ -15,6 +15,9 @@ export async function GET(request: Request) {
   const admin = serviceClient();
   if (!admin || secret === "missing") return NextResponse.json({ error: "No está configurado." }, { status: 503 });
   if (secret !== "ok") return NextResponse.json({ error: "Clave no válida." }, { status: 401 });
+  // Cambios de horario del día (antes de generar las clases, para que salgan ya con el horario nuevo).
+  const horarios = await admin.rpc("kiru_horarios_tarea_diaria", {});
+  if (horarios.error) console.error("Tarea diaria de horarios:", horarios.error.code, horarios.error.message);
   const { data, error } = await admin.rpc("kiru_clases_tarea_diaria", {});
   if (error) {
     console.error("Tarea diaria de clases:", error.code, error.message);
@@ -23,5 +26,5 @@ export async function GET(request: Request) {
   // Recordatorios de justificaciones de SkillCoins (no duplica si ya los mandó pg_cron).
   const supervision = await admin.rpc("kiru_supervision_tarea_diaria", {});
   if (supervision.error) console.error("Tarea diaria de supervisión:", supervision.error.code, supervision.error.message);
-  return NextResponse.json({ ok: true, resultado: data, supervision: supervision.data ?? null });
+  return NextResponse.json({ ok: true, resultado: data, supervision: supervision.data ?? null, horarios: horarios.data ?? null });
 }

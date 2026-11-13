@@ -10,11 +10,11 @@ import {
 export type AdminSection =
   | "usuarios" | "alumnos" | "documentos" | "pagos" | "avisos" | "evaluaciones" | "skillcoins"
   | "propuestas" | "incorporacion" | "pagos-mentores" | "crece"
-  | "dias-sin-clase" | "periodos-especiales";
+  | "dias-sin-clase" | "periodos-especiales" | "horarios";
 
 export const ADMIN_SECTIONS: AdminSection[] = [
   "usuarios", "alumnos", "documentos", "pagos", "avisos", "evaluaciones", "skillcoins",
-  "propuestas", "incorporacion", "pagos-mentores", "crece", "dias-sin-clase", "periodos-especiales",
+  "propuestas", "incorporacion", "pagos-mentores", "crece", "dias-sin-clase", "periodos-especiales", "horarios",
 ];
 
 type Item =
@@ -56,6 +56,7 @@ const GROUPS: Group[] = [
     items: [
       { kind: "link", href: "/coordinador?tab=clases", label: "Clases y recuperaciones", icon: CalendarDays, note: "coordinación" },
       { kind: "link", href: "/coordinador?tab=registros", label: "Registros de sesión", icon: ClipboardList, note: "coordinación" },
+      { kind: "section", id: "horarios", label: "Cambios de horario y disponibilidad", icon: CalendarDays },
       { kind: "section", id: "dias-sin-clase", label: "Días sin clase", icon: CalendarOff },
       { kind: "section", id: "periodos-especiales", label: "Navidad y Semana Santa", icon: CalendarOff },
     ],

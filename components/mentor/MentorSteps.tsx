@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -76,6 +76,7 @@ const ACTIVITY: { id: MentorSection; title: string; hint: string; icon: typeof C
   { id: "sesiones", title: "Registro de sesiones", hint: "Tus clases registradas y su detalle", icon: ClipboardList },
   { id: "pagos", title: "Mis pagos", hint: "Lo cobrado y lo pendiente de cobro", icon: Wallet },
   { id: "justificaciones", title: "Justificaciones de SkillCoins", hint: "Solicitudes de coordinación y avisos", icon: MessageSquareText },
+  { id: "disponibilidad", title: "Mi disponibilidad para clases", hint: "Días y horas en los que puedes dar clase", icon: Clock },
 ];
 
 const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [

@@ -33,6 +33,8 @@ import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { MENTOR_SECTIONS, type MentorSection, type StepId } from "@/lib/mentor-steps";
 import MentorSpecialPeriod from "@/components/special-periods/MentorSpecialPeriod";
 import MentorEvaluations from "@/components/evaluations/MentorEvaluations";
+import MentorAvailability from "@/components/horarios/MentorAvailability";
+import MentorScheduleChanges from "@/components/horarios/MentorScheduleChanges";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
 const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
@@ -108,7 +110,7 @@ export default function MentorPage() {
     if (!authorized) return;
     const params = new URLSearchParams(window.location.search);
     const target = params.get("seccion");
-    if (target !== "justificaciones" && target !== "sesiones" && target !== "pagos") return;
+    if (target !== "justificaciones" && target !== "sesiones" && target !== "pagos" && target !== "disponibilidad") return;
     const timer = window.setTimeout(() => {
       setInitialReview(target === "justificaciones" ? params.get("revision") : null);
       setMenuStep(target);
@@ -257,6 +259,7 @@ export default function MentorPage() {
             {section === "crece" && <GrowWithKiru notify={setSavedMsg} />}
             {section === "sesiones" && <MentorSessions onOpenReview={(id) => { setInitialReview(id); setMenuStep("justificaciones"); }} />}
             {section === "pagos" && <MentorPayments />}
+            {section === "disponibilidad" && <MentorAvailability notify={setSavedMsg} />}
             {section === "justificaciones" && <MentorJustifications key={initialReview ?? "lista"} notify={setSavedMsg} initialReview={initialReview} />}
             {step && (mentorPanel.data
               ? <MentorStepView key={step} step={step} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
@@ -277,6 +280,7 @@ export default function MentorPage() {
             <span className="text-[#6D6962]">Pulsa para responder →</span>
           </button>
         )}
+        <MentorScheduleChanges notify={setSavedMsg} onOpenAvailability={() => setMenuStep("disponibilidad")} />
         <MentorEvaluations notify={setSavedMsg} />
         <MentorSpecialPeriod notify={setSavedMsg} />
         <MentorClasses notify={setSavedMsg} />

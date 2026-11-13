@@ -314,7 +314,7 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral";
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind;
   title: string;
   body: string;
   event_key: string;
@@ -650,14 +650,16 @@ export type RenewalRow = {
   keep_price: number;
   up_label: string | null;
   up_price: number | null;
+  down_label: string | null;
+  down_price: number | null;
   payment_info: string;
   call_url: string;
-  plan: "mantener" | "subir" | "no_renueva" | null;
+  plan: "mantener" | "subir" | "bajar" | "no_renueva" | null;
   plan_source: "correo" | "campus" | null;
   plan_at: string | null;
   plan_by: string | null;
   months: number;
-  prepay: { mantener?: PrepayOption[]; subir?: PrepayOption[] };
+  prepay: { mantener?: PrepayOption[]; subir?: PrepayOption[]; bajar?: PrepayOption[] };
   paid_reported_at: string | null;
   paid_source: "correo" | "campus" | null;
   paid_by: string | null;
@@ -715,6 +717,68 @@ export type EvaluationStudentRow = {
 };
 export type SettingRow = { key: string; value: Json; updated_at: string };
 export type MentorSpecialtyRow = { email: string; specialties: string[]; hours: number; updated_at: string };
+/** Avisos de cambio de horario tras subir o bajar la intensidad (campanita + correo). */
+export type ScheduleNotificationKind = "horario_elegir" | "horario_confirmar" | "horario_confirmado" | "horario_otro" | "disponibilidad_actualizar"
+  | "disponibilidad_confirmar" | "disponibilidad_urgente" | "disponibilidad_falta";
+
+/** Confirmación de disponibilidad del mentor antes de cada renovación (missed_at = falta). */
+export type AvailabilityCheckRow = {
+  id: string; mentor_id: string; student_id: string; period_end: string; requested_at: string; confirmed_at: string | null;
+  reminders: number; missed_at: string | null; can_raise: boolean | null; family_released_at: string | null; forced: boolean; created_at: string;
+};
+
+/** Franja semanal: weekday 1 = lunes; horas «HH:MM». */
+export type WeeklySlot = { weekday: number; start: string; end: string };
+
+/** Disponibilidad semanal del mentor para dar clase. */
+export type MentorClassAvailabilityRow = { mentor_id: string; slots: WeeklySlot[]; notes: string; updated_at: string };
+
+export type ScheduleChangeStatus = "elegir_familia" | "confirmar_mentor" | "confirmado" | "aplicado" | "cancelado";
+
+/** Cambio de horario tras subir o bajar la intensidad en la renovación. */
+export type ScheduleChangeRow = {
+  id: string;
+  student_id: string;
+  mentor_id: string | null;
+  renewal_id: string | null;
+  from_days: number;
+  to_days: number;
+  effective_from: string;
+  status: ScheduleChangeStatus;
+  chosen_slots: WeeklySlot[];
+  family_note: string;
+  mentor_note: string;
+  chosen_by: string | null;
+  chosen_at: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  applied_at: string | null;
+  sheet_synced_at: string | null;
+  reminded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Lo que devuelve kiru_horario_ver. */
+export type ScheduleChangeView = {
+  id: string;
+  status: ScheduleChangeStatus;
+  from_days: number;
+  to_days: number;
+  effective_from: string;
+  chosen_slots: WeeklySlot[];
+  family_note: string;
+  mentor_note: string;
+  plan: "subir" | "bajar" | null;
+  plan_label: string | null;
+  plan_price: number | null;
+  current_slots: WeeklySlot[];
+  student: string | null;
+  mentor: string | null;
+  mentor_has_availability: boolean;
+  options: (WeeklySlot & { current: boolean })[];
+};
+
 export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
 export type CoordinationMeetingRow = {
   id: string; coordinator_id: string; scheduled_at: string; duration_minutes: number; zoom_url: string;
@@ -809,7 +873,10 @@ export type Database = {
       kiru_skillcoin_corrections: Table<SkillcoinCorrectionRow, "id" | "previous" | "reason" | "corrected_by" | "created_at">;
       kiru_notifications: Table<NotificationRow, "id" | "student_id" | "goal_id" | "review_id" | "warning_id" | "body" | "read_at" | "email_status" | "email_sent_at" | "created_at">;
       kiru_family_progress_reports: Table<FamilyProgressReportRow, "id" | "status" | "content" | "published_by" | "published_at" | "created_at" | "updated_at">;
-      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
+      kiru_mentor_class_availability: Table<MentorClassAvailabilityRow, "slots" | "notes" | "updated_at">;
+      kiru_schedule_changes: ReadOnlyTable<ScheduleChangeRow>;
+      kiru_availability_checks: ReadOnlyTable<AvailabilityCheckRow>;
+      kiru_renewals: Table<RenewalRow, Timestamps | "id" | "mentor_name" | "up_label" | "up_price" | "down_label" | "down_price" | "payment_info" | "call_url" | "plan" | "plan_source" | "plan_at" | "plan_by" | "months" | "prepay" | "paid_reported_at" | "paid_source" | "paid_by" | "closed_at" | "campus_seq" | "sheet_seq">;
       kiru_assignment_offers: Table<AssignmentOfferRow, Timestamps | "id" | "mentor_id" | "course" | "student_profile" | "zone" | "intensity" | "slots" | "sent_at" | "response_links" | "response" | "response_detail" | "responded_at" | "response_source" | "forwarded_at" | "forward_error" | "student_label" | "mentor_name" | "mentor_phone" | "reminder_sent_at" | "call_requested_at" | "call_done_at" | "call_notes" | "decision" | "decision_note" | "decided_at" | "decided_by" | "closed_at">;
       kiru_assignment_offer_events: Table<AssignmentOfferEventRow, "id" | "detail" | "actor_id" | "created_at">;
       kiru_onboarding_exceptions: Table<OnboardingExceptionRow, "id" | "granted_by" | "granted_at" | "revoked_at" | "revoked_by" | "revoke_reason">;
@@ -869,6 +936,17 @@ export type Database = {
       kiru_renewal_from_email_months: { Args: { p_email: string; p_student: string; p_period_end: string; p_action: string; p_months: number }; Returns: Json };
       kiru_renewal_sync: { Args: { p_families: Json }; Returns: Json };
       kiru_renewal_ack: { Args: { p_items: Json }; Returns: number };
+      kiru_disponibilidad_guardar: { Args: { p_slots: Json; p_notes?: string; p_mentor?: string }; Returns: Json };
+      kiru_disponibilidad_sigue_igual: { Args: Record<string, never>; Returns: Json };
+      kiru_renovacion_preparar: { Args: { p_email: string; p_student: string; p_period_end: string; p_today?: string; p_enviar?: boolean }; Returns: Json };
+      kiru_horario_ver: { Args: { p_change: string }; Returns: Json };
+      kiru_horario_elegir: { Args: { p_change: string; p_slots: Json; p_note?: string }; Returns: Json };
+      kiru_horario_decidir: { Args: { p_change: string; p_ok: boolean; p_note?: string }; Returns: Json };
+      kiru_horario_cancelar: { Args: { p_change: string }; Returns: Json };
+      kiru_horarios_aplicar: { Args: Record<string, never>; Returns: number };
+      kiru_horarios_tarea_diaria: { Args: Record<string, never>; Returns: Json };
+      kiru_horarios_para_hoja: { Args: Record<string, never>; Returns: Json };
+      kiru_horarios_hoja_ok: { Args: { p_ids: string[] }; Returns: number };
       kiru_mentor_growth_access: { Args: { p_mentor: string }; Returns: { onboarding_complete: boolean; exception_active: boolean }[] };
       kiru_missing_sc_weeks: {
         Args: { p_weeks?: number };
