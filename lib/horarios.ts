@@ -27,10 +27,12 @@ export function slotsText(slots: Pick<WeeklySlot, "weekday" | "start">[]): strin
   return parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}`;
 }
 
-/** Cuadrícula de la disponibilidad: celdas de media hora de START a END. */
+/** Cuadrícula de la disponibilidad: celdas de media hora de START a END (la última clase es de 19:30 a 20:30). */
 export const GRID_START = 8 * 60;
-export const GRID_END = 22 * 60;
+export const GRID_END = 20 * 60 + 30;
 export const GRID_STEP = 30;
+/** Días que se pueden marcar: los viernes no hay clase. */
+export const CLASS_WEEKDAYS = [1, 2, 3, 4, 6, 7];
 
 export function cellKey(weekday: number, min: number): string {
   return `${weekday}-${min}`;
@@ -40,7 +42,10 @@ export function cellKey(weekday: number, min: number): string {
 export function slotsToCells(slots: WeeklySlot[]): Set<string> {
   const cells = new Set<string>();
   for (const s of slots) {
-    for (let m = toMinutes(s.start); m < toMinutes(s.end === "23:59" ? "24:00" : s.end); m += GRID_STEP) cells.add(cellKey(s.weekday, m));
+    if (!CLASS_WEEKDAYS.includes(s.weekday)) continue;
+    const from = Math.max(toMinutes(s.start), GRID_START);
+    const to = Math.min(toMinutes(s.end === "23:59" ? "24:00" : s.end), GRID_END);
+    for (let m = from; m < to; m += GRID_STEP) cells.add(cellKey(s.weekday, m));
   }
   return cells;
 }

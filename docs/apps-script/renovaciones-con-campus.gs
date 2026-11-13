@@ -55,6 +55,7 @@ const CFG = {
   REGISTRO_HOJA: 'Respuestas de formulario 1',
   DIAS_AVISO: 7,
   DIAS_RECORDATORIO: 2,
+  DIAS_CONFIRMAR_MENTOR: 12, // el mentor confirma su disponibilidad antes de que salga la renovación
   DIAS_HISTORIAL: 35, // sesiones que se miran para el resumen del mes
   ZONA: 'Europe/Madrid',
   CAMPUS_URL: 'https://campus.metodokiru.es',
@@ -194,6 +195,20 @@ function revisarRenovaciones() {
     const fila = i + 1;
     const diaAviso = sumarDias_(fam.fin, -CFG.DIAS_AVISO);
     const diaRecordatorio = sumarDias_(fam.fin, -CFG.DIAS_RECORDATORIO);
+
+    // 0) NUEVO (13/11/2026): desde 12 días antes, el campus pide al mentor que confirme su
+    //    disponibilidad. Si el día del correo no lo ha hecho, el correo se APLAZA (el campus
+    //    le manda avisos urgentes y apunta la falta); 4 días antes sale igualmente sin «subir».
+    //    Si el campus no responde, todo sigue como siempre.
+    let prep = null;
+    if (hoy >= sumarDias_(fam.fin, -CFG.DIAS_CONFIRMAR_MENTOR) && hoy < fam.fin && !mismoDia_(fam.envAviso, fam.fin)) {
+      prep = campus_({ accion: 'preparar', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), enviar: hoy >= diaAviso });
+      if (hoy >= diaAviso && prep && prep.listo === false) {
+        console.log('Renovación de ' + fam.alumno + ' aplazada: ' + (prep.motivo || 'falta la confirmación del mentor'));
+        continue;
+      }
+      fam.sinSubir = !!(prep && prep.found && prep.subir === false);
+    }
 
     // 1) Correo de renovación (si se pasó el día, se manda igualmente antes del fin)
     if (hoy >= diaAviso && hoy < fam.fin && !mismoDia_(fam.envAviso, fam.fin)) {
@@ -722,7 +737,8 @@ function opciones_(fam, cfg) {
   const dias = Number(fam.dias) || 0;
   const precioActual = Number(fam.paga) || Number(fam.tarifa) || 0;
   const r = { mantener: { etiqueta: 'Mantener ' + dias + (dias === 1 ? ' día' : ' días') + ' por semana', precio: precioActual } };
-  if (dias && dias < cfg.maxDias) {
+  // «Subir» solo si el mentor ha confirmado que tiene hueco (lo decide el campus: fam.sinSubir).
+  if (dias && dias < cfg.maxDias && !fam.sinSubir) {
     const precio = Number(fam.precioSube) || Number(cfg.tarifas[dias + 1]) || 0;
     if (precio) r.subir = { etiqueta: 'Pasar a ' + (dias + 1) + ' días por semana', precio: precio };
   }

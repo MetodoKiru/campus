@@ -23,6 +23,7 @@ export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
 // Cambio de intensidad: elegir nuevo horario, confirmarlo y disponibilidad del mentor.
 const SCHEDULE_EMAIL_KINDS: ScheduleNotificationKind[] = [
   "horario_elegir", "horario_confirmar", "horario_confirmado", "horario_otro", "disponibilidad_actualizar",
+  "disponibilidad_confirmar", "disponibilidad_urgente", "disponibilidad_falta",
 ];
 
 // Si la revisión ya avanzó, el correo sobra.
@@ -102,7 +103,8 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
   // Administración supervisa desde el panel de coordinación.
   const url = new URL(supervision && role === "admin" ? "/coordinador" : PANEL[role], base);
   if (n.kind === "periodo_especial") url.searchParams.set(role === "mentor" ? "seccion" : "tab", "vacaciones");
-  if (n.kind === "disponibilidad_actualizar" && role === "mentor") url.searchParams.set("seccion", "disponibilidad");
+  if (n.kind.startsWith("disponibilidad_") && role === "mentor") url.searchParams.set("seccion", "disponibilidad");
+  if (n.kind === "disponibilidad_falta" && role === "admin") url.searchParams.set("seccion", "horarios");
   if (supervision) {
     if (role === "mentor") {
       url.searchParams.set("seccion", "justificaciones");

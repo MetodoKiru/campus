@@ -5,7 +5,7 @@ import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
 export const runtime = "nodejs";
 
-const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados", "horarios", "horarios_ok"] as const;
+const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados", "horarios", "horarios_ok", "preparar"] as const;
 type Action = (typeof ACTIONS)[number];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -74,6 +74,9 @@ function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
  * · horarios: cambios de horario ya aplicados (tras subir o bajar la intensidad)
  *   que la hoja aún no ha apuntado → días por semana y precio nuevos.
  * · horarios_ok: la hoja ya los apuntó ({ ids }).
+ * · preparar: antes del correo de renovación ({ email, alumno, fin, enviar }): el
+ *   mentor tiene que haber confirmado su disponibilidad. Devuelve { listo, subir }:
+ *   si no está listo, la hoja aplaza el correo; si subir es false, no lo ofrece.
  * · estados: para cada familia de la hoja ({ email, alumno }), si el alumno está
  *   activo, en pausa o de baja en el campus (lo cambia administración en «Mis alumnos»).
  *   La hoja no manda renovaciones ni recordatorios a quien está en pausa o de baja.
@@ -149,6 +152,17 @@ export async function POST(request: Request) {
     const { data: count, error } = await admin.rpc("kiru_horarios_hoja_ok", { p_ids: ids });
     if (error) return NextResponse.json({ error: "No se pudo confirmar." }, { status: 500 });
     return NextResponse.json({ ok: true, confirmados: count ?? 0 });
+  }
+
+  if (action === "preparar") {
+    const fin = text(body.fin, 10);
+    if (!DATE.test(fin) || !text(body.email) || !text(body.alumno)) return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
+    const { data: result, error } = await admin.rpc("kiru_renovacion_preparar", {
+      p_email: text(body.email, 254), p_student: text(body.alumno, 120), p_period_end: fin, p_enviar: body.enviar === true,
+    });
+    // Si el campus falla, la renovación sale como siempre (no se queda ninguna familia sin correo).
+    if (error) return NextResponse.json({ ok: false, listo: true, subir: true, error: "No se pudo comprobar la disponibilidad." }, { status: 500 });
+    return NextResponse.json({ ok: true, ...(result as Record<string, Json>) });
   }
 
   if (action === "estados") {

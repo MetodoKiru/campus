@@ -7,14 +7,14 @@ import { errorText } from "@/lib/skillcoins";
 import type { WeeklySlot } from "@/lib/database.types";
 import { btnDark, btnLight, card, input } from "@/components/classes/shared";
 import {
-  GRID_END, GRID_START, GRID_STEP, WEEKDAYS, WEEKDAYS_SHORT, cellKey, cellsToSlots, dayName, fromMinutes, slotsToCells, toMinutes,
+  CLASS_WEEKDAYS, GRID_END, GRID_START, GRID_STEP, WEEKDAYS, WEEKDAYS_SHORT, cellKey, cellsToSlots, dayName, fromMinutes, slotsToCells, toMinutes,
 } from "@/lib/horarios";
 
 type Busy = { weekday: number; start: number; end: number; student: string };
 
 /**
  * «Mi disponibilidad para clases»: el mentor marca en una cuadrícula semanal
- * (medias horas de 8:00 a 22:00) cuándo puede dar clase. Sus clases actuales
+ * (medias horas de 8:00 a 20:30, sin viernes) cuándo puede dar clase. Sus clases actuales
  * salen en gris con el nombre del alumno. Con esto, cuando una familia sube o
  * baja de intensidad, solo ve los huecos que de verdad tiene libres.
  * `mentorId` lo usa administración para editar la de otro mentor.
@@ -110,9 +110,14 @@ export default function MentorAvailability({ notify, mentorId }: { notify: (text
       <div className="space-y-1">
         <h2 className="flex items-center gap-2 font-serif text-lg font-bold text-[#292825]"><Clock className="h-5 w-5" /> Mi disponibilidad para clases</h2>
         <p className="text-xs text-[#6D6962]">
-          Marca los días y horas en los que <strong>puedes dar clase</strong> (pulsa o arrastra sobre la cuadrícula). Cuando una familia
-          sube o baja de días, solo verá los huecos libres que marques aquí. Tus clases actuales salen en gris.
+          Marca los días y horas en los que <strong>podrías dar clase</strong> (pulsa o arrastra sobre la cuadrícula, en franjas de 30 minutos).
+          Tus clases actuales salen en gris.
         </p>
+        <ul className="list-disc space-y-0.5 pl-4 text-xs text-[#45433F]">
+          <li><strong>Marcarla no significa que vayas a dar más (o menos) clases.</strong> Sirve para que las familias sepan qué días podrían pedir más clases y para que sepamos qué huecos tienes por si llega otro alumno.</li>
+          <li>Las horas son las de <strong>estar en casa del alumno dando la clase</strong> (sin contar el desplazamiento).</li>
+          <li>Las clases duran 1 hora y la última es de <strong>19:30 a 20:30</strong>. Los <strong>viernes no hay clase</strong>.</li>
+        </ul>
         <p className="text-[11px] text-[#77736B]">
           {updatedAt ? `Actualizada el ${new Date(updatedAt).toLocaleDateString("es-ES")}. Revísala cada mes.` : "Todavía no la has marcado."}
         </p>
@@ -125,7 +130,7 @@ export default function MentorAvailability({ notify, mentorId }: { notify: (text
               <thead>
                 <tr>
                   <th className="w-10" />
-                  {WEEKDAYS.map((d, i) => (
+                  {CLASS_WEEKDAYS.map((n) => ({ d: WEEKDAYS[n - 1], i: n - 1 })).map(({ d, i }) => (
                     <th key={d} className="font-semibold text-[#555149]">
                       <span className="sm:hidden">{WEEKDAYS_SHORT[i]}</span><span className="hidden sm:inline">{d}</span>
                     </th>
@@ -136,8 +141,7 @@ export default function MentorAvailability({ notify, mentorId }: { notify: (text
                 {rows.map((m) => (
                   <tr key={m}>
                     <td className="pr-1 text-right align-middle text-[#77736B]">{m % 60 === 0 ? fromMinutes(m) : ""}</td>
-                    {WEEKDAYS.map((_, i) => {
-                      const d = i + 1;
+                    {CLASS_WEEKDAYS.map((d) => {
                       const key = cellKey(d, m);
                       const on = cells.has(key);
                       const b = busyAt(d, m);
@@ -175,12 +179,12 @@ export default function MentorAvailability({ notify, mentorId }: { notify: (text
           <details className="text-xs text-[#45433F]">
             <summary className="cursor-pointer font-semibold">Atajos por día</summary>
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-              {WEEKDAYS.map((d, i) => (
-                <div key={d} className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-20">{d}</span>
-                  <button type="button" className={btnLight} onClick={() => fillDay(i + 1, 16 * 60, 20 * 60)}>Tarde 16–20</button>
-                  <button type="button" className={btnLight} onClick={() => fillDay(i + 1, 10 * 60, 14 * 60)}>Mañana 10–14</button>
-                  <button type="button" className={btnLight} onClick={() => clearDay(i + 1)}>Vaciar</button>
+              {CLASS_WEEKDAYS.map((n) => (
+                <div key={n} className="flex flex-wrap items-center gap-1.5">
+                  <span className="w-20">{dayName(n)}</span>
+                  <button type="button" className={btnLight} onClick={() => fillDay(n, 16 * 60, GRID_END)}>Tarde 16:00–20:30</button>
+                  <button type="button" className={btnLight} onClick={() => fillDay(n, 10 * 60, 14 * 60)}>Mañana 10–14</button>
+                  <button type="button" className={btnLight} onClick={() => clearDay(n)}>Vaciar</button>
                 </div>
               ))}
             </div>

@@ -48,7 +48,12 @@ select pg_temp.fails('franjas que se solapan no valen',
   $q$select kiru_disponibilidad_guardar('[{"weekday":1,"start":"16:00","end":"19:00"},{"weekday":1,"start":"18:00","end":"20:00"}]')$q$);
 select pg_temp.fails('horas que no son en punto o y media no valen',
   $q$select kiru_disponibilidad_guardar('[{"weekday":1,"start":"16:10","end":"19:00"}]')$q$);
-select kiru_disponibilidad_guardar('[{"weekday":4,"start":"16:00","end":"19:00"},{"weekday":1,"start":"17:00","end":"19:00"}]', 'Los viernes no');
+select pg_temp.fails('los viernes no se pueden marcar',
+  $q$select kiru_disponibilidad_guardar('[{"weekday":5,"start":"16:00","end":"19:00"}]')$q$);
+select pg_temp.fails('no se puede marcar después de las 20:30',
+  $q$select kiru_disponibilidad_guardar('[{"weekday":1,"start":"19:30","end":"21:00"}]')$q$);
+select kiru_disponibilidad_guardar('[{"weekday":4,"start":"16:00","end":"19:00"},{"weekday":1,"start":"19:00","end":"20:30"}]', 'Prefiero Aravaca');
+select pg_temp.expect_text('la última clase puede ser 19:30–20:30', (select slots->0->>'end' from kiru_mentor_class_availability), '20:30');
 select pg_temp.expect('el mentor ve su disponibilidad', (select jsonb_array_length(slots) from kiru_mentor_class_availability), 2);
 reset role;
 select pg_temp.as_user('M2');
@@ -91,7 +96,7 @@ select pg_temp.as_user('P');
 select pg_temp.expect('opciones: sus 2 clases actuales + huecos libres', (select count(*) from v, jsonb_array_elements(j->'options') o where (o->>'current')::boolean), 2);
 select pg_temp.expect('no ofrece el jueves 17:00 (otro alumno)', (select count(*) from v, jsonb_array_elements(j->'options') o where o->>'weekday'='4' and o->>'start' in ('16:30','17:00','17:30')), 0);
 select pg_temp.expect('sí ofrece el jueves 16:00 y 18:00', (select count(*) from v, jsonb_array_elements(j->'options') o where o->>'weekday'='4' and o->>'start' in ('16:00','18:00')), 2);
-select pg_temp.expect('lunes 17:00 a 19:00: 17:00, 17:30, 18:00', (select count(*) from v, jsonb_array_elements(j->'options') o where o->>'weekday'='1'), 3);
+select pg_temp.expect('lunes 19:00 a 20:30: 19:00 y 19:30 (última 19:30–20:30)', (select count(*) from v, jsonb_array_elements(j->'options') o where o->>'weekday'='1'), 2);
 select pg_temp.fails('tiene que elegir exactamente 1 día',
   $q$select kiru_horario_elegir((select id from kiru_schedule_changes), '[{"weekday":2,"start":"17:45"},{"weekday":6,"start":"11:00"}]')$q$);
 select pg_temp.fails('no puede elegir un hueco ocupado',
@@ -175,5 +180,61 @@ select pg_temp.as_user('A');
 select kiru_horario_cancelar((select id from kiru_schedule_changes where status = 'confirmar_mentor'));
 reset role;
 select pg_temp.expect('no quedan cambios abiertos', (select count(*) from kiru_schedule_changes where status in ('elegir_familia','confirmar_mentor','confirmado')), 0);
+
+-- 9. Confirmación de disponibilidad antes de la renovación (fin 13/12, correo el 06/12).
+update kiru_mentor_class_availability set updated_at = now() - interval '40 days';
+set local role service_role;
+select pg_temp.expect_text('12 días antes: aún no se puede mandar',
+  (select (j->>'listo') || ' ' || (j->>'subir') from (select kiru_renovacion_preparar('p@t', 'Alondra', '2026-12-13', '2026-12-01') j) x), 'false false');
+select kiru_renovacion_preparar('p@t', 'Alondra', '2026-12-13', '2026-12-01');
+reset role;
+select pg_temp.expect('se pide al mentor (una vez aunque la hoja pregunte dos)', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar' and recipient_id = pg_temp.i('M')), 1);
+select kiru_private.availability_checks_daily('2026-12-02');
+select kiru_private.availability_checks_daily('2026-12-03');
+select pg_temp.expect('recordatorio a 11 días (no a 10)', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 2);
+select kiru_private.availability_checks_daily('2026-12-04');
+select pg_temp.expect('recordatorio a 9 días', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 3);
+select kiru_private.availability_checks_daily('2026-12-06');
+select pg_temp.expect('el día del correo sin confirmar: falta', (select count(*) from kiru_availability_checks where missed_at is not null), 1);
+select pg_temp.expect('administración recibe el aviso de la falta', (select count(*) from kiru_notifications where kind = 'disponibilidad_falta' and recipient_id = pg_temp.i('A')), 1);
+select pg_temp.expect('el mentor recibe el aviso urgente', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente' and recipient_id = pg_temp.i('M')), 1);
+set local role service_role;
+select pg_temp.expect_text('el correo a la familia se aplaza',
+  (select j->>'listo' from (select kiru_renovacion_preparar('p@t', 'Alondra', '2026-12-13', '2026-12-06', true) j) x), 'false');
+reset role;
+select kiru_private.availability_checks_daily('2026-12-07');
+select kiru_private.availability_checks_daily('2026-12-07');
+select pg_temp.expect('urgente cada día (uno por día)', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 2);
+select pg_temp.expect('la falta se avisa una sola vez', (select count(*) from kiru_notifications where kind = 'disponibilidad_falta'), 1);
+set local role service_role;
+select pg_temp.expect_text('4 días antes sale igualmente, sin subir',
+  (select (j->>'listo') || ' ' || (j->>'subir') || ' ' || (j->>'forzado') from (select kiru_renovacion_preparar('p@t', 'Alondra', '2026-12-13', '2026-12-09', true) j) x), 'true false true');
+select kiru_renewal_publish('{"email":"p@t","alumno":"Alondra","fin":"2026-12-13","mentor":"M",
+  "mantener_etiqueta":"Mantener 1 día por semana","mantener_precio":175,
+  "subir_etiqueta":"Pasar a 2 días por semana","subir_precio":350}');
+reset role;
+select pg_temp.expect('la renovación no ofrece subir', (select count(*) from kiru_renewals where period_end = '2026-12-13' and up_label is null), 1);
+select kiru_private.availability_checks_daily('2026-12-10');
+select pg_temp.expect('ya no hay más urgentes', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 2);
+
+-- 10. El mentor confirma a tiempo: la familia recibe el correo con «subir».
+set local role service_role;
+select kiru_renovacion_preparar('p@t', 'Alondra', '2027-02-13', '2027-02-01');
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.fails('sin disponibilidad marcada no puede decir «sigue igual»', $q$select kiru_disponibilidad_sigue_igual()$q$);
+reset role;
+select pg_temp.as_user('M');
+select kiru_disponibilidad_sigue_igual();
+select pg_temp.expect('el mentor ve su petición confirmada', (select count(*) from kiru_availability_checks where period_end = '2027-02-13' and confirmed_at is not null), 1);
+reset role;
+select pg_temp.expect('sus avisos quedan leídos', (select count(*) from kiru_notifications where recipient_id = pg_temp.i('M') and kind like 'disponibilidad%' and read_at is null), 0);
+set local role service_role;
+select pg_temp.expect_text('listo y con subir (tiene hueco el jueves)',
+  (select (j->>'listo') || ' ' || (j->>'subir') from (select kiru_renovacion_preparar('p@t', 'Alondra', '2027-02-13', '2027-02-06', true) j) x), 'true true');
+reset role;
+select pg_temp.as_user('P');
+select pg_temp.expect('la familia no ve las confirmaciones del mentor', (select count(*) from kiru_availability_checks), 0);
+reset role;
 
 rollback;

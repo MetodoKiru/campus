@@ -28,7 +28,8 @@ ALTER TABLE public.kiru_notifications ADD CONSTRAINT kiru_notifications_kind_che
   'clase_incidencia', 'justificacion_solicitada', 'justificacion_respondida', 'justificacion_repregunta',
   'justificacion_cerrada', 'justificacion_recordatorio', 'justificacion_por_valorar', 'aviso_metodologico',
   'aviso_seguimiento', 'periodo_especial', 'evaluacion_trimestral',
-  'horario_elegir', 'horario_confirmar', 'horario_confirmado', 'horario_otro', 'disponibilidad_actualizar'
+  'horario_elegir', 'horario_confirmar', 'horario_confirmado', 'horario_otro', 'disponibilidad_actualizar',
+  'disponibilidad_confirmar', 'disponibilidad_urgente', 'disponibilidad_falta'
 ));
 
 -- 1. Disponibilidad semanal del mentor ------------------------------------------------
@@ -85,6 +86,13 @@ BEGIN
     IF e <= s THEN
       RAISE EXCEPTION 'Cada franja tiene que acabar después de empezar.' USING ERRCODE = '22023';
     END IF;
+    -- Normas de Método Kiru: los viernes no hay clase y la última clase es de 19:30 a 20:30.
+    IF d = 5 THEN
+      RAISE EXCEPTION 'Los viernes no hay clases: deja el viernes sin marcar.' USING ERRCODE = '22023';
+    END IF;
+    IF s < '08:00'::time OR e > '20:30'::time THEN
+      RAISE EXCEPTION 'Solo se pueden marcar horas entre las 8:00 y las 20:30 (la última clase es de 19:30 a 20:30).' USING ERRCODE = '22023';
+    END IF;
     IF EXISTS (SELECT 1 FROM jsonb_array_elements(v) x
                WHERE (x ->> 'weekday')::int = d AND (x ->> 'start')::time < e AND (x ->> 'end')::time > s) THEN
       RAISE EXCEPTION 'Hay franjas que se solapan el mismo día.' USING ERRCODE = '22023';
@@ -119,7 +127,10 @@ BEGIN
   INSERT INTO public.kiru_mentor_class_availability (mentor_id, slots, notes, updated_at)
   VALUES (v_mentor, v_slots, left(coalesce(p_notes, ''), 500), now())
   ON CONFLICT (mentor_id) DO UPDATE SET slots = excluded.slots, notes = excluded.notes, updated_at = now();
-  -- Ya no hace falta el recordatorio pendiente.
+  -- Guardar cuenta como confirmar (y ya no hacen falta los recordatorios pendientes).
+  IF to_regprocedure('kiru_private.availability_confirmed(uuid)') IS NOT NULL THEN
+    EXECUTE 'SELECT kiru_private.availability_confirmed($1)' USING v_mentor;
+  END IF;
   UPDATE public.kiru_notifications SET read_at = coalesce(read_at, now())
   WHERE recipient_id = v_mentor AND kind = 'disponibilidad_actualizar' AND read_at IS NULL;
   RETURN jsonb_build_object('ok', true, 'slots', v_slots);
@@ -225,6 +236,7 @@ DECLARE
                           THEN p_data ->> 'plan' END;
   sheet_months int := CASE WHEN coalesce(p_data ->> 'meses', '') ~ '^\d{1,2}$' THEN (p_data ->> 'meses')::int ELSE 1 END;
   sheet_paid boolean := coalesce((p_data ->> 'pagado')::boolean, false);
+  no_raise boolean := false;
 BEGIN
   IF sid IS NULL THEN
     RETURN jsonb_build_object('found', false);
@@ -237,6 +249,16 @@ BEGIN
 
   UPDATE public.kiru_renewals SET closed_at = now()
   WHERE student_id = sid AND period_end < fin AND closed_at IS NULL;
+
+  -- Si al preparar el correo se vio que el mentor no tiene hueco, no se ofrece subir.
+  IF to_regclass('public.kiru_availability_checks') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.kiru_availability_checks WHERE student_id = $1 AND period_end = $2 AND can_raise IS FALSE)'
+      INTO no_raise USING sid, fin;
+  END IF;
+  IF no_raise AND sheet_plan IS DISTINCT FROM 'subir' THEN
+    p_data := p_data || jsonb_build_object('subir_etiqueta', '', 'subir_precio', '');
+    prepay := prepay - 'subir';
+  END IF;
 
   INSERT INTO public.kiru_renewals AS k (student_id, period_end, sheet_student, guardian_email, mentor_name,
     keep_label, keep_price, up_label, up_price, down_label, down_price, payment_info, call_url, prepay,
@@ -587,10 +609,64 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION kiru_private.student_slots(uuid) FROM PUBLIC;
 
+CREATE OR REPLACE FUNCTION kiru_private.class_minutes(p_student uuid)
+RETURNS int
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT greatest(30, least(coalesce(round(avg(extract(epoch FROM (s.end_time - s.start_time)) / 60))::int, 60), 180))
+  FROM public.kiru_student_schedule_slots s WHERE s.student_id = p_student AND s.is_active
+$$;
+REVOKE ALL ON FUNCTION kiru_private.class_minutes(uuid) FROM PUBLIC;
+
+-- Huecos libres de un mentor para un alumno: cada media hora dentro de su
+-- disponibilidad, sin pisar las clases de otros alumnos ni los horarios que
+-- otras familias ya han elegido y están por confirmar o aplicar.
+CREATE OR REPLACE FUNCTION kiru_private.free_slots(p_mentor uuid, p_student uuid, p_exclude_change uuid DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH m AS (SELECT kiru_private.class_minutes(p_student) AS mins),
+  avail AS (
+    SELECT (x ->> 'weekday')::int AS d, (x ->> 'start')::time AS s, (x ->> 'end')::time AS e
+    FROM public.kiru_mentor_class_availability a, jsonb_array_elements(a.slots) x
+    WHERE a.mentor_id = p_mentor
+  ), starts AS (
+    SELECT a.d, t::time AS s, (t + make_interval(mins => m.mins))::time AS e
+    FROM avail a CROSS JOIN m
+    CROSS JOIN LATERAL generate_series('2000-01-01'::timestamp + a.s,
+                                       '2000-01-01'::timestamp + a.e - make_interval(mins => m.mins),
+                                       interval '30 minutes') AS t
+  ), busy AS (
+    SELECT s.weekday::int AS d, s.start_time AS s, s.end_time AS e
+    FROM public.kiru_student_schedule_slots s
+    WHERE s.mentor_id = p_mentor AND s.is_active AND s.student_id <> p_student
+    UNION ALL
+    SELECT (x ->> 'weekday')::int, (x ->> 'start')::time, (x ->> 'end')::time
+    FROM public.kiru_schedule_changes o, jsonb_array_elements(o.chosen_slots) x
+    WHERE o.mentor_id = p_mentor AND o.id IS DISTINCT FROM p_exclude_change AND o.student_id <> p_student
+      AND o.status IN ('confirmar_mentor', 'confirmado')
+  ), own AS (
+    SELECT s.weekday::int AS d, s.start_time AS s FROM public.kiru_student_schedule_slots s
+    WHERE s.student_id = p_student AND s.is_active AND s.mentor_id = p_mentor
+  )
+  SELECT coalesce(jsonb_agg(jsonb_build_object('weekday', st.d, 'start', to_char(st.s, 'HH24:MI'),
+                                               'end', to_char(st.e, 'HH24:MI'), 'current', false)
+                            ORDER BY st.d, st.s), '[]'::jsonb)
+  FROM starts st
+  WHERE st.e > st.s
+    AND NOT EXISTS (SELECT 1 FROM busy b WHERE b.d = st.d AND b.s < st.e AND b.e > st.s)
+    AND NOT EXISTS (SELECT 1 FROM own o WHERE o.d = st.d AND o.s = st.s)
+$$;
+REVOKE ALL ON FUNCTION kiru_private.free_slots(uuid, uuid, uuid) FROM PUBLIC;
+
 -- Opciones de horario para un cambio: las clases que el alumno ya tiene (si
--- siguen siendo con ese mentor) y los huecos libres del mentor (cada media
--- hora dentro de su disponibilidad), sin pisar las clases de otros alumnos ni
--- los horarios que otras familias ya han elegido y están por confirmar.
+-- siguen siendo con ese mentor) y los huecos libres del mentor.
 CREATE OR REPLACE FUNCTION kiru_private.schedule_options(p_change uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -600,54 +676,17 @@ SET search_path = ''
 AS $$
 DECLARE
   c public.kiru_schedule_changes;
-  v_minutes int;
   v_current jsonb;
-  v_free jsonb;
 BEGIN
   SELECT * INTO c FROM public.kiru_schedule_changes WHERE id = p_change;
   IF NOT FOUND THEN RETURN '[]'::jsonb; END IF;
-  SELECT coalesce(round(avg(extract(epoch FROM (s.end_time - s.start_time)) / 60))::int, 60) INTO v_minutes
-  FROM public.kiru_student_schedule_slots s WHERE s.student_id = c.student_id AND s.is_active;
-  v_minutes := greatest(30, least(v_minutes, 180));
-
   SELECT coalesce(jsonb_agg(jsonb_build_object('weekday', s.weekday, 'start', to_char(s.start_time, 'HH24:MI'),
                                                'end', to_char(s.end_time, 'HH24:MI'), 'current', true)
                             ORDER BY s.weekday, s.start_time), '[]'::jsonb)
   INTO v_current
   FROM public.kiru_student_schedule_slots s
   WHERE s.student_id = c.student_id AND s.is_active AND (c.mentor_id IS NULL OR s.mentor_id = c.mentor_id);
-
-  WITH avail AS (
-    SELECT (x ->> 'weekday')::int AS d, (x ->> 'start')::time AS s, (x ->> 'end')::time AS e
-    FROM public.kiru_mentor_class_availability a, jsonb_array_elements(a.slots) x
-    WHERE a.mentor_id = c.mentor_id
-  ), starts AS (
-    SELECT a.d, t::time AS s, (t + make_interval(mins => v_minutes))::time AS e
-    FROM avail a
-    CROSS JOIN LATERAL generate_series('2000-01-01'::timestamp + a.s,
-                                       '2000-01-01'::timestamp + a.e - make_interval(mins => v_minutes),
-                                       interval '30 minutes') AS t
-    WHERE '2000-01-01'::timestamp + a.e - make_interval(mins => v_minutes) >= '2000-01-01'::timestamp + a.s
-  ), busy AS (
-    SELECT s.weekday::int AS d, s.start_time AS s, s.end_time AS e
-    FROM public.kiru_student_schedule_slots s
-    WHERE s.mentor_id = c.mentor_id AND s.is_active AND s.student_id <> c.student_id
-    UNION ALL
-    SELECT (x ->> 'weekday')::int, (x ->> 'start')::time, (x ->> 'end')::time
-    FROM public.kiru_schedule_changes o, jsonb_array_elements(o.chosen_slots) x
-    WHERE o.mentor_id = c.mentor_id AND o.id <> c.id AND o.student_id <> c.student_id
-      AND o.status IN ('confirmar_mentor', 'confirmado')
-  )
-  SELECT coalesce(jsonb_agg(jsonb_build_object('weekday', st.d, 'start', to_char(st.s, 'HH24:MI'),
-                                               'end', to_char(st.e, 'HH24:MI'), 'current', false)
-                            ORDER BY st.d, st.s), '[]'::jsonb)
-  INTO v_free
-  FROM starts st
-  WHERE NOT EXISTS (SELECT 1 FROM busy b WHERE b.d = st.d AND b.s < st.e AND b.e > st.s)
-    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_current) cur
-                    WHERE (cur ->> 'weekday')::int = st.d AND (cur ->> 'start')::time = st.s);
-
-  RETURN v_current || v_free;
+  RETURN v_current || kiru_private.free_slots(c.mentor_id, c.student_id, c.id);
 END
 $$;
 REVOKE ALL ON FUNCTION kiru_private.schedule_options(uuid) FROM PUBLIC;
@@ -935,9 +974,11 @@ DECLARE
   v_reminders int := 0;
   v_mentors int := 0;
   v_today date := (now() AT TIME ZONE 'Europe/Madrid')::date;
+  v_checks jsonb;
   c record;
 BEGIN
   v_applied := public.kiru_horarios_aplicar();
+  v_checks := kiru_private.availability_checks_daily(v_today);
 
   FOR c IN SELECT ch.*, split_part(coalesce(p.full_name, ''), ' ', 1) AS name
            FROM public.kiru_schedule_changes ch JOIN public.profiles p ON p.id = ch.student_id
@@ -979,7 +1020,8 @@ BEGIN
     SELECT count(*) INTO v_mentors FROM sent;
   END IF;
 
-  RETURN jsonb_build_object('aplicados', v_applied, 'recordatorios', v_reminders, 'mentores_avisados', v_mentors);
+  RETURN jsonb_build_object('aplicados', v_applied, 'recordatorios', v_reminders, 'mentores_avisados', v_mentors,
+                            'confirmaciones', v_checks);
 END
 $$;
 REVOKE ALL ON FUNCTION public.kiru_horarios_tarea_diaria() FROM PUBLIC, anon, authenticated;
@@ -1016,6 +1058,240 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.kiru_horarios_para_hoja(), public.kiru_horarios_hoja_ok(uuid[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.kiru_horarios_para_hoja(), public.kiru_horarios_hoja_ok(uuid[]) TO service_role;
+
+
+-- 3b. Confirmación de disponibilidad ANTES de la renovación (13/11/2026) -------------
+-- Para que a la familia no se le ofrezca subir sin saber si el mentor puede:
+--   12 días antes del fin de la mensualidad → se pide al mentor que confirme su
+--                                             disponibilidad (o la actualice).
+--   11 y 9 días antes                       → recordatorios.
+--   7 días antes (el día del correo)        → si no ha confirmado: el correo a la
+--       familia se APLAZA, el mentor recibe un aviso urgente cada día, se le
+--       anota una falta y administración recibe un aviso.
+--   4 días antes                            → la familia recibe el correo igualmente
+--       (para que no se quede sin renovar), pero SIN la opción de subir.
+-- «Subir» solo se ofrece si, con la disponibilidad confirmada, el mentor tiene
+-- algún hueco libre en un día que el alumno no tenga ya.
+CREATE TABLE IF NOT EXISTS public.kiru_availability_checks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  mentor_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  period_end date NOT NULL,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  confirmed_at timestamptz,
+  reminders smallint NOT NULL DEFAULT 0,
+  -- Falta: no confirmó a tiempo (el día que tocaba el correo a la familia).
+  missed_at timestamptz,
+  -- Lo que se decidió al preparar el correo: si se puede ofrecer subir.
+  can_raise boolean,
+  family_released_at timestamptz,
+  forced boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (student_id, period_end)
+);
+CREATE INDEX IF NOT EXISTS kiru_availability_checks_mentor_idx ON public.kiru_availability_checks (mentor_id, confirmed_at);
+COMMENT ON TABLE public.kiru_availability_checks IS
+  'Confirmación de disponibilidad del mentor antes de cada renovación. missed_at = falta (no confirmó a tiempo y se aplazó el correo a la familia).';
+ALTER TABLE public.kiru_availability_checks ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.kiru_availability_checks FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.kiru_availability_checks TO authenticated;
+GRANT ALL ON public.kiru_availability_checks TO service_role;
+CREATE POLICY kiru_availability_checks_read ON public.kiru_availability_checks
+FOR SELECT TO authenticated USING (
+  mentor_id = (SELECT kiru_private.active_uid())
+  OR (SELECT kiru_private.is_admin())
+  OR (SELECT kiru_private.coordinates_mentor(mentor_id))
+);
+
+-- ¿Puede el mentor dar una clase más a este alumno? (un hueco libre en otro día)
+CREATE OR REPLACE FUNCTION kiru_private.can_raise(p_mentor uuid, p_student uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(kiru_private.free_slots(p_mentor, p_student, NULL)) f
+    WHERE NOT EXISTS (SELECT 1 FROM public.kiru_student_schedule_slots s
+                      WHERE s.student_id = p_student AND s.is_active AND s.weekday = (f ->> 'weekday')::int)
+  )
+$$;
+REVOKE ALL ON FUNCTION kiru_private.can_raise(uuid, uuid) FROM PUBLIC;
+
+-- El mentor confirma (al guardar su disponibilidad o con «Sigue igual»).
+CREATE OR REPLACE FUNCTION kiru_private.availability_confirmed(p_mentor uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  UPDATE public.kiru_availability_checks SET confirmed_at = now()
+  WHERE mentor_id = p_mentor AND confirmed_at IS NULL;
+  UPDATE public.kiru_notifications SET read_at = coalesce(read_at, now())
+  WHERE recipient_id = p_mentor AND kind IN ('disponibilidad_confirmar', 'disponibilidad_urgente', 'disponibilidad_actualizar') AND read_at IS NULL;
+$$;
+REVOKE ALL ON FUNCTION kiru_private.availability_confirmed(uuid) FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION public.kiru_disponibilidad_sigue_igual()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  me uuid := kiru_private.active_uid();
+BEGIN
+  IF me IS NULL OR kiru_private.kiru_role() <> 'mentor' THEN
+    RAISE EXCEPTION 'Solo el mentor puede confirmar su disponibilidad.' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.kiru_mentor_class_availability WHERE mentor_id = me AND jsonb_array_length(slots) > 0) THEN
+    RAISE EXCEPTION 'Todavía no has marcado tu disponibilidad: márcala primero.' USING ERRCODE = '22023';
+  END IF;
+  UPDATE public.kiru_mentor_class_availability SET updated_at = now() WHERE mentor_id = me;
+  PERFORM kiru_private.availability_confirmed(me);
+  RETURN jsonb_build_object('ok', true);
+END
+$$;
+REVOKE ALL ON FUNCTION public.kiru_disponibilidad_sigue_igual() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.kiru_disponibilidad_sigue_igual() TO authenticated;
+
+-- Paso diario: crea las peticiones, manda recordatorios y, el día del correo, anota la falta.
+CREATE OR REPLACE FUNCTION kiru_private.availability_checks_daily(p_today date)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  r record;
+  v_sent int := 0;
+  v_missed int := 0;
+  v_left int;
+  v_name text;
+  v_mentor_name text;
+BEGIN
+  -- Avisos según los días que faltan (las peticiones las crea la hoja con kiru_renovacion_preparar).
+  FOR r IN
+    SELECT c.*, split_part(coalesce(ps.full_name, ''), ' ', 1) AS student_name, pm.full_name AS mentor_name
+    FROM public.kiru_availability_checks c
+    JOIN public.profiles ps ON ps.id = c.student_id
+    JOIN public.profiles pm ON pm.id = c.mentor_id
+    WHERE c.confirmed_at IS NULL AND c.family_released_at IS NULL AND c.period_end >= p_today
+  LOOP
+    v_left := r.period_end - p_today;
+    v_name := coalesce(nullif(r.student_name, ''), 'tu alumno');
+    IF v_left >= 8 THEN
+      IF v_left IN (12, 11, 9) OR r.reminders = 0 THEN
+        INSERT INTO public.kiru_notifications (recipient_id, student_id, kind, title, body, event_key, email_status)
+        VALUES (r.mentor_id, r.student_id, 'disponibilidad_confirmar',
+          CASE WHEN r.reminders = 0 THEN 'Confirma tu disponibilidad antes de la renovación de ' || v_name
+               ELSE 'Recordatorio: confirma tu disponibilidad (renovación de ' || v_name || ')' END,
+          'El ' || to_char(r.period_end - 7, 'DD/MM') || ' su familia recibirá la renovación y podrá elegir subir o bajar días. '
+            || 'Antes del ' || to_char(r.period_end - 8, 'DD/MM') || ', entra en tu panel y confirma que tu disponibilidad sigue igual o actualízala. '
+            || 'Si no la confirmas, la renovación se retrasa.',
+          'dispcheck:' || r.id || ':' || v_left, 'pendiente')
+        ON CONFLICT (recipient_id, event_key) DO NOTHING;
+        IF FOUND THEN
+          UPDATE public.kiru_availability_checks SET reminders = reminders + 1 WHERE id = r.id;
+          v_sent := v_sent + 1;
+        END IF;
+      END IF;
+    ELSE
+      -- Ya es el día del correo (o después) y no ha confirmado: falta, aviso urgente diario y aviso a administración.
+      IF r.missed_at IS NULL THEN
+        UPDATE public.kiru_availability_checks SET missed_at = now() WHERE id = r.id;
+        v_missed := v_missed + 1;
+        INSERT INTO public.kiru_notifications (recipient_id, student_id, kind, title, body, event_key, email_status)
+        SELECT p.id, r.student_id, 'disponibilidad_falta',
+          r.mentor_name || ' no ha confirmado su disponibilidad',
+          'La renovación de ' || v_name || ' (fin ' || to_char(r.period_end, 'DD/MM') || ') está aplazada hasta que confirme. '
+            || 'Queda anotada una falta. Si el ' || to_char(r.period_end - 4, 'DD/MM') || ' sigue sin confirmar, la familia recibirá la renovación sin la opción de subir.',
+          'dispfalta:' || r.id, 'pendiente'
+        FROM public.profiles p WHERE p.role = 'admin' AND p.is_active
+        ON CONFLICT (recipient_id, event_key) DO NOTHING;
+      END IF;
+      INSERT INTO public.kiru_notifications (recipient_id, student_id, kind, title, body, event_key, email_status)
+      VALUES (r.mentor_id, r.student_id, 'disponibilidad_urgente',
+        'URGENTE: confirma hoy tu disponibilidad (renovación de ' || v_name || ')',
+        'La renovación de ' || v_name || ' está parada porque no has confirmado tu disponibilidad, y queda anotado como falta. '
+          || 'Entra ahora en tu panel y pulsa «Mi disponibilidad sigue igual» o actualízala.',
+        'dispcheck:' || r.id || ':urgente:' || p_today, 'pendiente')
+      ON CONFLICT (recipient_id, event_key) DO NOTHING;
+      IF FOUND THEN v_sent := v_sent + 1; END IF;
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('avisos', v_sent, 'faltas', v_missed);
+END
+$$;
+REVOKE ALL ON FUNCTION kiru_private.availability_checks_daily(date) FROM PUBLIC;
+
+-- La hoja pregunta cada día, desde 12 días antes del fin de la mensualidad y hasta
+-- que sale el correo de renovación. La renovación aún no existe en el campus (se
+-- publica al mandar el correo), así que la petición al mentor se crea aquí.
+--   listo = ya se puede mandar el correo (el mentor confirmó, o faltan 4 días o menos);
+--   subir = se puede ofrecer subir (si no, la hoja no lo pone en el correo ni en el campus).
+-- p_enviar = true cuando la hoja va a mandar el correo hoy: queda apuntado.
+CREATE OR REPLACE FUNCTION public.kiru_renovacion_preparar(p_email text, p_student text, p_period_end date,
+  p_today date DEFAULT NULL, p_enviar boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  sid uuid := kiru_private.renewal_student(p_email, p_student);
+  v_today date := coalesce(p_today, (now() AT TIME ZONE 'Europe/Madrid')::date);
+  v_left int := p_period_end - coalesce(p_today, (now() AT TIME ZONE 'Europe/Madrid')::date);
+  v_mentor uuid;
+  c public.kiru_availability_checks;
+  v_raise boolean;
+  v_listo boolean;
+BEGIN
+  IF sid IS NULL OR p_period_end IS NULL THEN
+    RETURN jsonb_build_object('found', false, 'listo', true, 'subir', true);
+  END IF;
+  SELECT * INTO c FROM public.kiru_availability_checks WHERE student_id = sid AND period_end = p_period_end FOR UPDATE;
+  IF NOT FOUND THEN
+    -- Su mentor (si tiene varios, con el que tiene más clases).
+    SELECT sm.mentor_id INTO v_mentor
+    FROM public.student_mentors sm
+    JOIN public.profiles pm ON pm.id = sm.mentor_id AND pm.is_active AND pm.role = 'mentor'
+    WHERE sm.student_id = sid
+    ORDER BY (SELECT count(*) FROM public.kiru_student_schedule_slots s
+              WHERE s.student_id = sid AND s.mentor_id = sm.mentor_id AND s.is_active) DESC
+    LIMIT 1;
+    IF v_mentor IS NULL OR v_left > 12 OR v_left < 0 THEN
+      -- Sin mentor en el campus (o fuera de plazo): no se frena nada, la hoja decide como siempre.
+      RETURN jsonb_build_object('found', true, 'listo', true, 'subir', true, 'sin_mentor', v_mentor IS NULL);
+    END IF;
+    INSERT INTO public.kiru_availability_checks (mentor_id, student_id, period_end, confirmed_at)
+    VALUES (v_mentor, sid, p_period_end,
+            -- Si la actualizó en los últimos 5 días, ya cuenta como confirmada.
+            (SELECT now() FROM public.kiru_mentor_class_availability a
+             WHERE a.mentor_id = v_mentor AND jsonb_array_length(a.slots) > 0 AND a.updated_at > now() - interval '5 days'))
+    RETURNING * INTO c;
+    -- Primer aviso al mentor ya mismo (los siguientes los manda la tarea diaria).
+    PERFORM kiru_private.availability_checks_daily(v_today);
+    SELECT * INTO c FROM public.kiru_availability_checks WHERE id = c.id;
+  END IF;
+
+  v_listo := c.confirmed_at IS NOT NULL OR v_left <= 4;
+  v_raise := c.confirmed_at IS NOT NULL AND kiru_private.can_raise(c.mentor_id, sid);
+  IF p_enviar AND v_listo THEN
+    UPDATE public.kiru_availability_checks
+    SET can_raise = v_raise, family_released_at = coalesce(family_released_at, now()),
+        forced = forced OR c.confirmed_at IS NULL
+    WHERE id = c.id;
+  END IF;
+  RETURN jsonb_build_object('found', true, 'listo', v_listo, 'subir', v_raise,
+    'confirmado', c.confirmed_at IS NOT NULL, 'falta', c.missed_at IS NOT NULL,
+    'forzado', v_listo AND c.confirmed_at IS NULL,
+    'motivo', CASE WHEN NOT v_listo THEN 'El mentor no ha confirmado su disponibilidad' END);
+END
+$$;
+REVOKE ALL ON FUNCTION public.kiru_renovacion_preparar(text, text, date, date, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kiru_renovacion_preparar(text, text, date, date, boolean) TO service_role;
 
 -- 4. Tarea programada (antes de la de clases, que rehace las clases del día) ---------
 DO $cron$

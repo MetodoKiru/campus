@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { errorText } from "@/lib/skillcoins";
-import type { ScheduleChangeRow, WeeklySlot } from "@/lib/database.types";
+import type { AvailabilityCheckRow, ScheduleChangeRow, WeeklySlot } from "@/lib/database.types";
 import { btnDark, btnLight, card, subtle } from "@/components/classes/shared";
 import { CHANGE_STATUS_LABEL, dayName, longDate, slotsText } from "@/lib/horarios";
 import MentorAvailability from "./MentorAvailability";
@@ -19,17 +19,21 @@ export default function AdminScheduleChanges({ notify }: { notify: (text: string
   const [changes, setChanges] = useState<ScheduleChangeRow[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [mentors, setMentors] = useState<Mentor[]>([]);
+  const [checks, setChecks] = useState<AvailabilityCheckRow[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [{ data: rows }, { data: people }, { data: avail }] = await Promise.all([
+    const [{ data: rows }, { data: people }, { data: avail }, { data: chk }] = await Promise.all([
       supabase.from("kiru_schedule_changes").select("*").or(`status.in.(elegir_familia,confirmar_mentor,confirmado),updated_at.gte.${since}`)
         .order("created_at", { ascending: false }).limit(100),
       supabase.from("profiles").select("id,full_name,role,is_active").in("role", ["mentor", "alumno"]),
       supabase.from("kiru_mentor_class_availability").select("mentor_id,slots,updated_at"),
+      supabase.from("kiru_availability_checks").select("*").gte("created_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
+        .order("period_end", { ascending: false }).limit(100),
     ]);
+    setChecks((chk ?? []) as AvailabilityCheckRow[]);
     setChanges((rows ?? []) as ScheduleChangeRow[]);
     setNames(new Map((people ?? []).map((p) => [p.id, p.full_name || "—"])));
     const byMentor = new Map((avail ?? []).map((a) => [a.mentor_id, a]));
@@ -104,8 +108,29 @@ export default function AdminScheduleChanges({ notify }: { notify: (text: string
       </section>
 
       <section className={`${card} space-y-3`}>
+        <h2 className="font-serif text-lg font-bold text-[#292825]">Confirmaciones antes de la renovación</h2>
+        <p className="text-xs text-[#6D6962]">
+          12 días antes del fin de cada mensualidad se pide al mentor que confirme su disponibilidad (recordatorios a 11 y 9 días). Si el día del
+          correo (7 días antes) no lo ha hecho, el correo a la familia se aplaza, el mentor recibe un aviso urgente cada día y queda anotada una
+          falta. 4 días antes la familia lo recibe igualmente, pero sin la opción de subir.
+        </p>
+        {checks.length === 0 ? <p className="text-xs text-[#77736B]">Todavía no hay ninguna.</p> : (
+          <ul className="space-y-1 text-xs text-[#45433F]">
+            {checks.map((c) => (
+              <li key={c.id} className={c.missed_at ? "text-red-800" : undefined}>
+                <strong>{names.get(c.mentor_id) ?? "Mentor"}</strong> · {names.get(c.student_id) ?? "Alumno"} · fin {longDate(c.period_end)} ·{" "}
+                {c.confirmed_at ? `confirmada el ${new Date(c.confirmed_at).toLocaleDateString("es-ES")}` : c.family_released_at ? "no confirmó (salió sin subir)" : "pendiente"}
+                {c.missed_at ? " · FALTA" : ""}
+                {c.family_released_at ? (c.can_raise ? " · se ofreció subir" : " · sin opción de subir") : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className={`${card} space-y-3`}>
         <h2 className="font-serif text-lg font-bold text-[#292825]">Disponibilidad de los mentores</h2>
-        <p className="text-xs text-[#6D6962]">La marca cada mentor en su panel («Mi disponibilidad para clases»). El día 1 de cada mes se avisa a quien no la haya revisado en 30 días.</p>
+        <p className="text-xs text-[#6D6962]">La marca cada mentor en su panel («Mi disponibilidad para clases»), en franjas de 30 minutos, sin viernes y hasta las 20:30. El día 1 de cada mes se avisa a quien no la haya revisado en 30 días.</p>
         <ul className="space-y-2">
           {mentors.map((m) => {
             const stale = m.stale;
