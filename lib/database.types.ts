@@ -314,7 +314,7 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial";
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral";
   title: string;
   body: string;
   event_key: string;
@@ -696,6 +696,24 @@ export type SpecialPeriodPlanRow = {
 export type SpecialPeriodLogRow = {
   id: string; period_id: string | null; student_id: string | null; actor_id: string | null; action: string; details: Json; created_at: string;
 };
+// Evaluaciones trimestrales (migración 20261112160000). Solo servidor (service role).
+export type EvaluationTarget = "familia" | "mentor" | "alumno";
+export type EvaluationStatus = "programada" | "abierta" | "completada" | "sin_respuesta" | "cancelada";
+export type AcademicStatus = "sin_elegir" | "por_aprobar" | "aprobada";
+export type EvaluationRow = {
+  id: string; token: string; student_id: string; target: EvaluationTarget; cycle: number; mentor_id: string | null;
+  anchor_on: string; due_on: string; original_due_on: string; status: EvaluationStatus;
+  opened_at: string | null; opened_on: string | null; completed_at: string | null; completed_by: string | null;
+  completed_via: "formulario" | "manual" | "escaneo" | null; submission_id: string | null; answers: Json | null; sheet_exported_at: string | null; late: boolean; steps: string[];
+  academic_path: string | null; academic_name: string; academic_by: string | null; academic_status: AcademicStatus;
+  academic_reviewed_by: string | null; academic_reviewed_at: string | null;
+  scan_paths: string[]; scan_by: string | null; scan_at: string | null; given_by: string; note: string; moved_by: string | null;
+  created_at: string; updated_at: string;
+};
+export type EvaluationStudentRow = {
+  student_id: string; family_start_on: string | null; skip_initial: boolean; paused: boolean; updated_by: string | null; updated_at: string;
+};
+export type SettingRow = { key: string; value: Json; updated_at: string };
 export type MentorSpecialtyRow = { email: string; specialties: string[]; hours: number; updated_at: string };
 export type MentorAvailabilityRow = { mentor_id: string; days: string[]; slots: string[]; notes: string; updated_at: string };
 export type CoordinationMeetingRow = {
@@ -818,6 +836,9 @@ export type Database = {
       kiru_special_period_mentors: Table<SpecialPeriodMentorRow, "id" | "mentor_id" | "external_name" | "external_email" | "own_classes" | "wants_to_substitute" | "slots" | "zones" | "max_sessions" | "comments" | "answered_by" | "answered_at">;
       kiru_special_period_plans: Table<SpecialPeriodPlanRow, "id" | "assignments" | "amounts" | "status" | "notes" | "revision" | "proposed_by" | "proposed_at" | "approved_by" | "approved_at" | "updated_at">;
       kiru_special_period_log: Table<SpecialPeriodLogRow, "id" | "period_id" | "student_id" | "actor_id" | "details" | "created_at">;
+      kiru_evaluations: Table<EvaluationRow, "id" | "token" | "mentor_id" | "status" | "opened_at" | "opened_on" | "completed_at" | "completed_by" | "completed_via" | "submission_id" | "answers" | "sheet_exported_at" | "late" | "steps" | "academic_path" | "academic_name" | "academic_by" | "academic_status" | "academic_reviewed_by" | "academic_reviewed_at" | "scan_paths" | "scan_by" | "scan_at" | "given_by" | "note" | "moved_by" | "created_at" | "updated_at">;
+      kiru_evaluation_students: Table<EvaluationStudentRow, "family_start_on" | "skip_initial" | "paused" | "updated_by" | "updated_at">;
+      kiru_settings: Table<SettingRow, "updated_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {
@@ -853,6 +874,7 @@ export type Database = {
         Args: { p_weeks?: number };
         Returns: MissingScWeekRow[];
       };
+      kiru_evaluaciones_tarea_diaria: { Args: { p_today?: string }; Returns: Json };
       kiru_session_schedule_mismatches: {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];

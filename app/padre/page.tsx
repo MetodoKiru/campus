@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
 import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
+import FamilyEvaluations from "@/components/evaluations/FamilyEvaluations";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -343,7 +344,7 @@ export default function PadrePage() {
                 const child = childrenList.find((c) => c.id === n.student_id);
                 if (child) {
                   setSelectedChild(child);
-                  setActiveTab(n.kind === "renovacion" ? "inicio" : n.kind === "informe_progreso" ? "informes" : n.session_id || n.request_id ? "sesiones" : "recompensas");
+                  setActiveTab(n.kind === "renovacion" || n.kind === "evaluacion_trimestral" ? "inicio" : n.kind === "informe_progreso" ? "informes" : n.session_id || n.request_id ? "sesiones" : "recompensas");
                   if (n.kind === "informe_progreso" && n.event_key.startsWith("informe_progreso:")) {
                     const params = new URLSearchParams(window.location.search);
                     params.set("informe", n.event_key.slice("informe_progreso:".length));
@@ -501,6 +502,7 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
+              <FamilyEvaluations studentId={selectedChild.id} onOpenReports={() => setActiveTab("informes")} />
               <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => void reloadRenewals()} />
               {childNeedsAnswer && (

@@ -31,6 +31,7 @@ import MentorPayments from "@/components/mentor/MentorPayments";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { MENTOR_SECTIONS, type MentorSection, type StepId } from "@/lib/mentor-steps";
 import MentorSpecialPeriod from "@/components/special-periods/MentorSpecialPeriod";
+import MentorEvaluations from "@/components/evaluations/MentorEvaluations";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
 const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
@@ -270,6 +271,7 @@ export default function MentorPage() {
             <span className="text-[#6D6962]">Pulsa para responder →</span>
           </button>
         )}
+        <MentorEvaluations notify={setSavedMsg} />
         <MentorSpecialPeriod notify={setSavedMsg} />
         <MentorClasses notify={setSavedMsg} />
         <MentorMissingSc rows={missingSc} />
