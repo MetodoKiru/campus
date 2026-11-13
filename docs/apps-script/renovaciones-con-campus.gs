@@ -32,9 +32,13 @@
  * avisos a familias). Sin ella, todo funciona como antes, solo por correo.
  *
  * NUEVO (13/11/2026): el campus manda. Si en el panel de admin («Mis alumnos»)
- * un alumno está «En pausa» o «Baja», aquí se ve en la columna S («Estado en
+ * un alumno está «En pausa» o «Baja», aquí se ve en la columna AC («Estado en
  * el campus», se actualiza cada 10 minutos) y no se le manda renovación,
  * recordatorio ni aviso de impago. Al volver a «Activo», todo sigue normal.
+ * AVISO: el script instalado en la hoja tiene más cosas que esta copia
+ * (periodos especiales, pagos de «Ingresos», sesiones previstas). No pegar
+ * este archivo entero encima: la copia buena está en el Mac, en
+ * Metodo Kiru/copias/contabilidad-despues-estado-campus-2026-11-13/.
  *******************************************************/
 
 const CFG = {
@@ -58,7 +62,7 @@ const COL = {
   DESCUENTO: 8, MOTIVO_DESCUENTO: 9, FIN: 10, PLAN: 12, NOTAS: 13, PRECIO_SUBE: 14,
   ENV_AVISO: 15, ENV_RECORDATORIO: 16, ENV_IMPAGO: 17,
   DICE_PAGADO: 18, // NUEVO: «La familia dice que ha pagado»
-  ESTADO_CAMPUS: 19, // NUEVO (13/11/2026): «Estado en el campus» (lo pone el campus, no se escribe a mano)
+  ESTADO_CAMPUS: 29, // NUEVO (13/11/2026): columna AC «Estado en el campus» (lo pone el campus). OJO: la S es «Estado del servicio», a mano
 };
 
 // Lo que se escribe en «Estado en el campus».
