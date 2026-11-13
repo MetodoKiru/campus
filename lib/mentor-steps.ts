@@ -7,8 +7,8 @@ export type StepId = "certificado" | "nuestro_equipo" | "llamadas" | "asignacion
  * incorporación; «Registro de sesiones», «Mis pagos» y «Justificaciones de SkillCoins» están siempre (coordinación
  * puede pedir una justificación a cualquier mentor con alumnos).
  */
-export type MentorSection = "reuniones" | "crece" | "justificaciones" | "sesiones" | "pagos";
-export const MENTOR_SECTIONS: MentorSection[] = ["reuniones", "crece", "justificaciones", "sesiones", "pagos"];
+export type MentorSection = "reuniones" | "crece" | "justificaciones" | "sesiones" | "pagos" | "disponibilidad";
+export const MENTOR_SECTIONS: MentorSection[] = ["reuniones", "crece", "justificaciones", "sesiones", "pagos", "disponibilidad"];
 
 /** Estados que se enseñan al mentor. Cada uno sale de un dato real de la base. */
 export type StepStatus = "pendiente" | "en_curso" | "enviado" | "en_revision" | "completado" | "requiere_correccion";

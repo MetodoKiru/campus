@@ -5,7 +5,7 @@ import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
 export const runtime = "nodejs";
 
-const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados"] as const;
+const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados", "horarios", "horarios_ok"] as const;
 type Action = (typeof ACTIONS)[number];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -37,15 +37,21 @@ function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
     mantener_precio: Number(body.mantenerPrecio),
     subir_etiqueta: text(body.subirEtiqueta, 120),
     subir_precio: body.subirPrecio == null || body.subirPrecio === "" ? "" as const : Number(body.subirPrecio),
+    bajar_etiqueta: text(body.bajarEtiqueta, 120),
+    bajar_precio: body.bajarPrecio == null || body.bajarPrecio === "" ? "" as const : Number(body.bajarPrecio),
     pago: text(body.pago, 800),
     llamada: /^https:\/\//.test(text(body.llamada, 300)) ? text(body.llamada, 300) : "",
-    adelantado: { mantener: prepayOptions(prepay.mantener), subir: prepayOptions(prepay.subir) },
+    adelantado: { mantener: prepayOptions(prepay.mantener), subir: prepayOptions(prepay.subir), bajar: prepayOptions(prepay.bajar) },
     // Lo que ya estuviera apuntado en la hoja para este periodo (solo al publicar).
-    plan: fromSheet && ["mantener", "subir", "no_renueva"].includes(text(body.plan, 20)) ? text(body.plan, 20) : "",
+    plan: fromSheet && ["mantener", "subir", "bajar", "no_renueva"].includes(text(body.plan, 20)) ? text(body.plan, 20) : "",
     meses: fromSheet && Number.isInteger(Number(body.meses)) ? Number(body.meses) : 1,
     pagado: fromSheet && body.pagado === true,
   };
   const upOk = data.subir_etiqueta === "" || (typeof data.subir_precio === "number" && Number.isFinite(data.subir_precio) && data.subir_precio >= 0);
+  // «Bajar» es opcional: si llega sin precio válido, simplemente no se ofrece.
+  if (data.bajar_etiqueta === "" || typeof data.bajar_precio !== "number" || !Number.isFinite(data.bajar_precio) || data.bajar_precio < 0) {
+    data.bajar_etiqueta = ""; data.bajar_precio = ""; data.adelantado.bajar = [];
+  }
   if (!data.email || !data.alumno || !DATE.test(data.fin) || !data.mantener_etiqueta || !Number.isFinite(data.mantener_precio) || data.mantener_precio < 0 || !upOk) {
     return null;
   }
@@ -65,6 +71,9 @@ function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
  *   periodos ya pagados) y, con «datos», su mensualidad en curso para que la
  *   tarjeta esté siempre visible → devuelve lo respondido en el campus.
  * · confirmar: el script ya apuntó en la hoja lo que le devolvimos.
+ * · horarios: cambios de horario ya aplicados (tras subir o bajar la intensidad)
+ *   que la hoja aún no ha apuntado → días por semana y precio nuevos.
+ * · horarios_ok: la hoja ya los apuntó ({ ids }).
  * · estados: para cada familia de la hoja ({ email, alumno }), si el alumno está
  *   activo, en pausa o de baja en el campus (lo cambia administración en «Mis alumnos»).
  *   La hoja no manda renovaciones ni recordatorios a quien está en pausa o de baja.
@@ -103,7 +112,7 @@ export async function POST(request: Request) {
     const choice = text(body.opcion, 20);
     const fin = text(body.fin, 10);
     const months = body.meses == null || body.meses === "" ? 1 : Number(body.meses);
-    if (!["mantener", "subir", "no_renueva", "pagado"].includes(choice) || !DATE.test(fin) || !text(body.email) || !text(body.alumno)
+    if (!["mantener", "subir", "bajar", "no_renueva", "pagado"].includes(choice) || !DATE.test(fin) || !text(body.email) || !text(body.alumno)
       || !Number.isInteger(months) || months < 1 || months > 12) {
       return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
     }
@@ -127,6 +136,19 @@ export async function POST(request: Request) {
     const { data: result, error } = await admin.rpc("kiru_renewal_sync", { p_families: families as unknown as Json });
     if (error) return NextResponse.json({ error: "No se pudo sincronizar." }, { status: 500 });
     return NextResponse.json({ ok: true, ...(result as Record<string, Json>) });
+  }
+
+  if (action === "horarios") {
+    const { data: result, error } = await admin.rpc("kiru_horarios_para_hoja", {});
+    if (error) return NextResponse.json({ error: "No se pudieron leer los cambios de horario." }, { status: 500 });
+    return NextResponse.json({ ok: true, cambios: result ?? [] });
+  }
+
+  if (action === "horarios_ok") {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 200).map((id) => text(id, 40)).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    const { data: count, error } = await admin.rpc("kiru_horarios_hoja_ok", { p_ids: ids });
+    if (error) return NextResponse.json({ error: "No se pudo confirmar." }, { status: 500 });
+    return NextResponse.json({ ok: true, confirmados: count ?? 0 });
   }
 
   if (action === "estados") {

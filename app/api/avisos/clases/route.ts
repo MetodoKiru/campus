@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ClassNotificationKind, SupervisionNotificationKind } from "@/lib/database.types";
+import type { ClassNotificationKind, ScheduleNotificationKind, SupervisionNotificationKind } from "@/lib/database.types";
 import { serviceClient } from "@/lib/server/classes";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
@@ -20,6 +20,11 @@ export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
   "justificacion_solicitada", "justificacion_respondida", "justificacion_repregunta", "justificacion_recordatorio",
   "justificacion_por_valorar", "aviso_metodologico", "aviso_seguimiento",
 ];
+// Cambio de intensidad: elegir nuevo horario, confirmarlo y disponibilidad del mentor.
+const SCHEDULE_EMAIL_KINDS: ScheduleNotificationKind[] = [
+  "horario_elegir", "horario_confirmar", "horario_confirmado", "horario_otro", "disponibilidad_actualizar",
+];
+
 // Si la revisión ya avanzó, el correo sobra.
 const STILL_RELEVANT: Partial<Record<SupervisionNotificationKind, string[]>> = {
   justificacion_solicitada: ["pendiente_respuesta"],
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
   const { data: pending, error } = await admin.from("kiru_notifications")
     .select("id,recipient_id,kind,title,body,review_id,warning_id")
     .eq("email_status", "pendiente")
-    .in("kind", [...CLASS_NOTIFICATION_KINDS, ...SUPERVISION_EMAIL_KINDS, "periodo_especial"])
+    .in("kind", [...CLASS_NOTIFICATION_KINDS, ...SUPERVISION_EMAIL_KINDS, ...SCHEDULE_EMAIL_KINDS, "periodo_especial"])
     .gt("created_at", since)
     .order("created_at")
     .limit(MAX_PER_CALL);
@@ -97,6 +102,7 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
   // Administración supervisa desde el panel de coordinación.
   const url = new URL(supervision && role === "admin" ? "/coordinador" : PANEL[role], base);
   if (n.kind === "periodo_especial") url.searchParams.set(role === "mentor" ? "seccion" : "tab", "vacaciones");
+  if (n.kind === "disponibilidad_actualizar" && role === "mentor") url.searchParams.set("seccion", "disponibilidad");
   if (supervision) {
     if (role === "mentor") {
       url.searchParams.set("seccion", "justificaciones");

@@ -16,6 +16,7 @@ import AdminOpportunities from "@/components/growth/AdminOpportunities";
 import AdminOnboardingExceptions from "@/components/growth/AdminOnboardingExceptions";
 import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
 import AdminStudents from "@/components/admin/AdminStudents";
+import AdminScheduleChanges from "@/components/horarios/AdminScheduleChanges";
 import AdminSidebar, { ADMIN_SECTIONS, SECTION_LABEL, type AdminSection } from "@/components/admin/AdminSidebar";
 import { 
   UserPlus, 
@@ -617,6 +618,7 @@ export default function AdminPage() {
         {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
 
         {activeTab === "alumnos" && <AdminStudents notify={notifyOffers} />}
+        {activeTab === "horarios" && <AdminScheduleChanges notify={notifyOffers} />}
         {activeTab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
         {activeTab === "skillcoins" && <AdminSkillcoins />}
         {activeTab === "propuestas" && <OffersPanel notify={notifyOffers} />}
