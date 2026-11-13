@@ -5,7 +5,7 @@ import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
 export const runtime = "nodejs";
 
-const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar"] as const;
+const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados"] as const;
 type Action = (typeof ACTIONS)[number];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -65,6 +65,9 @@ function renewalData(body: Record<string, unknown>, fromSheet: boolean) {
  *   periodos ya pagados) y, con «datos», su mensualidad en curso para que la
  *   tarjeta esté siempre visible → devuelve lo respondido en el campus.
  * · confirmar: el script ya apuntó en la hoja lo que le devolvimos.
+ * · estados: para cada familia de la hoja ({ email, alumno }), si el alumno está
+ *   activo, en pausa o de baja en el campus (lo cambia administración en «Mis alumnos»).
+ *   La hoja no manda renovaciones ni recordatorios a quien está en pausa o de baja.
  */
 export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -126,6 +129,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ...(result as Record<string, Json>) });
   }
 
+  if (action === "estados") {
+    const families = (Array.isArray(body.familias) ? body.familias : []).slice(0, 500).flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const f = item as Record<string, unknown>;
+      return text(f.email) && text(f.alumno) ? [{ email: text(f.email, 254), alumno: text(f.alumno, 120) }] : [];
+    });
+    return NextResponse.json({ ok: true, estados: await studentStatuses(admin, families) });
+  }
+
   const items = (Array.isArray(body.items) ? body.items : []).slice(0, 500).flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const i = item as Record<string, unknown>;
@@ -136,4 +148,46 @@ export async function POST(request: Request) {
   const { data: count, error } = await admin.rpc("kiru_renewal_ack", { p_items: items as unknown as Json });
   if (error) return NextResponse.json({ error: "No se pudo confirmar." }, { status: 500 });
   return NextResponse.json({ ok: true, confirmadas: count ?? 0 });
+}
+
+/** Igual que kiru_private.norm_name: minúsculas, sin tildes y sin espacios dobles. */
+const normName = (value: string) => value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * Estado de cada alumno de la hoja, reconociéndolo igual que las renovaciones
+ * (kiru_private.renewal_student): correo de la familia + nombre del alumno, o el
+ * único hijo de esa familia si el nombre no coincide.
+ */
+async function studentStatuses(
+  admin: ReturnType<typeof createClient<Database>>,
+  families: { email: string; alumno: string }[],
+) {
+  if (!families.length) return [];
+  const [profiles, links, students] = await Promise.all([
+    admin.from("profiles").select("id,full_name,role,is_active"),
+    admin.from("student_guardians").select("student_id,guardian_id"),
+    admin.from("students").select("profile_id,service_status"),
+  ]);
+  const emailToIds = new Map<string, string[]>();
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) break;
+    for (const u of data.users) {
+      const e = (u.email ?? "").toLowerCase();
+      if (e) emailToIds.set(e, [...(emailToIds.get(e) ?? []), u.id]);
+    }
+    if (data.users.length < 1000) break;
+  }
+  const people = new Map((profiles.data ?? []).map((p) => [p.id, p]));
+  const status = new Map((students.data ?? []).map((s) => [s.profile_id, s.service_status]));
+  return families.map(({ email, alumno }) => {
+    const guardians = (emailToIds.get(email.toLowerCase()) ?? []).filter((id) => people.get(id)?.role === "padre" && people.get(id)?.is_active);
+    const kids = [...new Set((links.data ?? []).filter((l) => guardians.includes(l.guardian_id)).map((l) => l.student_id))]
+      .map((id) => people.get(id))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p?.is_active));
+    const wanted = normName(alumno);
+    const named = kids.filter((k) => normName(k.full_name) === wanted || normName(k.full_name).startsWith(`${wanted} `));
+    const kid = named.length === 1 ? named[0] : named.length === 0 && kids.length === 1 ? kids[0] : null;
+    return { email, alumno, estado: kid ? status.get(kid.id) ?? "activo" : null };
+  });
 }

@@ -30,6 +30,11 @@
  * se ha respondido en el campus («Plan elegido» y la columna R).
  * Necesita la propiedad del script KIRU_ALTA_SECRET (la misma clave de los
  * avisos a familias). Sin ella, todo funciona como antes, solo por correo.
+ *
+ * NUEVO (13/11/2026): el campus manda. Si en el panel de admin («Mis alumnos»)
+ * un alumno está «En pausa» o «Baja», aquí se ve en la columna S («Estado en
+ * el campus», se actualiza cada 10 minutos) y no se le manda renovación,
+ * recordatorio ni aviso de impago. Al volver a «Activo», todo sigue normal.
  *******************************************************/
 
 const CFG = {
@@ -53,7 +58,13 @@ const COL = {
   DESCUENTO: 8, MOTIVO_DESCUENTO: 9, FIN: 10, PLAN: 12, NOTAS: 13, PRECIO_SUBE: 14,
   ENV_AVISO: 15, ENV_RECORDATORIO: 16, ENV_IMPAGO: 17,
   DICE_PAGADO: 18, // NUEVO: «La familia dice que ha pagado»
+  ESTADO_CAMPUS: 19, // NUEVO (13/11/2026): «Estado en el campus» (lo pone el campus, no se escribe a mano)
 };
+
+// Lo que se escribe en «Estado en el campus».
+const ESTADO_HOJA = { activo: 'Activo', en_pausa: 'En pausa', baja: 'Baja' };
+// En pausa o de baja en el campus: no se manda renovación, recordatorio ni aviso de impago.
+function parado_(estado) { return estado === 'en_pausa' || estado === 'baja'; }
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -162,11 +173,13 @@ function revisarRenovaciones() {
   const datos = sh.getRange(1, 1, sh.getLastRow(), Math.max(sh.getLastColumn(), COL.DICE_PAGADO)).getValues();
   const hoy = hoy_();
   const impagos = [];
+  const estados = estadosCampus_(sh, datos);
 
   for (let i = 1; i < datos.length; i++) {
     const fam = leerFamilia_(datos[i]);
     if (!fam.alumno || !fam.email || !fam.fin) continue;
     if (fam.plan === 'No renueva') continue;
+    if (parado_(estados[i])) continue; // en pausa o de baja en el campus
     const fila = i + 1;
     const diaAviso = sumarDias_(fam.fin, -CFG.DIAS_AVISO);
     const diaRecordatorio = sumarDias_(fam.fin, -CFG.DIAS_RECORDATORIO);
@@ -596,6 +609,32 @@ function publicarRenovacionesEnCurso_() {
   return n;
 }
 
+/**
+ * Pregunta al campus si cada alumno está activo, en pausa o de baja, lo escribe
+ * en la columna «Estado en el campus» (solo si cambia) y devuelve { índice de fila: estado }.
+ * Si el campus no responde, devuelve {} y todo sigue como siempre.
+ */
+function estadosCampus_(sh, datos) {
+  const filas = [];
+  for (let i = 1; i < datos.length; i++) {
+    const fam = leerFamilia_(datos[i]);
+    if (fam.alumno && fam.email) filas.push({ i: i, email: fam.email, alumno: fam.alumno });
+  }
+  const r = campus_({ accion: 'estados', familias: filas.map(f => ({ email: f.email, alumno: f.alumno })) });
+  if (!r || !Array.isArray(r.estados)) return {};
+  if (!sh.getRange(1, COL.ESTADO_CAMPUS).getValue()) sh.getRange(1, COL.ESTADO_CAMPUS).setValue('Estado en el campus');
+  const res = {};
+  r.estados.forEach((e, k) => {
+    const f = filas[k];
+    if (!f) return;
+    res[f.i] = e.estado || '';
+    const texto = e.estado ? ESTADO_HOJA[e.estado] || e.estado : 'No enlazado en el campus';
+    const actual = datos[f.i].length >= COL.ESTADO_CAMPUS ? String(datos[f.i][COL.ESTADO_CAMPUS - 1] || '') : '';
+    if (actual !== texto) sh.getRange(f.i + 1, COL.ESTADO_CAMPUS).setValue(texto);
+  });
+  return res;
+}
+
 function campusElegir_(fam, accion, meses) {
   return campus_({ accion: 'elegir', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), opcion: accion, meses: meses || 1 });
 }
@@ -646,6 +685,7 @@ function sincronizarRenovacionesCampus() {
       hechos.push({ id: pend.id, seq: pend.seq });
     });
     if (hechos.length) campus_({ accion: 'confirmar', items: hechos });
+    estadosCampus_(sh, datos);
   } finally {
     lock.releaseLock();
   }

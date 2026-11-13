@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import PreviewBanner from "@/components/PreviewBanner";
 
 export const metadata: Metadata = {
   title: "Método Kiru | Mentoría Educativa y Técnicas de Estudio a Domicilio",
@@ -33,6 +34,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="bg-[#FDFBF7] text-slate-800 antialiased selection:bg-slate-200">
+        <PreviewBanner />
         {children}
       </body>
     </html>

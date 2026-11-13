@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, GraduationCap, KeyRound, LogOut, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
 import MentorStepsReview from "@/components/mentor/MentorStepsReview";
 import ActiveMentors from "@/components/formador/ActiveMentors";
@@ -65,6 +66,14 @@ export default function FormadorPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como un formador» desde administración: sin datos de nadie.
+        if (previewRole() === "formador" && user.app_metadata?.kiru_role === "admin") {
+          if (!alive) return;
+          setName(PREVIEW_NAME.formador);
+          setAuthorized(true);
+          await loadMentors();
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("full_name,role,is_active").eq("id", user.id).single();
         // Administración también puede entrar para seguir la incorporación.
         const allowed = profile?.role === "formador" || profile?.role === "admin";

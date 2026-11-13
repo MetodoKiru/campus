@@ -14,6 +14,9 @@ import AdminSkillcoins from "@/components/skillcoins/AdminSkillcoins";
 import OffersPanel from "@/components/offers/OffersPanel";
 import AdminOpportunities from "@/components/growth/AdminOpportunities";
 import AdminOnboardingExceptions from "@/components/growth/AdminOnboardingExceptions";
+import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
+import AdminStudents from "@/components/admin/AdminStudents";
+import AdminSidebar, { ADMIN_SECTIONS, SECTION_LABEL, type AdminSection } from "@/components/admin/AdminSidebar";
 import { 
   UserPlus, 
   Trash2, 
@@ -25,17 +28,11 @@ import {
   Bell,
   FileText,
   Plus,
-  Users,
   CreditCard,
   ExternalLink,
   Download,
-  GraduationCap,
-  Compass,
-  Coins,
-  Sprout,
-  UserCheck,
-  CalendarOff,
-  Wallet
+  Eye,
+  Search
 } from "lucide-react";
 
 interface UserAccount {
@@ -102,6 +99,16 @@ interface PaymentRecord {
   payLink: string;
 }
 
+const ROLE_FILTERS: { value: UserAccount["role"] | "todos"; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "alumno", label: "Alumnos" },
+  { value: "padre", label: "Padres / madres" },
+  { value: "mentor", label: "Mentores" },
+  { value: "coordinador", label: "Coordinadores" },
+  { value: "formador", label: "Formadores" },
+  { value: "admin", label: "Administración" },
+];
+
 // No demo accounts or passwords are bundled in the administration panel.
 const DEFAULT_USERS: UserAccount[] = [];
 const DEFAULT_LINKS: MentorStudentLink[] = [];
@@ -134,7 +141,25 @@ export default function AdminPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"usuarios" | "avisos" | "documentos" | "pagos" | "skillcoins" | "propuestas" | "crece" | "incorporacion" | "dias-sin-clase" | "pagos-mentores" | "periodos-especiales">("usuarios");
+  const [activeTab, setActiveTab] = useState<AdminSection>("usuarios");
+  // /admin?seccion=evaluaciones abre directamente esa sección (y el enlace se puede guardar).
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("seccion");
+    const match = ADMIN_SECTIONS.find((s) => s === requested);
+    if (!match) return;
+    const timer = window.setTimeout(() => setActiveTab(match), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const selectSection = useCallback((section: AdminSection) => {
+    setActiveTab(section);
+    try { window.history.replaceState(null, "", section === "usuarios" ? "/admin" : `/admin?seccion=${section}`); } catch { /* nada */ }
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  // Filtro de la lista de usuarios registrados
+  const [userRoleFilter, setUserRoleFilter] = useState<UserAccount["role"] | "todos">("todos");
+  const [userSearch, setUserSearch] = useState("");
+  const [userSort, setUserSort] = useState<"nombre" | "recientes" | "rol">("nombre");
 
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [links, setLinks] = useState<MentorStudentLink[]>(DEFAULT_LINKS);
@@ -534,6 +559,18 @@ export default function AdminPage() {
   const mentores = users.filter(u => u.role === "mentor");
   const padres = users.filter(u => u.role === "padre");
   const coordinadores = users.filter(u => u.role === "coordinador");
+  const searchText = userSearch.trim().toLowerCase();
+  const visibleUsers = users
+    .filter((u) => userRoleFilter === "todos" || u.role === userRoleFilter)
+    .filter((u) => !searchText || [u.name, u.username, u.email ?? ""].some((v) => v.toLowerCase().includes(searchText)))
+    .sort((a, b) => {
+      if (userSort === "recientes") return (b.createdAt || "").localeCompare(a.createdAt || "");
+      if (userSort === "rol") {
+        const byRole = ROLE_FILTERS.findIndex((r) => r.value === a.role) - ROLE_FILTERS.findIndex((r) => r.value === b.role);
+        if (byRole !== 0) return byRole;
+      }
+      return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+    });
   const mentorCount = (coordinatorId: string) => Object.values(coordinatorByMentor).filter((id) => id === coordinatorId).length;
 
   if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
@@ -542,37 +579,21 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
       {/* Cabecera */}
-      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6 text-emerald-800" />
           <div>
             <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel de Administración</h1>
-            <p className="text-[11px] sm:text-xs text-slate-500">Gestión general del campus educativo</p>
+            <p className="text-[11px] sm:text-xs text-slate-500">{SECTION_LABEL[activeTab]}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/formador"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <GraduationCap className="h-4 w-4" />
-            <span className="hidden sm:inline">Incorporación de mentores</span>
-            <span className="sm:hidden">Mentores nuevos</span>
-          </Link>
-          <Link
-            href="/coordinador"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Compass className="h-4 w-4" />
-            <span className="hidden sm:inline">Seguimiento de mentores</span>
-            <span className="sm:hidden">Seguimiento</span>
-          </Link>
-          <Link
             href="/previsualizacion"
             className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
           >
-            <ExternalLink className="h-4 w-4" />
-            <span className="hidden sm:inline">Previsualizar campus</span>
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Ver el campus como…</span>
             <span className="sm:hidden">Vista previa</span>
           </Link>
           <Link 
@@ -588,113 +609,15 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="flex">
+      <AdminSidebar active={activeTab} onSelect={selectSection} />
+
+      <main className="min-w-0 flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Notificaciones */}
         {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
 
-        {/* Pestañas de navegación */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 shadow-sm text-xs font-semibold w-fit">
-          <button
-            onClick={() => setActiveTab("usuarios")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "usuarios" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Usuarios y Enlaces</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("documentos")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "documentos" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Gestión de Documentos PDF</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("pagos")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "pagos" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Gestión de Pagos</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("avisos")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "avisos" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Bell className="w-3.5 h-3.5" />
-            <span>Gestión de Avisos</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("skillcoins")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "skillcoins" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Coins className="w-3.5 h-3.5" />
-            <span>SkillCoins y recompensas</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("propuestas")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "propuestas" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Propuestas a mentores</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("incorporacion")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "incorporacion" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>Autorizaciones de mentores</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("crece")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "crece" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Sprout className="w-3.5 h-3.5" />
-            <span>Crece con Kiru</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("dias-sin-clase")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "dias-sin-clase" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <CalendarOff className="w-3.5 h-3.5" />
-            <span>Días sin clase</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("periodos-especiales")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "periodos-especiales" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <CalendarOff className="w-3.5 h-3.5" />
-            <span>Navidad y Semana Santa</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("pagos-mentores")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "pagos-mentores" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Wallet className="w-3.5 h-3.5" />
-            <span>Pagos de mentores</span>
-          </button>
-        </div>
-
+        {activeTab === "alumnos" && <AdminStudents notify={notifyOffers} />}
+        {activeTab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
         {activeTab === "skillcoins" && <AdminSkillcoins />}
         {activeTab === "propuestas" && <OffersPanel notify={notifyOffers} />}
         {activeTab === "incorporacion" && <AdminOnboardingExceptions notify={notifyOffers} />}
@@ -840,7 +763,36 @@ export default function AdminPage() {
 
             {/* Tabla de Usuarios */}
             <div className="lg:col-span-2 bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm space-y-4">
-              <h2 className="font-serif text-lg text-slate-900">Usuarios registrados ({users.length})</h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-lg text-slate-900">Usuarios registrados ({visibleUsers.length}{visibleUsers.length !== users.length ? ` de ${users.length}` : ""})</h2>
+                {(userRoleFilter !== "todos" || userSearch) && (
+                  <button type="button" onClick={() => { setUserRoleFilter("todos"); setUserSearch(""); }} className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 underline">Quitar filtros</button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {ROLE_FILTERS.map(({ value, label }) => {
+                  const count = value === "todos" ? users.length : users.filter((u) => u.role === value).length;
+                  if (value !== "todos" && count === 0) return null;
+                  const on = userRoleFilter === value;
+                  return (
+                    <button key={value} type="button" onClick={() => setUserRoleFilter(value)}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+                      {label} <span className={on ? "text-white/70" : "text-slate-400"}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <label className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input type="search" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Buscar por nombre, usuario o correo" className="w-full rounded-xl border border-slate-200 bg-[#F7F6F3] py-2 pl-8 pr-3 text-xs focus:outline-none" />
+                </label>
+                <select value={userSort} onChange={(e) => setUserSort(e.target.value as typeof userSort)} className="rounded-xl border border-slate-200 bg-[#F7F6F3] px-3 py-2 text-xs font-semibold text-slate-700" aria-label="Ordenar">
+                  <option value="nombre">Ordenar: nombre (A-Z)</option>
+                  <option value="rol">Ordenar: por tipo de usuario</option>
+                  <option value="recientes">Ordenar: más recientes primero</option>
+                </select>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
@@ -853,7 +805,10 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-900">
-                    {users.map((user) => {
+                    {visibleUsers.length === 0 && (
+                      <tr><td colSpan={5} className="py-6 text-center text-[11px] text-slate-400 italic">Nadie coincide con este filtro.</td></tr>
+                    )}
+                    {visibleUsers.map((user) => {
                       const mentorLink = links.find(l => l.studentUsername === user.username);
                       return (
                         <tr key={user.id} className="hover:bg-slate-50 transition-colors">
@@ -1182,6 +1137,7 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+      </div>
 
       {/* Modal Editar Usuario */}
       {editingUser && (
