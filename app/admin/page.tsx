@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import Toast from "@/components/Toast";
 import AdminNoClassDays from "@/components/classes/AdminNoClassDays";
 import AdminMentorPayouts from "@/components/mentor/AdminMentorPayouts";
+import AdminPerformance from "@/components/performance/AdminPerformance";
 import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 import type { Database } from "@/lib/database.types";
 import { uploadKiruPdf, deleteKiruPdf } from "@/lib/kiru-pdf-storage";
@@ -626,6 +627,7 @@ export default function AdminPage() {
         {activeTab === "crece" && <AdminOpportunities notify={notifyOffers} />}
         {activeTab === "dias-sin-clase" && <AdminNoClassDays notify={notifyOffers} />}
         {activeTab === "pagos-mentores" && <AdminMentorPayouts />}
+        {activeTab === "desempeno" && <AdminPerformance notify={(text) => notifyOffers(text, "success")} />}
         {activeTab === "periodos-especiales" && <StaffSpecialPeriods notify={notifyOffers} />}
 
         {/* SECCIÓN 1: USUARIOS Y VÍNCULOS */}

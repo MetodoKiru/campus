@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, Bell, CalendarDays, CalendarOff, ChevronDown, ChevronsLeft, ChevronsRight, ClipboardCheck, ClipboardList,
-  Coins, Compass, CreditCard, Eye, FileText, GraduationCap, Menu, ShieldCheck, Sprout, UserCheck, Users, Wallet, X,
+  Coins, Compass, CreditCard, Eye, FileText, Gauge, GraduationCap, Menu, ShieldCheck, Sprout, UserCheck, Users, Wallet, X,
 } from "lucide-react";
 
 export type AdminSection =
   | "usuarios" | "alumnos" | "documentos" | "pagos" | "avisos" | "evaluaciones" | "skillcoins"
   | "propuestas" | "incorporacion" | "pagos-mentores" | "crece"
-  | "dias-sin-clase" | "periodos-especiales" | "horarios";
+  | "dias-sin-clase" | "periodos-especiales" | "horarios" | "desempeno";
 
 export const ADMIN_SECTIONS: AdminSection[] = [
   "usuarios", "alumnos", "documentos", "pagos", "avisos", "evaluaciones", "skillcoins",
-  "propuestas", "incorporacion", "pagos-mentores", "crece", "dias-sin-clase", "periodos-especiales", "horarios",
+  "propuestas", "incorporacion", "pagos-mentores", "crece", "dias-sin-clase", "periodos-especiales", "horarios", "desempeno",
 ];
 
 type Item =
@@ -72,6 +72,7 @@ const GROUPS: Group[] = [
       { kind: "link", href: "/coordinador?tab=incidencias", label: "Incidencias", icon: AlertTriangle, note: "coordinación" },
       { kind: "link", href: "/coordinador?tab=supervision", label: "Supervisión", icon: ClipboardCheck, note: "coordinación" },
       { kind: "link", href: "/coordinador?tab=reuniones", label: "Reuniones de coordinación", icon: CalendarDays, note: "coordinación" },
+      { kind: "section", id: "desempeno", label: "Desempeño de mentores", icon: Gauge },
       { kind: "section", id: "pagos-mentores", label: "Pagos de mentores", icon: Wallet },
       { kind: "section", id: "crece", label: "Crece con Kiru", icon: Sprout },
     ],
