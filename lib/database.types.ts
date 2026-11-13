@@ -957,7 +957,7 @@ export type Database = {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];
       };
-    } & ClassFunctions & SupervisionFunctions & MentorPayFunctions;
+    } & ClassFunctions & SupervisionFunctions & MentorPayFunctions & PerformanceFunctions;
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
@@ -1012,4 +1012,12 @@ type MentorPayFunctions = {
   kiru_mentor_payouts_sync: { Args: { p_rows: Json }; Returns: Json };
   kiru_mentor_sessions: { Args: { p_mentor?: string }; Returns: MentorSessionRow[] };
   kiru_mentor_payout_checks: { Args: Record<string, never>; Returns: Json };
+};
+
+/** Desempeño de mentores (fase 1: solo administración). */
+type PerformanceFunctions = {
+  kiru_perf_admin_overview: { Args: Record<string, never>; Returns: Json };
+  kiru_perf_preview: { Args: { p_from: string; p_to: string }; Returns: Json };
+  kiru_perf_recompute: { Args: Record<string, never>; Returns: Json };
+  kiru_perf_update_settings: { Args: { p_mode: string; p_data_from: string; p_official_from: string }; Returns: undefined };
 };
