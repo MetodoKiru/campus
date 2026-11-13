@@ -97,8 +97,8 @@ export default function AdminStudents({ notify }: { notify: (text: string, type:
           «Ha pagado» aquí: llega a la hoja igual que si lo hubiera hecho la familia y el alumno queda activo.
         </p>
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">
-          El estado también viene de la pestaña «Familias» de Contabilidad. Si allí pone otra cosa, la próxima vez que se sincronice la hoja
-          volverá a ponerlo como diga la hoja. Cámbialo también allí para que se quede.
+          Aquí manda el campus. La hoja Contabilidad lo ve en la pestaña «Familias», columna «Estado en el campus» (se actualiza cada
+          10 minutos), y no envía renovación, recordatorio ni aviso de impago a quien esté en pausa o de baja.
         </p>
       </section>
 

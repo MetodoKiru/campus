@@ -19,8 +19,8 @@ const STATUSES: Status[] = ["activo", "en_pausa", "baja"];
  *    si la familia hubiera pulsado «he pagado» (llega a la hoja igual), y lo deja activo.
  *  · { accion: "no_renueva", studentId }: marca «no renueva» en su renovación abierta.
  *
- * Ojo: el estado también lo manda la pestaña «Familias» de Contabilidad. Si allí
- * pone otra cosa, la siguiente sincronización de la hoja vuelve a ponerlo.
+ * La hoja Contabilidad lo lee cada 10 minutos (/api/renovaciones, acción «estados»)
+ * y no manda renovaciones ni recordatorios a quien está en pausa o de baja.
  */
 export async function GET(request: Request) {
   const auth = await requireStaff(request, ["admin"]);
