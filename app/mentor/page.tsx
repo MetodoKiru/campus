@@ -18,6 +18,7 @@ import MentorSkillcoins from "@/components/skillcoins/MentorSkillcoins";
 import { MentorMissingSc, useMissingScWeeks } from "@/components/skillcoins/MissingScWeeks";
 import LenguaMentor from "@/components/lengua/LenguaMentor";
 import { supabase } from "@/lib/supabase";
+import { previewRole } from "@/lib/preview";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 import Toast from "@/components/Toast";
 import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
@@ -57,6 +58,11 @@ export default function MentorPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como…» desde administración: sin datos de nadie.
+        if (previewRole() === "mentor" && user.app_metadata?.kiru_role === "admin") {
+          if (alive) setAuthorized(true);
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).single();
         if (error || !profile?.is_active || profile.role !== "mentor" || user.app_metadata?.kiru_role !== "mentor") {
           router.replace("/");

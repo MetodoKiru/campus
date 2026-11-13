@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
+import { previewRole } from "@/lib/preview";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
 import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
@@ -98,6 +99,11 @@ export default function PadrePage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como…» desde administración: sin datos de nadie.
+        if (previewRole() === "padre" && user.app_metadata?.kiru_role === "admin") {
+          if (alive) setAuthorized(true);
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).single();
         if (error || !profile?.is_active || profile.role !== "padre" || user.app_metadata?.kiru_role !== "padre") {
           router.replace("/");

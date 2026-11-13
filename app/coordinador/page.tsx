@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
 import OffersPanel from "@/components/offers/OffersPanel";
 import CoordinatorReportsPanel from "@/components/reports/CoordinatorReportsPanel";
@@ -67,9 +68,12 @@ export default function CoordinadorPage() {
   const [linkedReview, setLinkedReview] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // /coordinador?tab=evaluaciones (correos de las evaluaciones trimestrales).
-    if (params.get("tab") === "evaluaciones") {
-      const timer = window.setTimeout(() => setTab("evaluaciones"), 0);
+    // /coordinador?tab=evaluaciones (correos) o ?tab=clases, ?tab=informes… (menú lateral de administración).
+    const requested = params.get("tab");
+    const direct = ["mentores", "clases", "incidencias", "registros", "sin-asignar", "propuestas", "reuniones", "crece", "informes", "vacaciones", "evaluaciones"] as const;
+    const match = direct.find((t) => t === requested);
+    if (match) {
+      const timer = window.setTimeout(() => setTab(match), 0);
       return () => window.clearTimeout(timer);
     }
     if (params.get("tab") !== "supervision") return;
@@ -136,6 +140,13 @@ export default function CoordinadorPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como un coordinador» desde administración: sin datos de nadie.
+        if (previewRole() === "coordinador" && user.app_metadata?.kiru_role === "admin") {
+          if (!alive) return;
+          setMe({ id: user.id, name: PREVIEW_NAME.coordinador, isAdmin: false });
+          await load();
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("full_name,role,is_active").eq("id", user.id).single();
         // Administración también entra para ver a todos los mentores.
         const allowed = profile?.role === "coordinador" || profile?.role === "admin";

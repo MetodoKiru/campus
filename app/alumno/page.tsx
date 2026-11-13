@@ -24,6 +24,7 @@ import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
 import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { isFlashcardSet } from "@/lib/english/flashcards";
 import { supabase } from "@/lib/supabase";
+import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
 import StudentGoal from "@/components/skillcoins/StudentGoal";
 import StudentShop from "@/components/skillcoins/StudentShop";
@@ -156,6 +157,11 @@ export default function AlumnoPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como un alumno» desde administración: sin datos de nadie.
+        if (previewRole() === "alumno" && user.app_metadata?.kiru_role === "admin") {
+          if (alive) { setCurrentStudentName(PREVIEW_NAME.alumno); setStudentId(user.id); setAuthorized(true); }
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("id,full_name,username,role,is_active").eq("id", user.id).single();
         if (error || !profile?.is_active || profile.role !== "alumno" || user.app_metadata?.kiru_role !== "alumno") {
           router.replace("/");
