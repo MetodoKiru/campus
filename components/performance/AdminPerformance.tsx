@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import AdminExemptions from "@/components/performance/AdminExemptions";
 import {
   CATEGORY_LABEL, DETAIL_LABEL, DIMENSION_LABEL, KIND_LABEL, MODE_LABEL,
   errorText, fmtDate, fmtNumber, isoDay, statusText,
@@ -117,8 +118,8 @@ export default function AdminPerformance({ notify }: { notify?: (msg: string) =>
               </label>
             </div>
             <p className="text-[11px] text-slate-500">
-              En la fase 1 el modo no cambia nada para mentores ni coordinación: su panel llega en fases posteriores.
-              Nada anterior a «Cuentan datos desde» se tiene en cuenta.
+              En modo «Oculto» los mentores no ven «Mis evidencias» y no sale ningún recordatorio. Desde «Aprendizaje», ven sus entregas
+              y empiezan los recordatorios; las puntuaciones siguen siendo solo tuyas. Nada anterior a «Cuentan datos desde» se tiene en cuenta.
             </p>
             <div className="flex flex-wrap gap-2">
               <button onClick={saveSettings} disabled={busy}
@@ -127,6 +128,8 @@ export default function AdminPerformance({ notify }: { notify?: (msg: string) =>
                 className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Recalcular ahora</button>
             </div>
           </section>
+
+          <AdminExemptions notify={notify} />
 
           {rules && <RulesCard version={rules.version} note={rules.note} rules={rules.rules} indicators={indicators} />}
 

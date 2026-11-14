@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, LoaderCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { CalculaloCheckRow, LogErrorMarkRow, StudentPlanTool, StudentPlanToolRow } from "@/lib/database.types";
+import CoordinatorEvidence from "@/components/performance/CoordinatorEvidence";
 import { LOG_ERROR_KIND_LABEL, errorMessage, fmtDay, mondaysOfMonth, monthOptions, todayIso } from "@/lib/desempeno";
 
 type Person = { id: string; full_name: string; role: string };
@@ -114,6 +115,8 @@ export default function CoordinatorFollowUp({ people, mentorOf, notify }: Props)
 
       {!loading && (
         <>
+          <CoordinatorEvidence people={people} mentorFilter={mentorFilter} notify={notify} />
+
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-[#292825]">Errores en registros {openMarks.length > 0 && <span className="text-amber-700">({openMarks.length} esperando al mentor)</span>}</h3>
             <p className="text-[11px] text-slate-500">Se marcan desde «Registros de sesión», abriendo el registro. El mentor tiene 2 días laborables para corregirlo o contestar.</p>

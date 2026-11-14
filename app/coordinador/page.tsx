@@ -273,7 +273,7 @@ export default function CoordinadorPage() {
             if (n.review_id || n.warning_id) { setLinkedReview(n.review_id ?? null); setTab("supervision"); }
             else if (n.session_id || n.request_id) setTab("clases");
             else if (n.kind === "evaluacion_trimestral") setTab("evaluaciones");
-            else if (n.kind.startsWith("registro_error")) setTab("seguimiento");
+            else if (n.kind.startsWith("registro_error") || n.kind.startsWith("evidencia_") || n.kind.startsWith("exencion_")) setTab("seguimiento");
           }} />
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">

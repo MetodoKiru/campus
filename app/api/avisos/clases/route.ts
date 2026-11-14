@@ -21,6 +21,8 @@ export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
   "justificacion_por_valorar", "aviso_metodologico", "aviso_seguimiento",
   // Errores marcados en un registro de sesión (desempeño, fase 2a).
   "registro_error", "registro_error_respuesta",
+  // Evidencias bimestrales (desempeño, fase 2b). La entrega, la validación y las exenciones van solo a la campanita.
+  "evidencia_aclaracion", "evidencia_recordatorio", "evidencia_revision",
 ];
 // Cambio de intensidad: elegir nuevo horario, confirmarlo y disponibilidad del mentor.
 const SCHEDULE_EMAIL_KINDS: ScheduleNotificationKind[] = [
@@ -107,7 +109,10 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
   if (n.kind === "periodo_especial") url.searchParams.set(role === "mentor" ? "seccion" : "tab", "vacaciones");
   if (n.kind.startsWith("disponibilidad_") && role === "mentor") url.searchParams.set("seccion", "disponibilidad");
   if (n.kind === "disponibilidad_falta" && role === "admin") url.searchParams.set("seccion", "horarios");
-  if (supervision) {
+  const evidence = n.kind.startsWith("evidencia_");
+  if (supervision && evidence) {
+    url.searchParams.set(role === "mentor" ? "seccion" : "tab", role === "mentor" ? "evidencias" : "seguimiento");
+  } else if (supervision) {
     if (role === "mentor") {
       url.searchParams.set("seccion", "justificaciones");
       if (n.review_id) url.searchParams.set("revision", n.review_id);

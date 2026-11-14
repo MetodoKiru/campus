@@ -327,7 +327,9 @@ export type NotificationRow = {
 export type SupervisionNotificationKind =
   | "justificacion_solicitada" | "justificacion_respondida" | "justificacion_repregunta" | "justificacion_cerrada"
   | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento"
-  | "registro_error" | "registro_error_respuesta";
+  | "registro_error" | "registro_error_respuesta"
+  | "evidencia_entregada" | "evidencia_aclaracion" | "evidencia_validada" | "evidencia_recordatorio" | "evidencia_revision"
+  | "exencion_propuesta" | "exencion_resuelta";
 
 // Supervisión metodológica (migración 20261109110000): solicitudes de justificación
 // de una nota de SkillCoins, sus mensajes y evidencias, y avisos metodológicos.
@@ -464,6 +466,72 @@ export type LogErrorMarkRow = {
   withdrawn_by: string | null;
   withdrawn_at: string | null;
   withdraw_reason: string;
+};
+
+// Desempeño de mentores, fase 2b (migración 20261117090000).
+export type MaterialEvidenceKind = "descubrirme" | "mision";
+export type MaterialEvidenceStatus = "pendiente" | "entregada" | "validada" | "aclaracion" | "exenta";
+export type MaterialEvidenceRow = {
+  id: string;
+  mentor_id: string;
+  student_id: string;
+  kind: MaterialEvidenceKind;
+  bimester_start: string;
+  bimester_end: string;
+  due_at: string;
+  status: MaterialEvidenceStatus;
+  status_since: string;
+  submitted_at: string | null;
+  clarification_due_at: string | null;
+  validated_by: string | null;
+  validated_at: string | null;
+  exempt_reason: string;
+  created_at: string;
+};
+export type MaterialEvidenceMessageRow = {
+  id: string;
+  evidence_id: string;
+  author_id: string | null;
+  author_role: "mentor" | "coordinacion" | "admin" | "sistema";
+  kind: "entrega" | "respuesta" | "aclaracion" | "validacion" | "exencion" | "recordatorio" | "sistema";
+  body: string;
+  sent_at: string | null;
+  created_at: string;
+};
+export type MaterialEvidenceFileRow = {
+  id: string;
+  evidence_id: string;
+  message_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  created_at: string;
+  deleted_at: string | null;
+};
+export type EvidenceExemptionCause = "material_no_disponible" | "ausencia_alumno" | "ausencia_mentor" | "otra";
+export type EvidenceExemptionRow = {
+  id: string;
+  evidence_id: string;
+  proposed_by: string | null;
+  proposed_role: "mentor" | "coordinacion" | "admin";
+  cause: EvidenceExemptionCause;
+  note: string;
+  status: "propuesta" | "aprobada" | "rechazada";
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string;
+  created_at: string;
+};
+export type ObligationReminderRow = {
+  id: number;
+  obligation_type: "evidencia" | "aclaracion";
+  obligation_id: string;
+  evidence_id: string | null;
+  step: number;
+  recipients: string[];
+  sent_at: string;
 };
 
 export type SupervisionEventRow = {
@@ -948,6 +1016,11 @@ export type Database = {
       kiru_student_plan_tools: ReadOnlyTable<StudentPlanToolRow>;
       kiru_calculalo_checks: ReadOnlyTable<CalculaloCheckRow>;
       kiru_log_error_marks: ReadOnlyTable<LogErrorMarkRow>;
+      kiru_material_evidence: ReadOnlyTable<MaterialEvidenceRow>;
+      kiru_material_evidence_messages: ReadOnlyTable<MaterialEvidenceMessageRow>;
+      kiru_material_evidence_files: ReadOnlyTable<MaterialEvidenceFileRow>;
+      kiru_evidence_exemptions: ReadOnlyTable<EvidenceExemptionRow>;
+      kiru_obligation_reminders: ReadOnlyTable<ObligationReminderRow>;
       kiru_special_periods: Table<SpecialPeriodRow, "id" | "kind" | "country" | "region" | "zones" | "notes" | "is_active" | "created_by" | "created_at" | "updated_at">;
       kiru_special_period_family: Table<SpecialPeriodFamilyRow, "id" | "choices" | "accepts_substitute" | "extra_sessions" | "comments" | "late" | "answered_by" | "answered_at">;
       kiru_special_period_mentors: Table<SpecialPeriodMentorRow, "id" | "mentor_id" | "external_name" | "external_email" | "own_classes" | "wants_to_substitute" | "slots" | "zones" | "max_sessions" | "comments" | "answered_by" | "answered_at">;
@@ -1078,4 +1151,12 @@ type PerformanceFunctions = {
   kiru_log_error_mark: { Args: { p_log: string; p_kind: LogErrorKind; p_comment: string }; Returns: string };
   kiru_log_error_reply: { Args: { p_mark: string; p_body: string }; Returns: undefined };
   kiru_log_error_withdraw: { Args: { p_mark: string; p_reason: string }; Returns: undefined };
+  kiru_evidence_visible: { Args: Record<string, never>; Returns: boolean };
+  kiru_evidence_start: { Args: { p_evidence: string; p_body: string }; Returns: string };
+  kiru_evidence_add_file: { Args: { p_message: string; p_path: string; p_name: string; p_mime: string; p_size: number }; Returns: string | null };
+  kiru_evidence_send: { Args: { p_message: string }; Returns: undefined };
+  kiru_evidence_review: { Args: { p_evidence: string; p_action: "validar" | "aclaracion"; p_comment?: string }; Returns: undefined };
+  kiru_evidence_exemption_propose: { Args: { p_evidence: string; p_cause: EvidenceExemptionCause; p_note: string }; Returns: string };
+  kiru_evidence_exemption_decide: { Args: { p_ids: string[]; p_approve: boolean; p_note?: string }; Returns: number };
+  kiru_evidencias_tarea_diaria: { Args: Record<string, never>; Returns: Json };
 };
