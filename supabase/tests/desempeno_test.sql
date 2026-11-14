@@ -73,6 +73,46 @@ select pg_temp.expect('60 con una muy grave = 40', pg_temp.fin(60, 0, 0, 1), 40)
 select pg_temp.expect('95 con una leve sigue Excelente (92)', pg_temp.fin(95, 1, 0, 0), 92);
 select pg_temp.expect('las leves restan como mucho 15 (95 con 7 leves = 80)', pg_temp.fin(95, 7, 0, 0), 80);
 select pg_temp.expect('nunca baja de 0', pg_temp.fin(15, 0, 0, 1), 0);
+-- Todos los casos de restas y topes (revisión final).
+select pg_temp.expect('sin incidencias no cambia (88 = 88)', pg_temp.fin(88, 0, 0, 0), 88);
+select pg_temp.expect('5 leves restan justo 15 (95 → 80)', pg_temp.fin(95, 5, 0, 0), 80);
+select pg_temp.expect('6 leves siguen restando 15 (95 → 80)', pg_temp.fin(95, 6, 0, 0), 80);
+select pg_temp.expect('2 graves: 95 − 20 = 75, tope 74', pg_temp.fin(95, 0, 2, 0), 74);
+select pg_temp.expect('2 graves: 80 − 20 = 60', pg_temp.fin(80, 0, 2, 0), 60);
+select pg_temp.expect('leve + grave: 95 − 13 = 82, tope 74', pg_temp.fin(95, 1, 1, 0), 74);
+select pg_temp.expect('leve + grave: 70 − 13 = 57', pg_temp.fin(70, 1, 1, 0), 57);
+select pg_temp.expect('7 leves + grave: 95 − 15 − 10 = 70', pg_temp.fin(95, 7, 1, 0), 70);
+select pg_temp.expect('grave + muy grave: 95 − 30 = 65, tope 59', pg_temp.fin(95, 0, 1, 1), 59);
+select pg_temp.expect('grave + muy grave: 70 − 30 = 40', pg_temp.fin(70, 0, 1, 1), 40);
+select pg_temp.expect('2 muy graves: 95 − 40 = 55', pg_temp.fin(95, 0, 0, 2), 55);
+select pg_temp.expect('muy grave en el límite: 79 − 20 = 59', pg_temp.fin(79, 0, 0, 1), 59);
+select pg_temp.expect('grave en el límite: 84 − 10 = 74', pg_temp.fin(84, 0, 1, 0), 74);
+select pg_temp.expect('leves también tocan suelo (10 con 5 leves = 0)', pg_temp.fin(10, 5, 0, 0), 0);
+select pg_temp.expect('100 con una leve = 97', pg_temp.fin(100, 1, 0, 0), 97);
+select pg_temp.expect('las restas se guardan: 7 leves + grave = 25',
+  (kiru_private.perf_final(95, 7, 1, 0, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'deductions')::numeric, 25);
+select pg_temp.expect('con grave y muy grave manda el tope de 59',
+  (kiru_private.perf_final(95, 0, 1, 1, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'cap')::numeric, 59);
+select pg_temp.expect_text('sin incidencias no hay tope',
+  kiru_private.perf_final(95, 2, 0, 0, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'cap', null);
+select pg_temp.expect_text('sin muy grave no hay revisión de continuidad',
+  kiru_private.perf_final(30, 7, 3, 0, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'continuity_review', 'false');
+select pg_temp.expect_text('sin nota, la muy grave pide igualmente revisión de continuidad',
+  kiru_private.perf_final(null, 0, 0, 1, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'continuity_review', 'true');
+select pg_temp.expect_text('sin nota no se inventa una final',
+  kiru_private.perf_final(null, 1, 1, 1, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'final', null);
+create function pg_temp.cat(perf numeric) returns text language sql as $$
+  select kiru_private.perf_final(perf, 0, 0, 0, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'category' $$;
+select pg_temp.expect_text('100 Excelente', pg_temp.cat(100), 'excelente');
+select pg_temp.expect_text('90 Excelente', pg_temp.cat(90), 'excelente');
+select pg_temp.expect_text('89,9 Bueno', pg_temp.cat(89.9), 'bueno');
+select pg_temp.expect_text('75 Bueno', pg_temp.cat(75), 'bueno');
+select pg_temp.expect_text('74,9 Mejorable', pg_temp.cat(74.9), 'mejorable');
+select pg_temp.expect_text('60 Mejorable', pg_temp.cat(60), 'mejorable');
+select pg_temp.expect_text('59,9 Deficiente', pg_temp.cat(59.9), 'deficiente');
+select pg_temp.expect_text('40 Deficiente', pg_temp.cat(40), 'deficiente');
+select pg_temp.expect_text('39,9 Muy deficiente', pg_temp.cat(39.9), 'muy_deficiente');
+select pg_temp.expect_text('0 Muy deficiente', pg_temp.cat(0), 'muy_deficiente');
 select pg_temp.expect_text('categoría de 87,5 = bueno',
   kiru_private.perf_final(87.5, 0, 0, 0, (select rules from kiru_perf_rule_versions where version = 1)) ->> 'category', 'bueno');
 select pg_temp.expect_text('una muy grave pide revisión de continuidad',
@@ -152,6 +192,27 @@ insert into kiru_evaluations(student_id, target, cycle, mentor_id, anchor_on, du
 values (pg_temp.i('S1'), 'mentor', 0, pg_temp.i('M'), pg_temp.d(0)::date, pg_temp.d(1)::date, pg_temp.d(1)::date, 'completada', pg_temp.d(2), false),
        (pg_temp.i('S1'), 'mentor', 1, pg_temp.i('M'), pg_temp.d(5)::date, pg_temp.d(6)::date, pg_temp.d(6)::date, 'abierta', null, false);
 
+-- Revisión final: casos que no deben mover los resultados de arriba.
+-- a) Cancelación no justificada en una clase cuya recuperación sigue en curso: aún no resta en B3.
+insert into kiru_class_requests(session_id, mentor_id, student_id, kind, requested_by, requester_role, hours_notice, late, status, incident)
+select id, pg_temp.i('M'), pg_temp.i('S1'), 'cancelacion', pg_temp.i('M'), 'mentor', 12, true, 'aprobada', 'no_justificada'
+from kiru_class_sessions where original_start = pg_temp.d(6);
+-- b) Clase histórica impartida con registro tarde y registro suelto archivado tarde: no cuentan en E1.
+insert into kiru_session_logs(source_key, submitted_at, session_date, mentor_name, student_name, mentor_id, student_id, answers, manual_status) values
+  ('l8', pg_temp.d(10) + interval '5 days', pg_temp.d(10)::date, 'M', 'S1', pg_temp.i('M'), pg_temp.i('S1'), '[]', null),
+  ('l9', pg_temp.d(11) + interval '5 days', pg_temp.d(11)::date, 'M', 'S1', pg_temp.i('M'), pg_temp.i('S1'), '[]', 'archivado'),
+  ('l10', pg_temp.d(12) + interval '5 days', pg_temp.d(12)::date, 'Desconocido', 'S1', null, pg_temp.i('S1'), '[]', null);
+insert into kiru_class_sessions(student_id, mentor_id, kind, original_start, scheduled_start, scheduled_end, delivery, session_log_id, delivered_by, recovery, source)
+values (pg_temp.i('S1'), pg_temp.i('M'), 'regular', pg_temp.d(10), pg_temp.d(10), pg_temp.d(10) + interval '1 hour', 'impartida',
+  (select id from kiru_session_logs where source_key = 'l8'), pg_temp.i('M'), 'ninguna', 'historico');
+-- c) Cancelada por el mentor y recuperación programada por Coordinación en plazo, sin propuesta de fechas:
+--    cuenta a tiempo en B4 (pasa a 2 de 4 = 50) y, como sigue en curso, no entra en B1.
+insert into kiru_class_sessions(id, student_id, mentor_id, kind, original_start, scheduled_start, scheduled_end, delivery, consumption, cancel_cause, cancelled_at, recovery)
+values ('00000000-0000-4000-8000-000000000013', pg_temp.i('S1'), pg_temp.i('M'), 'regular', pg_temp.d(13), pg_temp.d(13), pg_temp.d(13) + interval '1 hour', 'no_impartida', 'conservada', 'mentor', pg_temp.d(13) - interval '1 day', 'programada');
+insert into kiru_class_sessions(student_id, mentor_id, kind, original_start, scheduled_start, scheduled_end, delivery, consumption, recovers_session_id, source, created_at)
+values (pg_temp.i('S1'), pg_temp.i('M'), 'recuperacion', pg_temp.d(30), pg_temp.d(30), pg_temp.d(30) + interval '1 hour', 'programada', 'no_aplica',
+  '00000000-0000-4000-8000-000000000013', 'recuperacion', pg_temp.d(13) + interval '1 day');
+
 -- 5. Permisos ------------------------------------------------------------------------------
 select pg_temp.as_user('M');
 select pg_temp.expect('el mentor no ve las reglas (fase 1: solo administración)', (select count(*) from kiru_perf_rule_versions), 0);
@@ -166,6 +227,18 @@ select pg_temp.expect('el coordinador tampoco ve nada en la fase 1', (select cou
 select pg_temp.expect_denied('el coordinador no puede hacer un ensayo', $$select kiru_perf_preview(current_date - 30, current_date)$$);
 select pg_temp.as_user('P');
 select pg_temp.expect('la familia no ve nada', (select count(*) from kiru_perf_indicators), 0);
+select pg_temp.expect_denied('la familia no puede hacer un ensayo', $$select kiru_perf_preview(current_date - 30, current_date)$$);
+select pg_temp.as_user('S1');
+select pg_temp.expect('el alumno no ve nada', (select count(*) from kiru_perf_settings), 0);
+reset role;
+set local role anon;
+select pg_temp.expect_denied('sin sesión no se ve nada (tablas)', $$select count(*) from kiru_perf_scores$$);
+select pg_temp.expect_denied('sin sesión no se ve nada (panel)', $$select kiru_perf_admin_overview()$$);
+select pg_temp.expect_denied('sin sesión no se ejecuta el cálculo interno', $$select kiru_private.perf_compute(now() - interval '30 days', now(), '{}')$$);
+reset role;
+select pg_temp.as_user('C');
+select pg_temp.expect_denied('el coordinador no ejecuta el cálculo interno', $$select kiru_private.perf_compute(now() - interval '30 days', now(), '{}')$$);
+select pg_temp.expect('el coordinador no ve resultados guardados', (select count(*) from kiru_perf_scores), 0);
 
 -- 6. Ensayo de administración con los datos de ejemplo --------------------------------------
 select pg_temp.as_user('A');
@@ -176,7 +249,8 @@ select pg_temp.expect('B1: 5 dadas de 6 resueltas = 83,3', (select (m #>> '{valu
 select pg_temp.expect('B1: la recuperación en curso, la familia y lo histórico no cuentan', (select (m #>> '{values,B1,total}')::numeric from pv), 6);
 select pg_temp.expect('B1: la clase sin registro no cuenta en B1', (select (m #>> '{values,B1,detail,sin_registro_todavia}')::numeric from pv), 1);
 select pg_temp.expect('B3: 1 cancelación no justificada de 6 = 83,3', (select (m #>> '{values,B3,value}')::numeric from pv), 83.3);
-select pg_temp.expect('B4: 1 de 3 recuperaciones con fechas a tiempo = 33,3', (select (m #>> '{values,B4,value}')::numeric from pv), 33.3);
+select pg_temp.expect('B4: 2 de 4 recuperaciones a tiempo (una programada por Coordinación) = 50', (select (m #>> '{values,B4,value}')::numeric from pv), 50);
+select pg_temp.expect('B3: la cancelación con recuperación en curso aún no resta', (select (m #>> '{values,B3,detail,no_justificados}')::numeric from pv), 1);
 select pg_temp.expect('E1: 3 de 5 registros en 24 h = 60', (select (m #>> '{values,E1,value}')::numeric from pv), 60);
 select pg_temp.expect('E1: la clase sin registro cuenta como fuera de plazo', (select (m #>> '{values,E1,detail,sin_registro}')::numeric from pv), 1);
 select pg_temp.expect('E2: 1 de 2 obligaciones a tiempo = 50', (select (m #>> '{values,E2,value}')::numeric from pv), 50);
@@ -211,6 +285,20 @@ select pg_temp.expect('recalcular no duplica filas', (select count(*) from kiru_
 select pg_temp.as_user('A');
 select pg_temp.expect('el panel de administración trae los dos mentores', jsonb_array_length(kiru_perf_admin_overview() -> 'mentors'), 2);
 select pg_temp.expect('y los 17 indicadores del catálogo', jsonb_array_length(kiru_perf_admin_overview() -> 'indicators'), 17);
+
+-- 7b. Borrar un perfil no queda bloqueado por el historial ni por las reglas aprobadas ----------
+select pg_temp.as_system();
+insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data) values
+  ('00000000-0000-4000-8000-0000000000a2', 'a2@t', '{"kiru_role":"admin"}', '{"full_name":"A2 Prueba"}');
+insert into kiru_perf_events(actor_id, action) values ('00000000-0000-4000-8000-0000000000a2', 'prueba');
+insert into kiru_perf_rule_versions(version, status, rules, approved_at, approved_by, created_by)
+  select 99, 'aprobada', rules, now(), '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a2' from kiru_perf_rule_versions where version = 1;
+delete from public.profiles where id = '00000000-0000-4000-8000-0000000000a2';
+select pg_temp.expect('se puede borrar el perfil: el historial se queda sin autor', (select count(*) from kiru_perf_events where action = 'prueba' and actor_id is null), 1);
+select pg_temp.expect('y la versión aprobada sigue intacta', (select count(*) from kiru_perf_rule_versions where version = 99 and approved_by is null and status = 'aprobada'), 1);
+select pg_temp.expect_denied('pero el historial sigue sin poder editarse', $$update kiru_perf_events set action = 'otra' where action = 'prueba'$$);
+select pg_temp.expect_denied('ni las reglas aprobadas', $$update kiru_perf_rule_versions set rules = '{}' where version = 99$$);
+select pg_temp.expect_denied('ni se puede poner otro autor en el historial', $$update kiru_perf_events set actor_id = (select id from ids where k = 'A') where action = 'prueba'$$);
 
 -- 8. Pagos intactos --------------------------------------------------------------------------
 select pg_temp.expect('el módulo no lee ni escribe pagos de mentores',
