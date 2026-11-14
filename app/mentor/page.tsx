@@ -117,8 +117,8 @@ export default function MentorPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [authorized]);
-  const openNotification = (item: { review_id?: string | null; warning_id?: string | null }) => {
-    if (!item.review_id && !item.warning_id) return;
+  const openNotification = (item: { kind?: string; review_id?: string | null; warning_id?: string | null }) => {
+    if (!item.review_id && !item.warning_id && !item.kind?.startsWith("registro_error")) return;
     setInitialReview(item.review_id ?? null);
     setMenuStep("justificaciones");
   };
@@ -276,7 +276,7 @@ export default function MentorPage() {
             onClick={() => { setInitialReview(null); setMenuStep("justificaciones"); }}
             className="w-full rounded-2xl border border-[#E4D8C5] bg-[#F3EEE5] p-4 text-left text-sm text-[#292825] shadow-xs transition hover:bg-[#EFE7DA]"
           >
-            <strong className="font-semibold">Coordinación te ha pedido {pendingJustifications === 1 ? "una justificación" : `${pendingJustifications} justificaciones`} de SkillCoins.</strong>{" "}
+            <strong className="font-semibold">Coordinación espera {pendingJustifications === 1 ? "una respuesta tuya" : `${pendingJustifications} respuestas tuyas`} (justificaciones de SkillCoins o errores en un registro).</strong>{" "}
             <span className="text-[#6D6962]">Pulsa para responder →</span>
           </button>
         )}

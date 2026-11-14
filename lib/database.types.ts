@@ -326,7 +326,8 @@ export type NotificationRow = {
 
 export type SupervisionNotificationKind =
   | "justificacion_solicitada" | "justificacion_respondida" | "justificacion_repregunta" | "justificacion_cerrada"
-  | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento";
+  | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento"
+  | "registro_error" | "registro_error_respuesta";
 
 // Supervisión metodológica (migración 20261109110000): solicitudes de justificación
 // de una nota de SkillCoins, sus mensajes y evidencias, y avisos metodológicos.
@@ -419,6 +420,52 @@ export type MethodologyWarningRow = {
 };
 
 /** Historial de supervisión (solo coordinación y administración lo leen). */
+// Desempeño de mentores, fase 2a (migración 20261116090000).
+export type StudentPlanTool = "ingles" | "lengua" | "tarjetas";
+export type StudentPlanToolRow = {
+  id: string;
+  student_id: string;
+  tool: StudentPlanTool;
+  active_from: string;
+  active_to: string | null;
+  set_by: string | null;
+  ended_by: string | null;
+  created_at: string;
+};
+export type CalculaloCheckRow = {
+  id: string;
+  student_id: string;
+  mentor_id: string;
+  month: string;
+  weeks: { week: string; ok: boolean }[];
+  weeks_due: number;
+  weeks_ok: number;
+  mentor_prepared: boolean;
+  quality: number | null;
+  note: string;
+  checked_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type LogErrorKind = "alumno_fecha" | "skillcoins" | "campos_vacios" | "contenido" | "otro";
+export type LogErrorMarkRow = {
+  id: string;
+  session_log_id: string;
+  mentor_id: string;
+  student_id: string | null;
+  kind: LogErrorKind;
+  comment: string;
+  marked_by: string | null;
+  marked_at: string;
+  due_at: string;
+  status: "abierta" | "respondida" | "retirada";
+  reply: string;
+  replied_at: string | null;
+  withdrawn_by: string | null;
+  withdrawn_at: string | null;
+  withdraw_reason: string;
+};
+
 export type SupervisionEventRow = {
   id: string;
   review_id: string | null;
@@ -898,6 +945,9 @@ export type Database = {
       kiru_mentor_payouts: ReadOnlyTable<MentorPayoutRow>;
       kiru_mentor_payout_history: ReadOnlyTable<MentorPayoutHistoryRow>;
       kiru_supervision_events: ReadOnlyTable<SupervisionEventRow>;
+      kiru_student_plan_tools: ReadOnlyTable<StudentPlanToolRow>;
+      kiru_calculalo_checks: ReadOnlyTable<CalculaloCheckRow>;
+      kiru_log_error_marks: ReadOnlyTable<LogErrorMarkRow>;
       kiru_special_periods: Table<SpecialPeriodRow, "id" | "kind" | "country" | "region" | "zones" | "notes" | "is_active" | "created_by" | "created_at" | "updated_at">;
       kiru_special_period_family: Table<SpecialPeriodFamilyRow, "id" | "choices" | "accepts_substitute" | "extra_sessions" | "comments" | "late" | "answered_by" | "answered_at">;
       kiru_special_period_mentors: Table<SpecialPeriodMentorRow, "id" | "mentor_id" | "external_name" | "external_email" | "own_classes" | "wants_to_substitute" | "slots" | "zones" | "max_sessions" | "comments" | "answered_by" | "answered_at">;
@@ -1014,10 +1064,18 @@ type MentorPayFunctions = {
   kiru_mentor_payout_checks: { Args: Record<string, never>; Returns: Json };
 };
 
-/** Desempeño de mentores (fase 1: solo administración). */
+/** Desempeño de mentores (fase 1: solo administración; fase 2a: herramientas de Coordinación). */
 type PerformanceFunctions = {
   kiru_perf_admin_overview: { Args: Record<string, never>; Returns: Json };
   kiru_perf_preview: { Args: { p_from: string; p_to: string }; Returns: Json };
   kiru_perf_recompute: { Args: Record<string, never>; Returns: Json };
   kiru_perf_update_settings: { Args: { p_mode: string; p_data_from: string; p_official_from: string }; Returns: undefined };
+  kiru_set_student_tool: { Args: { p_student: string; p_tool: StudentPlanTool; p_required: boolean }; Returns: undefined };
+  kiru_save_calculalo_check: {
+    Args: { p_student: string; p_month: string; p_weeks: Json; p_prepared: boolean; p_quality?: number | null; p_note?: string };
+    Returns: string;
+  };
+  kiru_log_error_mark: { Args: { p_log: string; p_kind: LogErrorKind; p_comment: string }; Returns: string };
+  kiru_log_error_reply: { Args: { p_mark: string; p_body: string }; Returns: undefined };
+  kiru_log_error_withdraw: { Args: { p_mark: string; p_reason: string }; Returns: undefined };
 };

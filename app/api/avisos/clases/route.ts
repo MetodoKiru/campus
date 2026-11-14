@@ -19,6 +19,8 @@ export const CLASS_NOTIFICATION_KINDS: ClassNotificationKind[] = [
 export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
   "justificacion_solicitada", "justificacion_respondida", "justificacion_repregunta", "justificacion_recordatorio",
   "justificacion_por_valorar", "aviso_metodologico", "aviso_seguimiento",
+  // Errores marcados en un registro de sesión (desempeño, fase 2a).
+  "registro_error", "registro_error_respuesta",
 ];
 // Cambio de intensidad: elegir nuevo horario, confirmarlo y disponibilidad del mentor.
 const SCHEDULE_EMAIL_KINDS: ScheduleNotificationKind[] = [
@@ -110,6 +112,8 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
       url.searchParams.set("seccion", "justificaciones");
       if (n.review_id) url.searchParams.set("revision", n.review_id);
       else if (n.warning_id) url.searchParams.set("aviso", n.warning_id);
+    } else if (n.kind.startsWith("registro_error")) {
+      url.searchParams.set("tab", "seguimiento");
     } else {
       url.searchParams.set("tab", "supervision");
       if (n.review_id) url.searchParams.set("revision", n.review_id);
