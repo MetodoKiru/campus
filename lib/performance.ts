@@ -110,6 +110,24 @@ export const DETAIL_LABEL: Record<string, string> = {
   registros_sin_clase: "registros sin clase en el campus",
   formularios: "formularios trimestrales",
   justificaciones: "justificaciones con fecha límite",
+  // Fase 2a
+  fichas: "fichas de Cálculalo",
+  semanas_con_4_dias: "semanas con 4 días o más",
+  con_error_marcado: "registros con error marcado",
+  sin_contestar_a_tiempo: "sin contestar a tiempo",
+  en_plazo_de_respuesta: "en plazo de respuesta (aún no cuentan)",
+  // Fase 2b
+  validadas: "validadas",
+  sin_entregar_tras_recordatorios: "sin entregar tras 3 recordatorios",
+  pendientes_o_en_revision: "pendientes o en revisión (no cuentan)",
+  exentas: "exentas",
+  misiones_validadas: "misiones validadas",
+  misiones_sin_entregar: "misiones sin entregar",
+  semanas_con_clase: "semanas con clase",
+  semanas_con_skillcoins: "con SkillCoins",
+  justificaciones_cerradas: "justificaciones cerradas",
+  niveles_de_avisos: "niveles de aviso metodológico",
+  aun_dentro_del_periodo: "aún recuperables dentro del periodo (no cuentan)",
 };
 
 export function fmtNumber(value: number | null | undefined): string {

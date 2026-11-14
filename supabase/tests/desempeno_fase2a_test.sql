@@ -174,9 +174,9 @@ select pg_temp.expect_text('fuera del periodo no cuenta nada de antes', (select 
 
 -- 5. El ensayo de administración ya trae A3, A4 y E3 -----------------------------------------
 select pg_temp.as_user('A');
-select pg_temp.expect('el ensayo junta los 8 indicadores',
+select pg_temp.expect('el ensayo junta los indicadores de las fases 1, 2a y 2b',
   (select count(*) from jsonb_object_keys((select m -> 'values' from jsonb_array_elements(kiru_perf_preview((now() - interval '100 days')::date, current_date) -> 'mentors') m
-   where m ->> 'mentor_id' = pg_temp.i('M')::text))), 8);
+   where m ->> 'mentor_id' = pg_temp.i('M')::text))), 10);
 select pg_temp.as_user('C');
 select pg_temp.expect_denied('el coordinador sigue sin ver puntuaciones', $$select kiru_perf_preview(current_date - 30, current_date)$$);
 

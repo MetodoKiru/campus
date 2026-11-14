@@ -27,6 +27,7 @@ import MentorMeetings from "@/components/mentor/MentorMeetings";
 import GrowWithKiru from "@/components/mentor/GrowWithKiru";
 import MentorClasses from "@/components/classes/MentorClasses";
 import MentorJustifications, { usePendingJustifications } from "@/components/mentor/MentorJustifications";
+import MentorEvidence, { useEvidenceVisible } from "@/components/mentor/MentorEvidence";
 import MentorSessions from "@/components/mentor/MentorSessions";
 import MentorPayments from "@/components/mentor/MentorPayments";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
@@ -103,6 +104,7 @@ export default function MentorPage() {
   const step = section ? null : (menuStep as StepId | null);
   const mentorPanel = useMentorPanel();
   const pendingJustifications = usePendingJustifications(authorized);
+  const evidenceVisible = useEvidenceVisible(authorized);
   const hasNewOffer = Boolean(mentorPanel.data?.offers.some((offer) => !offer.response));
   // Enlaces directos: /mentor?seccion=justificaciones&revision={id} (correos), ?seccion=sesiones o ?seccion=pagos.
   const [initialReview, setInitialReview] = useState<string | null>(null);
@@ -110,7 +112,7 @@ export default function MentorPage() {
     if (!authorized) return;
     const params = new URLSearchParams(window.location.search);
     const target = params.get("seccion");
-    if (target !== "justificaciones" && target !== "sesiones" && target !== "pagos" && target !== "disponibilidad") return;
+    if (target !== "justificaciones" && target !== "sesiones" && target !== "pagos" && target !== "disponibilidad" && target !== "evidencias") return;
     const timer = window.setTimeout(() => {
       setInitialReview(target === "justificaciones" ? params.get("revision") : null);
       setMenuStep(target);
@@ -118,6 +120,7 @@ export default function MentorPage() {
     return () => window.clearTimeout(timer);
   }, [authorized]);
   const openNotification = (item: { kind?: string; review_id?: string | null; warning_id?: string | null }) => {
+    if (item.kind?.startsWith("evidencia_") || item.kind === "exencion_resuelta") { setMenuStep("evidencias"); return; }
     if (!item.review_id && !item.warning_id && !item.kind?.startsWith("registro_error")) return;
     setInitialReview(item.review_id ?? null);
     setMenuStep("justificaciones");
@@ -211,6 +214,7 @@ export default function MentorPage() {
               data={mentorPanel.data}
               active={menuStep}
               pendingJustifications={pendingJustifications}
+              showEvidence={evidenceVisible}
               onSelect={(step) => { setInitialReview(null); setMenuStep(step); setMenuOpen(false); }}
               onClose={() => setMenuOpen(false)}
             />
@@ -260,6 +264,7 @@ export default function MentorPage() {
             {section === "sesiones" && <MentorSessions onOpenReview={(id) => { setInitialReview(id); setMenuStep("justificaciones"); }} />}
             {section === "pagos" && <MentorPayments />}
             {section === "disponibilidad" && <MentorAvailability notify={setSavedMsg} />}
+            {section === "evidencias" && <MentorEvidence notify={setSavedMsg} />}
             {section === "justificaciones" && <MentorJustifications key={initialReview ?? "lista"} notify={setSavedMsg} initialReview={initialReview} />}
             {step && (mentorPanel.data
               ? <MentorStepView key={step} step={step} data={mentorPanel.data} reload={mentorPanel.reload} notify={setSavedMsg} />
