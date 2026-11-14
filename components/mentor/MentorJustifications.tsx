@@ -11,6 +11,7 @@ import {
   RESOLUTION_LABEL, WARNING_LEVEL_LABEL, WARNING_STATUS_LABEL, evidenceMime, formatDateTime, formatDay, formatSize,
   safeFileName, warningCountsUntil, weekLabel,
 } from "@/lib/supervision";
+import MentorLogErrors from "@/components/mentor/MentorLogErrors";
 
 const primaryButton = "inline-flex items-center gap-1.5 rounded-xl bg-[#242321] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#3A3835] disabled:opacity-50";
 const secondaryButton = "inline-flex items-center gap-1.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] px-4 py-2.5 text-xs font-bold text-[#45433F] transition hover:bg-[#F3F0EA] disabled:opacity-50";
@@ -36,10 +37,14 @@ export function usePendingJustifications(enabled: boolean): number {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { count: pending } = await supabase.from("kiru_skillcoin_reviews")
-        .select("id", { count: "exact", head: true })
-        .eq("mentor_id", user.id).eq("status", "pendiente_respuesta");
-      if (alive) setCount(pending ?? 0);
+      const [reviews, marks] = await Promise.all([
+        supabase.from("kiru_skillcoin_reviews").select("id", { count: "exact", head: true })
+          .eq("mentor_id", user.id).eq("status", "pendiente_respuesta"),
+        // Errores marcados en un registro que esperan respuesta del mentor.
+        supabase.from("kiru_log_error_marks").select("id", { count: "exact", head: true })
+          .eq("mentor_id", user.id).eq("status", "abierta"),
+      ]);
+      if (alive) setCount((reviews.count ?? 0) + (marks.count ?? 0));
     };
     void load();
     const interval = window.setInterval(() => { void load(); }, 120_000);
@@ -132,6 +137,7 @@ export default function MentorJustifications({ notify, initialReview }: { notify
 
       {data && !review && (
         <>
+          <MentorLogErrors notify={notify} />
           <ReviewList title="Pendientes y en curso" empty="No tienes ninguna solicitud abierta." reviews={open} data={data} onOpen={setSelected} />
           {closed.length > 0 && <ReviewList title="Historial" empty="" reviews={closed} data={data} onOpen={setSelected} />}
           <WarningList warnings={data.warnings} />
