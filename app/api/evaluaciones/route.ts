@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import type { EvaluationRow } from "@/lib/database.types";
 import { requireStaff, UUID_RE } from "@/lib/server/require-staff";
 import {
-  EVAL_BUCKET, isDate, madridTodayIso, mentorWindow,
+  addDaysIso, EVAL_BUCKET, isDate, madridTodayIso, mentorWindow, RATING_DAYS,
   type EvalMode, type FamilyEvaluationView, type MentorEvaluationView, type StaffEvaluationsPayload, type StaffEvaluationView,
 } from "@/lib/evaluations";
 import {
-  evaluationLink, firstNameOf, holidaysFor, loadEvalSettings, notifyEval, saveEvalSettings, scopeStudents, supervisorsOf,
+  evaluationLink, firstNameOf, holidaysFor, loadEvalSettings, notifyEval, pendingRatingMentors, saveEvalSettings, scopeStudents, supervisorsOf,
 } from "@/lib/server/evaluations";
 
 export const runtime = "nodejs";
@@ -42,14 +42,20 @@ export async function GET(request: Request) {
     const { data: links } = await admin.from("student_guardians").select("student_id").eq("guardian_id", user.id);
     const kids = (links ?? []).map((l) => l.student_id);
     if (!kids.length) return NextResponse.json({ evaluations: [] });
+    // Abiertas, y las ya hechas del último mes por si falta valorar al mentor.
     const { data: rows } = await admin.from("kiru_evaluations").select("*")
-      .in("student_id", kids).eq("target", "familia").eq("status", "abierta").order("due_on");
+      .in("student_id", kids).eq("target", "familia").in("status", ["abierta", "completada"])
+      .gte("due_on", addDaysIso(today, -RATING_DAYS)).order("due_on");
     const who = await names(admin, kids);
     const holidays = await holidaysFor(admin, (rows ?? []).map((r) => r.due_on));
-    const evaluations: FamilyEvaluationView[] = (rows ?? []).map((r) => ({
-      id: r.id, studentId: r.student_id, studentName: firstNameOf(who.get(r.student_id) ?? ""), cycle: r.cycle, dueOn: r.due_on,
-      status: r.status, link: evaluationLink(request.url, r.token), holiday: holidays.get(r.due_on) ?? null,
-    }));
+    const withRatings = await Promise.all((rows ?? []).map(async (r) => ({ r, rate: await pendingRatingMentors(admin, r) })));
+    const evaluations: FamilyEvaluationView[] = withRatings
+      .filter(({ r, rate }) => r.status === "abierta" || rate.length > 0)
+      .map(({ r, rate }) => ({
+        id: r.id, studentId: r.student_id, studentName: firstNameOf(who.get(r.student_id) ?? ""), cycle: r.cycle, dueOn: r.due_on,
+        status: r.status, link: evaluationLink(request.url, r.token), holiday: holidays.get(r.due_on) ?? null,
+        rateMentors: rate.map((m) => firstNameOf(m.name)),
+      }));
     return NextResponse.json({ evaluations });
   }
 
@@ -93,7 +99,11 @@ export async function GET(request: Request) {
   ]);
   const firstSession = new Map<string, string>();
   for (const l of firstLogs ?? []) if (l.student_id && l.session_date && !firstSession.has(l.student_id)) firstSession.set(l.student_id, l.session_date);
-  const who = await names(admin, [...(rows ?? []).flatMap((r) => [r.student_id, r.mentor_id, r.academic_by])]);
+  const familyIds = (rows ?? []).filter((r) => r.target === "familia").map((r) => r.id);
+  const { data: ratings } = familyIds.length
+    ? await admin.from("kiru_mentor_ratings").select("*").in("evaluation_id", familyIds)
+    : { data: [] };
+  const who = await names(admin, [...(rows ?? []).flatMap((r) => [r.student_id, r.mentor_id, r.academic_by]), ...(ratings ?? []).map((x) => x.mentor_id)]);
   const holidays = await holidaysFor(admin, (rows ?? []).map((r) => r.due_on));
   const settings = role === "admin" ? await loadEvalSettings(admin) : null;
   const payload: StaffEvaluationsPayload = {
@@ -104,6 +114,11 @@ export async function GET(request: Request) {
       status: r.status, completedAt: r.completed_at, completedVia: r.completed_via, late: r.late,
       academicStatus: r.academic_status, academicName: r.academic_name, academicByName: r.academic_by ? who.get(r.academic_by) ?? "" : "",
       scans: r.scan_paths.length, givenBy: r.given_by, note: r.note, holiday: holidays.get(r.due_on) ?? null,
+      mentorRatings: (ratings ?? []).filter((x) => x.evaluation_id === r.id).map((x) => ({
+        mentorName: who.get(x.mentor_id) ?? "", average: x.average === null ? null : Number(x.average),
+        low: [x.puntualidad, x.comunicacion, x.efectividad, x.trato, x.profesionalidad].some((v) => v !== null && v <= 2),
+        comment: x.comment,
+      })),
     })),
     students: (studentRows ?? []).map((s) => {
       const o = (overrides ?? []).find((x) => x.student_id === s.id);

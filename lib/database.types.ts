@@ -762,6 +762,12 @@ export type EvaluationRow = {
 export type EvaluationStudentRow = {
   student_id: string; family_start_on: string | null; skip_initial: boolean; paused: boolean; updated_by: string | null; updated_at: string;
 };
+/** Valoración trimestral del mentor por la familia (migración 20261117090000). 1-5; null = «No lo sé». */
+export type MentorRatingRow = {
+  id: string; evaluation_id: string; student_id: string; mentor_id: string;
+  puntualidad: number | null; comunicacion: number | null; efectividad: number | null; trato: number | null; profesionalidad: number | null;
+  comment: string; average: number | null; created_at: string;
+};
 export type SettingRow = { key: string; value: Json; updated_at: string };
 export type MentorSpecialtyRow = { email: string; specialties: string[]; hours: number; updated_at: string };
 /** Avisos de cambio de horario tras subir o bajar la intensidad (campanita + correo). */
@@ -955,6 +961,7 @@ export type Database = {
       kiru_special_period_log: Table<SpecialPeriodLogRow, "id" | "period_id" | "student_id" | "actor_id" | "details" | "created_at">;
       kiru_evaluations: Table<EvaluationRow, "id" | "token" | "mentor_id" | "status" | "opened_at" | "opened_on" | "completed_at" | "completed_by" | "completed_via" | "submission_id" | "answers" | "sheet_exported_at" | "late" | "steps" | "academic_path" | "academic_name" | "academic_by" | "academic_status" | "academic_reviewed_by" | "academic_reviewed_at" | "scan_paths" | "scan_by" | "scan_at" | "given_by" | "note" | "moved_by" | "created_at" | "updated_at">;
       kiru_evaluation_students: Table<EvaluationStudentRow, "family_start_on" | "skip_initial" | "paused" | "updated_by" | "updated_at">;
+      kiru_mentor_ratings: Table<MentorRatingRow, "id" | "puntualidad" | "comunicacion" | "efectividad" | "trato" | "profesionalidad" | "comment" | "average" | "created_at">;
       kiru_settings: Table<SettingRow, "updated_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };

@@ -140,6 +140,12 @@ function RowDetail({ r, act, notify, reload }: {
       {r.completedAt && <p>Hecha el {new Date(r.completedAt).toLocaleDateString("es-ES")} {r.completedVia === "formulario" ? "(formulario)" : r.completedVia === "escaneo" ? "(escaneo subido)" : "(marcada a mano)"}.</p>}
       {r.dueOn !== r.originalDueOn && <p>Fecha original: {shortEvalDate(r.originalDueOn)}.</p>}
       {r.note && <p className="text-[#6D6962]">Nota: {r.note}</p>}
+      {r.mentorRatings.map((m) => (
+        <p key={m.mentorName} className={m.low ? "font-semibold text-amber-800" : "text-[#45433F]"}>
+          Valoración de {m.mentorName.split(" ")[0]}: {m.average === null ? "no lo saben" : `${m.average.toLocaleString("es-ES", { maximumFractionDigits: 1 })} / 5`}
+          {m.low ? " · alguna nota de 1 o 2" : ""}{m.comment ? ` · «${m.comment}»` : ""}
+        </p>
+      ))}
 
       {r.target === "alumno" && (
         <div className="space-y-2">
