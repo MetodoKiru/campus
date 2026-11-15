@@ -96,7 +96,7 @@ const LABELS: { key: string; re: RegExp }[] = [
   { key: "medio", re: /¿C[oó]mo prefer[ií]s la llamada\?/ },
   { key: "telefono", re: /Tel[eé]fono para la llamada[^:]*/ },
   { key: "dos_padres", re: /¿Qu[eé] d[ií]as pod[eé]is estar los dos padres[^:]*/ },
-  { key: "compromisos", re: /¿Ten(?:[eé]is|es) alg[uú]n compromiso[^:]*/ },
+  { key: "compromisos", re: /¿T(?:ien|en[eé]i)s alg[uú]n compromiso[^:]*/ },
   { key: "codigo", re: /C[oó]digo de llamada[^:]*/ },
   { key: "d1", re: /Lunes/ }, { key: "d2", re: /Martes/ }, { key: "d3", re: /Mi[eé]rcoles/ },
   { key: "d4", re: /Jueves/ }, { key: "d5", re: /Viernes/ }, { key: "d6", re: /S[aá]bado/ }, { key: "d7", re: /Domingo/ },
@@ -318,9 +318,11 @@ export function findMatches(input: MatchInput, limit = 3): MatchOption[] {
       }
     }
   }
-  return options
-    .sort((a, b) => b.score - a.score || a.weekday - b.weekday || a.start - b.start)
-    .slice(0, limit);
+  const sorted = options.sort((a, b) => b.score - a.score || a.weekday - b.weekday || a.start - b.start);
+  // Primero la mejor de cada día (así las alternativas son de días distintos) y después el resto.
+  const seenDays = new Set<number>();
+  const firstOfDay = sorted.filter((o) => (seenDays.has(o.weekday) ? false : (seenDays.add(o.weekday), true)));
+  return [...firstOfDay, ...sorted.filter((o) => !firstOfDay.includes(o))].slice(0, limit);
 }
 
 /** Por qué no hay hora común (para el panel del coordinador). */
@@ -338,7 +340,7 @@ export type CallView = {
   id: string; studentId: string; studentName: string; weekStart: string; weekNo: number; withMentor: boolean;
   mentorName: string; coordinatorName: string; scheduledStart: string; medium: CallMedium; moved: boolean; status: CallStatus;
   mentorPresence: MentorPresence | null; ratings: Record<MentorCallKey, number | null>; comment: string; parentsTopics: string;
-  needsRating: boolean; zoomUrl: string; phone: string;
+  needsRating: boolean; ended: boolean; zoomUrl: string; phone: string;
 };
 
 export type PlanView = {
