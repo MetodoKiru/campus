@@ -17,6 +17,7 @@ import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
 import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
 import FamilyEvaluations from "@/components/evaluations/FamilyEvaluations";
+import FamilyCalls from "@/components/llamadas/FamilyCalls";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -511,6 +512,7 @@ export default function PadrePage() {
           {activeTab === "inicio" && (
             <div className="space-y-4">
               <FamilyEvaluations studentId={selectedChild.id} onOpenReports={() => setActiveTab("informes")} />
+              <FamilyCalls studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => { void reloadRenewals(); setScheduleRefresh((n) => n + 1); }} />
               <FamilyScheduleChange studentId={selectedChild.id} studentName={selectedChild.name} refreshKey={scheduleRefresh} />

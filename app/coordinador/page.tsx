@@ -5,7 +5,7 @@ import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins
 import { CoordinatorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, ClipboardList, Compass, LogOut, Phone, Sprout, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
@@ -19,6 +19,7 @@ import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
 import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
+import StaffCalls from "@/components/llamadas/StaffCalls";
 import AvailabilityOverview from "@/components/horarios/AvailabilityOverview";
 import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
 import LogErrorMark from "@/components/performance/LogErrorMark";
@@ -66,14 +67,14 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones" | "evaluaciones" | "seguimiento" | "disponibilidad">("mentores");
+  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones" | "evaluaciones" | "seguimiento" | "disponibilidad" | "llamadas">("mentores");
   // Enlaces de los correos: /coordinador?tab=supervision&revision=…
   const [linkedReview, setLinkedReview] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     // /coordinador?tab=evaluaciones (correos) o ?tab=clases, ?tab=informes… (menú lateral de administración).
     const requested = params.get("tab");
-    const direct = ["mentores", "clases", "incidencias", "registros", "sin-asignar", "propuestas", "reuniones", "crece", "informes", "vacaciones", "evaluaciones", "seguimiento", "disponibilidad"] as const;
+    const direct = ["mentores", "clases", "incidencias", "registros", "sin-asignar", "propuestas", "reuniones", "crece", "informes", "vacaciones", "evaluaciones", "seguimiento", "disponibilidad", "llamadas"] as const;
     const match = direct.find((t) => t === requested);
     if (match) {
       const timer = window.setTimeout(() => setTab(match), 0);
@@ -274,6 +275,7 @@ export default function CoordinadorPage() {
             if (n.review_id || n.warning_id) { setLinkedReview(n.review_id ?? null); setTab("supervision"); }
             else if (n.session_id || n.request_id) setTab("clases");
             else if (n.kind === "evaluacion_trimestral") setTab("evaluaciones");
+            else if (n.kind === "llamada_familia") setTab("llamadas");
             else if (n.kind === "disponibilidad_enviada") setTab("disponibilidad");
             else if (n.kind.startsWith("registro_error")) setTab("seguimiento");
           }} />
@@ -307,6 +309,7 @@ export default function CoordinadorPage() {
             <TabButton active={tab === "supervision"} onClick={() => setTab("supervision")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Supervisión" />
             <TabButton active={tab === "seguimiento"} onClick={() => setTab("seguimiento")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Seguimiento" />
             <TabButton active={tab === "disponibilidad"} onClick={() => setTab("disponibilidad")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Disponibilidad de mentores" />
+            <TabButton active={tab === "llamadas"} onClick={() => setTab("llamadas")} icon={<Phone className="w-3.5 h-3.5" />} label="Llamadas con familias" />
             <TabButton active={tab === "evaluaciones"} onClick={() => setTab("evaluaciones")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Evaluaciones" />
             <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
             <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
@@ -331,6 +334,7 @@ export default function CoordinadorPage() {
           coordinatorOf={coordinatorOf} initialReviewId={linkedReview} notify={notifyOffers} />}
         {tab === "vacaciones" && <StaffSpecialPeriods notify={notifyOffers} />}
         {tab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
+        {tab === "llamadas" && <StaffCalls notify={notifyOffers} />}
         {tab === "disponibilidad" && <AvailabilityOverview mentors={mentors.map((m) => ({ id: m.id, name: m.full_name }))} notify={notifyOffers} />}
         {tab === "seguimiento" && <CoordinatorFollowUp people={people} mentorOf={mentorOf} notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}

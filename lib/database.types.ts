@@ -316,7 +316,7 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind | "llamada_familia";
   title: string;
   body: string;
   event_key: string;
@@ -765,6 +765,28 @@ export type EvaluationStudentRow = {
   student_id: string; family_start_on: string | null; skip_initial: boolean; paused: boolean; updated_by: string | null; updated_at: string;
 };
 /** Valoración trimestral del mentor por la familia (migración 20261117090000). 1-5; null = «No lo sé». */
+export type CallStaffRow = { profile_id: string; token: string; zoom_url: string; rules_ack_at: string | null; updated_at: string };
+export type CallAvailabilityRow = {
+  id: string; kind: "familia" | "equipo"; student_id: string | null; profile_id: string | null; role_label: string; name: string; email: string;
+  slots: Json; both_parents_days: number[]; medium: "zoom" | "telefono"; phone: string; commitments: string;
+  submission_id: string | null; answers: Json | null; received_at: string; linked_by: string | null; archived_at: string | null;
+};
+export type CallPlanRow = {
+  student_id: string; token: string; start_override: string | null; coordinator_id: string | null; mentor_id: string | null;
+  status: "sin_datos" | "sin_hueco" | "confirmada" | "pausada"; weekday: number | null; start_time: string | null;
+  mentor_weekday: number | null; mentor_start_time: string | null; medium: "zoom" | "telefono"; both_parents: boolean;
+  confirmed_at: string | null; confirmed_via: "auto" | "manual" | null; confirmed_by: string | null; missing: string[]; options: Json;
+  form_requested_at: string | null; updated_at: string;
+};
+export type FamilyCallRow = {
+  id: string; student_id: string; week_start: string; week_no: number; with_mentor: boolean; mentor_id: string | null; coordinator_id: string | null;
+  scheduled_start: string; medium: "zoom" | "telefono"; moved: boolean; moved_by: string | null;
+  status: "programada" | "hecha" | "no_hecha" | "cancelada"; mentor_presence: "estuvo" | "ausente" | "causa_ajena" | null;
+  preparacion: number | null; participacion: number | null; comunicacion: number | null; seguimiento: number | null; actitud: number | null;
+  rating_average: number | null; comment: string; parents_topics: string; closed_at: string | null; closed_by: string | null;
+  steps: string[]; created_at: string; updated_at: string;
+};
+
 export type MentorRatingRow = {
   id: string; evaluation_id: string; student_id: string; mentor_id: string;
   puntualidad: number | null; comunicacion: number | null; efectividad: number | null; trato: number | null; profesionalidad: number | null;
@@ -971,6 +993,10 @@ export type Database = {
       kiru_evaluations: Table<EvaluationRow, "id" | "token" | "mentor_id" | "status" | "opened_at" | "opened_on" | "completed_at" | "completed_by" | "completed_via" | "submission_id" | "answers" | "sheet_exported_at" | "late" | "steps" | "academic_path" | "academic_name" | "academic_by" | "academic_status" | "academic_reviewed_by" | "academic_reviewed_at" | "scan_paths" | "scan_by" | "scan_at" | "given_by" | "note" | "moved_by" | "created_at" | "updated_at">;
       kiru_evaluation_students: Table<EvaluationStudentRow, "family_start_on" | "skip_initial" | "paused" | "updated_by" | "updated_at">;
       kiru_mentor_ratings: Table<MentorRatingRow, "id" | "puntualidad" | "comunicacion" | "efectividad" | "trato" | "profesionalidad" | "comment" | "average" | "created_at">;
+      kiru_call_staff: Table<CallStaffRow, "token" | "zoom_url" | "rules_ack_at" | "updated_at">;
+      kiru_call_availability: Table<CallAvailabilityRow, "id" | "student_id" | "profile_id" | "role_label" | "name" | "email" | "slots" | "both_parents_days" | "medium" | "phone" | "commitments" | "submission_id" | "answers" | "received_at" | "linked_by" | "archived_at">;
+      kiru_call_plans: Table<CallPlanRow, "token" | "start_override" | "coordinator_id" | "mentor_id" | "status" | "weekday" | "start_time" | "mentor_weekday" | "mentor_start_time" | "medium" | "both_parents" | "confirmed_at" | "confirmed_via" | "confirmed_by" | "missing" | "options" | "form_requested_at" | "updated_at">;
+      kiru_family_calls: Table<FamilyCallRow, "id" | "mentor_id" | "coordinator_id" | "medium" | "moved" | "moved_by" | "status" | "mentor_presence" | "preparacion" | "participacion" | "comunicacion" | "seguimiento" | "actitud" | "rating_average" | "comment" | "parents_topics" | "closed_at" | "closed_by" | "steps" | "created_at" | "updated_at">;
       kiru_settings: Table<SettingRow, "updated_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
