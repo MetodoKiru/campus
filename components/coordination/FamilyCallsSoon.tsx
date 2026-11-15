@@ -15,8 +15,8 @@ export default function FamilyCallsSoon() {
   ];
   return (
     <section className="space-y-4">
-      <div className="rounded-3xl border border-violet-200 bg-violet-50 p-5">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-violet-800">Pronto en el campus</p>
+      <div className="rounded-3xl border border-[#E2D8C9] bg-[#F6F2EC] p-5">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B5A3E]">Pronto en el campus</p>
         <h2 className="mt-1 font-serif text-xl font-bold text-[#292825]">Llamadas semanales con las familias</h2>
         <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[#6D6962]">
           Estamos preparando esta página. Aquí verás las llamadas de cada semana, podrás registrar cómo fue cada una, valorar al mentor
@@ -43,7 +43,7 @@ export default function FamilyCallsSoon() {
 function Rule({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-[#E7E3DC] bg-white p-4">
-      <p className="flex items-center gap-2 text-sm font-bold text-slate-900"><Icon className="h-4 w-4 text-cyan-800" /> {title}</p>
+      <p className="flex items-center gap-2 text-sm font-bold text-slate-900"><Icon className="h-4 w-4 text-[#8A6A4A]" /> {title}</p>
       <p className="mt-1.5 text-xs leading-relaxed text-[#6D6962]">{children}</p>
     </div>
   );

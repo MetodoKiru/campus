@@ -80,15 +80,15 @@ export default function SideMenu<T extends string>({
             type="button"
             title={compact ? item.label : undefined}
             onClick={() => { onSelect(item.id); setMobileOpen(false); }}
-            className={`${base} relative ${isActive ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-[#F3F0EA]"}`}
+            className={`${base} relative ${isActive ? "bg-[#3F3A33] text-white shadow-sm" : "text-slate-600 hover:bg-[#F3F0EA]"}`}
             aria-current={isActive ? "page" : undefined}
           >
             <Icon className="h-4 w-4 shrink-0" />
             {!compact && <span className="flex-1">{item.label}</span>}
             {hasBadge && (compact ? (
-              <span className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${item.warn ? "bg-amber-500" : "bg-slate-400"}`} />
+              <span className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${item.warn ? "bg-[#B0704C]" : "bg-slate-400"}`} />
             ) : (
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? "bg-white/20 text-white" : item.warn ? "bg-amber-100 text-amber-800" : "bg-[#F3F0EA] text-[#6D6962]"}`}>{item.badge}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? "bg-white/20 text-white" : item.warn ? "bg-[#F3E6DA] text-[#7A4A30]" : "bg-[#F3F0EA] text-[#6D6962]"}`}>{item.badge}</span>
             ))}
           </button>
         </li>
@@ -133,7 +133,7 @@ export default function SideMenu<T extends string>({
               >
                 <span className="flex items-center gap-1.5">
                   {group.title}{isClosed && hasActive ? " ·" : ""}
-                  {isClosed && pending && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                  {isClosed && pending && <span className="h-1.5 w-1.5 rounded-full bg-[#B0704C]" />}
                 </span>
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isClosed ? "-rotate-90" : ""}`} />
               </button>

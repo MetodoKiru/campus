@@ -277,7 +277,7 @@ export default function CoordinadorPage() {
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
       <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
         <div className="flex items-center gap-3">
-          <Compass className="w-6 h-6 text-cyan-800" />
+          <Compass className="w-6 h-6 text-[#6B5A3E]" />
           <div>
             <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel del Coordinador</h1>
             <p className="text-[11px] sm:text-xs text-slate-500">{tab === "inicio" ? `Hola, ${me.name}. Seguimiento de ${me.isAdmin ? "todos los mentores" : "tus mentores"}` : COORDINATOR_TAB_LABEL[tab]}</p>
@@ -345,7 +345,7 @@ export default function CoordinadorPage() {
               </p>
             )}
             {totals.stale > 0 && (
-              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+              <p className="text-xs text-[#7A4A30] bg-[#F6EEE6] border border-[#E2D3C4] rounded-2xl px-4 py-3">
                 {totals.stale} {totals.stale === 1 ? "alumno lleva" : "alumnos llevan"} más de {STALE_DAYS} días sin registro de sesión. Entra en el mentor para ver cuáles.
               </p>
             )}
@@ -354,16 +354,16 @@ export default function CoordinadorPage() {
                 const ok = s.students.length > 0 && s.staleStudents === 0 && s.openIncidents === 0;
                 return (
                   <button key={s.mentor.id} onClick={() => setSelectedMentor(selectedMentor === s.mentor.id ? null : s.mentor.id)}
-                    className={`text-left bg-white rounded-3xl border p-5 shadow-sm transition hover:shadow-md ${selectedMentor === s.mentor.id ? "border-cyan-700 ring-2 ring-cyan-100" : "border-[#E7E3DC]"}`}>
+                    className={`text-left bg-white rounded-3xl border p-5 shadow-sm transition hover:shadow-md ${selectedMentor === s.mentor.id ? "border-[#8A6A4A] ring-2 ring-[#EADFD0]" : "border-[#E7E3DC]"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <span className="h-10 w-10 rounded-full bg-cyan-50 text-cyan-800 font-bold flex items-center justify-center">{s.mentor.full_name.charAt(0).toUpperCase()}</span>
+                        <span className="h-10 w-10 rounded-full bg-[#F3EEE6] text-[#6B5A3E] font-bold flex items-center justify-center">{s.mentor.full_name.charAt(0).toUpperCase()}</span>
                         <div>
                           <p className="font-bold text-slate-900">{s.mentor.full_name}</p>
                           <p className="text-[11px] text-slate-400">@{s.mentor.username}{me.isAdmin && coordinatorOf[s.mentor.id] ? ` · coord. ${byId.get(coordinatorOf[s.mentor.id])?.full_name ?? ""}` : ""}</p>
                         </div>
                       </div>
-                      <span className={`text-[10px] font-bold uppercase rounded-md px-2 py-0.5 ${s.students.length === 0 ? "bg-slate-100 text-slate-500" : ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                      <span className={`text-[10px] font-bold uppercase rounded-md px-2 py-0.5 ${s.students.length === 0 ? "bg-slate-100 text-slate-500" : ok ? "bg-emerald-100 text-emerald-800" : "bg-[#F3E6DA] text-[#7A4A30]"}`}>
                         {s.students.length === 0 ? "Sin alumnos" : ok ? "Al día" : "Revisar"}
                       </span>
                     </div>
@@ -401,7 +401,7 @@ export default function CoordinadorPage() {
                         <tr key={row.student.id}>
                           <td className="py-2.5 font-semibold text-slate-900">{row.student.full_name}</td>
                           <td className="py-2.5 text-slate-500">{row.families.join(", ") || "—"}</td>
-                          <td className={`py-2.5 ${row.stale ? "text-amber-700 font-semibold" : ""}`}>{row.last ? `${formatDate(row.last)} · ${ago(row.last)}` : "ninguno"}</td>
+                          <td className={`py-2.5 ${row.stale ? "text-[#8A5034] font-semibold" : ""}`}>{row.last ? `${formatDate(row.last)} · ${ago(row.last)}` : "ninguno"}</td>
                           <td className="py-2.5">{row.count}</td>
                           <td className="py-2.5">{ago(row.practice)}</td>
                           <td className="py-2.5">{row.tasks}</td>
@@ -423,11 +423,14 @@ export default function CoordinadorPage() {
 
         {tab === "incidencias" && (
           <section className="space-y-3">
-            <p className="text-xs text-slate-500">Lo que el mentor escribe en «Incidencia» al registrar la sesión. Márcala como revisada cuando la hayas hablado; la nota solo la ven coordinación y administración.</p>
+            <div className="rounded-2xl border border-[#E7E3DC] bg-[#F6F2EC] px-4 py-3 text-xs leading-relaxed text-[#5C5750]">
+              <p><strong className="text-[#292825]">¿Qué es una incidencia?</strong> Algo que ha pasado con el alumno durante la clase (estaba cansado, no traía el material, se bloqueó con un tema, un cambio en casa…). La anota el mentor al registrar la sesión.</p>
+              <p className="mt-1">No significa que el mentor haya hecho nada mal: sirve para consultar y entender la evolución del alumno. Léela y pulsa «Marcar como revisada» (con una nota si quieres); la nota solo la ven coordinación y administración.</p>
+            </div>
             <CoordinatorMissingSc rows={missingSc} />
             <CoordinatorSessionScheduleMismatches rows={scheduleMismatches} />
-            <h3 className="text-sm font-bold text-slate-800 pt-3">Incidencias escritas por el mentor</h3>
-            {incidents.length === 0 && <p className="text-sm text-slate-500">No hay incidencias.</p>}
+            <h3 className="text-sm font-bold text-slate-800 pt-3">Lo que han anotado los mentores</h3>
+            {incidents.length === 0 && <p className="text-sm text-slate-500">No hay nada anotado.</p>}
             {[...openIncidents, ...incidents.filter((l) => reviews[l.id])].map((log) => (
               <IncidentCard key={log.id} log={log} review={reviews[log.id]} reviewer={reviews[log.id]?.reviewedBy ? byId.get(reviews[log.id].reviewedBy as string)?.full_name : undefined}
                 busy={busy} onReview={(note) => void review(log, note)} onReopen={() => void reopen(log)} />
@@ -480,7 +483,7 @@ function Item({ label, value, warn }: { label: string; value: string; warn?: boo
   return (
     <div>
       <dt className="text-slate-400">{label}</dt>
-      <dd className={`font-semibold ${warn ? "text-amber-700" : "text-slate-800"}`}>{value}</dd>
+      <dd className={`font-semibold ${warn ? "text-[#8A5034]" : "text-slate-800"}`}>{value}</dd>
     </div>
   );
 }
@@ -500,7 +503,7 @@ function LogCard({ log, review, showMentor }: { log: SessionLog; review?: Review
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {late && <span className="text-[10px] rounded-md bg-slate-100 text-slate-600 px-1.5 py-0.5">enviado el {formatDate(log.submittedAt)}</span>}
-          {log.incident && <span className={`text-[10px] rounded-md px-1.5 py-0.5 ${review ? "bg-emerald-50 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>incidencia</span>}
+          {log.incident && <span className={`text-[10px] rounded-md px-1.5 py-0.5 ${review ? "bg-emerald-50 text-emerald-700" : "bg-[#F3E6DA] text-[#7A4A30]"}`}>incidencia</span>}
           {open ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </div>
       </button>
@@ -522,9 +525,9 @@ function AssignCard({ log, review, mentors, students, busy, onAssign, onArchive 
   const [mentorId, setMentorId] = useState(log.mentorId ?? "");
   const [studentId, setStudentId] = useState(log.studentId ?? "");
   return (
-    <div className="space-y-2 rounded-3xl border border-amber-200 bg-amber-50/60 p-3">
+    <div className="space-y-2 rounded-3xl border border-[#E2D3C4] bg-[#F8F1EA] p-3">
       <LogCard log={log} review={review} showMentor />
-      <p className="text-[11px] text-amber-900 px-1">
+      <p className="text-[11px] text-[#6A3F28] px-1">
         En el formulario pone: mentor «{log.mentorName || "vacío"}»{log.mentorId ? " (reconocido)" : " (no reconocido)"} · alumno «{log.studentName || "vacío"}»{log.studentId ? " (reconocido)" : " (no reconocido)"}
       </p>
       <div className="flex flex-col sm:flex-row gap-2">
@@ -536,7 +539,7 @@ function AssignCard({ log, review, mentors, students, busy, onAssign, onArchive 
           <option value="">Elige el alumno…</option>
           {students.map((st) => <option key={st.id} value={st.id}>{st.full_name}{st.username ? ` (${st.username})` : ""}</option>)}
         </select>
-        <button disabled={busy || !mentorId || !studentId} onClick={() => onAssign(mentorId, studentId)} className="rounded-xl bg-cyan-800 px-3 py-2.5 text-[11px] font-semibold text-white hover:bg-cyan-900 disabled:opacity-50">Guardar</button>
+        <button disabled={busy || !mentorId || !studentId} onClick={() => onAssign(mentorId, studentId)} className="rounded-xl bg-[#6B5A3E] px-3 py-2.5 text-[11px] font-semibold text-white hover:bg-[#55462F] disabled:opacity-50">Guardar</button>
         <button disabled={busy} onClick={onArchive} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Archivar</button>
       </div>
     </div>
@@ -547,7 +550,7 @@ function Answer({ q, a, warn }: { q: string; a: string; warn?: boolean }) {
   return (
     <div>
       <dt className="text-[10px] text-slate-400">{q.split("\n")[0]}</dt>
-      <dd className={`text-xs whitespace-pre-line ${warn ? "text-amber-800 font-semibold" : "text-slate-700"}`}>{a}</dd>
+      <dd className={`text-xs whitespace-pre-line ${warn ? "text-[#7A4A30] font-semibold" : "text-slate-700"}`}>{a}</dd>
     </div>
   );
 }
@@ -557,7 +560,7 @@ function IncidentCard({ log, review, reviewer, busy, onReview, onReopen }: {
 }) {
   const [note, setNote] = useState("");
   return (
-    <article className={`rounded-3xl border p-5 ${review ? "bg-white border-[#E7E3DC]" : "bg-amber-50/60 border-amber-200"}`}>
+    <article className={`rounded-3xl border p-5 ${review ? "bg-white border-[#E7E3DC]" : "bg-[#F8F1EA] border-[#E2D3C4]"}`}>
       <p className="text-[11px] text-slate-500">{formatDate(log.sessionDate)} · {log.mentorName} con {log.studentName}</p>
       <p className="mt-1 text-sm text-slate-900">{log.incident}</p>
       {review ? (
@@ -570,7 +573,7 @@ function IncidentCard({ log, review, reviewer, busy, onReview, onReopen }: {
       ) : (
         <div className="mt-3 flex flex-col sm:flex-row gap-2">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="Qué has hecho (opcional): hablado con el mentor, llamada a la familia…" className="flex-1 p-2.5 rounded-xl border border-slate-200 bg-white text-xs" />
-          <button disabled={busy} onClick={() => onReview(note)} className="rounded-xl bg-cyan-800 px-3 py-2.5 text-[11px] font-semibold text-white hover:bg-cyan-900 disabled:opacity-50">Marcar como revisada</button>
+          <button disabled={busy} onClick={() => onReview(note)} className="rounded-xl bg-[#6B5A3E] px-3 py-2.5 text-[11px] font-semibold text-white hover:bg-[#55462F] disabled:opacity-50">Marcar como revisada</button>
         </div>
       )}
     </article>
