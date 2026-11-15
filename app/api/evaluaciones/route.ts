@@ -3,6 +3,7 @@ import type { EvaluationRow } from "@/lib/database.types";
 import { requireStaff, UUID_RE } from "@/lib/server/require-staff";
 import {
   addDaysIso, EVAL_BUCKET, isDate, madridTodayIso, mentorWindow, RATING_DAYS,
+  RATING_CRITERIA, type MentorRatingSummary, type RatingKey,
   type EvalMode, type FamilyEvaluationView, type MentorEvaluationView, type StaffEvaluationsPayload, type StaffEvaluationView,
 } from "@/lib/evaluations";
 import {
@@ -106,8 +107,10 @@ export async function GET(request: Request) {
   const who = await names(admin, [...(rows ?? []).flatMap((r) => [r.student_id, r.mentor_id, r.academic_by]), ...(ratings ?? []).map((x) => x.mentor_id)]);
   const holidays = await holidaysFor(admin, (rows ?? []).map((r) => r.due_on));
   const settings = role === "admin" ? await loadEvalSettings(admin) : null;
+  const mentorRatings = await ratingSummaries(admin, role, user.id);
   const payload: StaffEvaluationsPayload = {
     role: role as "admin" | "coordinador",
+    mentorRatings,
     rows: (rows ?? []).map((r): StaffEvaluationView => ({
       id: r.id, studentId: r.student_id, studentName: who.get(r.student_id) ?? "", target: r.target, cycle: r.cycle,
       mentorId: r.mentor_id, mentorName: r.mentor_id ? who.get(r.mentor_id) ?? "" : "", dueOn: r.due_on, originalDueOn: r.original_due_on,
@@ -331,4 +334,40 @@ export async function POST(request: Request) {
     default:
       return fail("Acción no válida.");
   }
+}
+
+/**
+ * Cómo valoran las familias a cada mentor en los últimos 6 meses: los de su equipo
+ * para Coordinación, todos para Administración. Es la base del indicador D2.
+ */
+async function ratingSummaries(admin: Admin, role: string, userId: string): Promise<MentorRatingSummary[]> {
+  let mentorIds: string[] | null = null;
+  if (role !== "admin") {
+    const { data } = await admin.from("kiru_coordinator_mentors").select("mentor_id").eq("coordinator_id", userId);
+    mentorIds = (data ?? []).map((m) => m.mentor_id);
+    if (!mentorIds.length) return [];
+  }
+  const since = new Date(Date.now() - 183 * 86_400_000).toISOString();
+  let q = admin.from("kiru_mentor_ratings").select("*").gte("created_at", since).order("created_at", { ascending: false });
+  if (mentorIds) q = q.in("mentor_id", mentorIds);
+  const { data: rows, error } = await q;
+  if (error || !rows?.length) return [];
+  const who = await names(admin, [...rows.map((r) => r.mentor_id), ...rows.map((r) => r.student_id)]);
+  const avg = (xs: (number | null)[]) => {
+    const v = xs.filter((x): x is number => x !== null).map(Number);
+    return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null;
+  };
+  const byMentor = new Map<string, typeof rows>();
+  for (const r of rows) byMentor.set(r.mentor_id, [...(byMentor.get(r.mentor_id) ?? []), r]);
+  return [...byMentor.entries()].map(([mentorId, list]) => ({
+    mentorId, mentorName: who.get(mentorId) ?? "",
+    families: new Set(list.map((r) => r.student_id)).size, answers: list.length,
+    average: avg(list.map((r) => r.average)),
+    criteria: Object.fromEntries(RATING_CRITERIA.map((c) => [c.key, avg(list.map((r) => r[c.key]))])) as Record<RatingKey, number | null>,
+    lowCount: list.filter((r) => RATING_CRITERIA.some((c) => (r[c.key] ?? 5) <= 2)).length,
+    lastAt: list[0]?.created_at ?? null,
+    comments: list.filter((r) => r.comment).slice(0, 5).map((r) => ({
+      studentName: firstNameOf(who.get(r.student_id) ?? ""), text: r.comment, createdAt: r.created_at,
+    })),
+  })).sort((a, b) => a.mentorName.localeCompare(b.mentorName, "es"));
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Star } from "lucide-react";
 import { btnDark, btnLight, card, input, subtle } from "@/components/classes/shared";
 import {
-  ACADEMIC_LABEL, MODE_LABEL, STATUS_LABEL, TARGET_LABEL, cycleLabel, madridTodayIso, mentorWindow, shortEvalDate,
+  ACADEMIC_LABEL, MODE_LABEL, RATING_CRITERIA, type MentorRatingSummary, STATUS_LABEL, TARGET_LABEL, cycleLabel, madridTodayIso, mentorWindow, shortEvalDate,
   type EvalMode, type StaffEvaluationView, type StaffEvaluationsPayload, type StaffStudentSettings,
 } from "@/lib/evaluations";
 import { evalAction, openEvalFile, uploadEvalFile, useEvaluations } from "./api";
@@ -50,6 +50,8 @@ export default function StaffEvaluations({ notify }: { notify: Notify }) {
           Papel del alumno: en las primeras sesiones y después la semana antes del formulario del mentor. Los avisos y correos salen solos.
         </p>
       </section>
+
+      <MentorRatings list={data.mentorRatings ?? []} role={data.role} />
 
       {data.settings && <AdminSettings settings={data.settings} students={data.allStudents} act={act} notify={notify} />}
 
@@ -287,5 +289,58 @@ function StudentRow({ s, act }: { s: StaffStudentSettings; act: (b: Record<strin
       <label className="flex items-center gap-1"><input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> En pausa</label>
       <button type="button" className={btnLight} onClick={() => act({ accion: "alumno_ajustes", studentId: s.studentId, familyStartOn: start || null, skipInitial: skip, paused }, "Guardado.")}>Guardar</button>
     </li>
+  );
+}
+
+const fmt = (n: number | null) => (n === null ? "—" : n.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+const tone = (n: number | null) => (n === null ? "text-[#77736B]" : n < 3 ? "text-[#8A2F25]" : n < 4 ? "text-[#7A5B1E]" : "text-[#2F6B3A]");
+
+/** Cómo valoran las familias a los mentores (últimos 6 meses). El mentor no lo ve. */
+function MentorRatings({ list, role }: { list: MentorRatingSummary[]; role: "admin" | "coordinador" }) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <section className={`${card} space-y-3`} aria-label="Valoración de las familias">
+      <h2 className="flex items-center gap-2 font-serif text-lg font-bold text-[#292825]">
+        <Star className="h-5 w-5" /> {role === "admin" ? "Cómo valoran las familias a los mentores" : "Cómo valoran las familias a tus mentores"}
+      </h2>
+      <p className="text-xs text-[#6D6962]">
+        Cada 3 meses, con su evaluación trimestral, la familia puntúa de 1 a 5 a su mentor/a. Media de los últimos 6 meses.
+        Cuenta en su puntuación de desempeño (D2) cuando hay al menos 3 familias. El mentor no ve las respuestas.
+      </p>
+      {list.length === 0 ? (
+        <p className={`${subtle} text-xs text-[#6D6962]`}>Todavía no hay valoraciones. Llegarán con las próximas evaluaciones trimestrales de las familias.</p>
+      ) : (
+        <ul className="space-y-2">
+          {list.map((m) => (
+            <li key={m.mentorId} className={subtle}>
+              <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-left text-xs" onClick={() => setOpen(open === m.mentorId ? null : m.mentorId)}>
+                <span><strong>{m.mentorName}</strong> · {m.families} {m.families === 1 ? "familia" : "familias"}{m.families < 3 ? " (aún no cuenta en la nota)" : ""}</span>
+                <span className="flex items-center gap-2">
+                  {m.lowCount > 0 && <span className="rounded-full bg-[#F8E5E3] px-2 py-0.5 text-[10px] text-[#8A2F25]">{m.lowCount} con nota baja</span>}
+                  <span className={`text-sm font-bold ${tone(m.average)}`}>{fmt(m.average)} / 5</span>
+                </span>
+              </button>
+              {open === m.mentorId && (
+                <div className="mt-2 space-y-2 border-t border-[#E7E3DC] pt-2 text-xs text-[#45433F]">
+                  <ul className="grid gap-1 sm:grid-cols-2">
+                    {RATING_CRITERIA.map((c) => (
+                      <li key={c.key} className="flex justify-between gap-2"><span>{c.label}</span><span className={`font-semibold ${tone(m.criteria[c.key])}`}>{fmt(m.criteria[c.key])}</span></li>
+                    ))}
+                  </ul>
+                  {m.comments.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold">Comentarios</p>
+                      {m.comments.map((c, i) => (
+                        <p key={i} className="text-[#555149]">«{c.text}» <span className="text-[#77736B]">· familia de {c.studentName}, {new Date(c.createdAt).toLocaleDateString("es-ES")}</span></p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

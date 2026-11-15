@@ -94,8 +94,16 @@ export type StaffStudentSettings = {
   studentId: string; studentName: string; familyStartOn: string | null; firstSession: string | null; skipInitial: boolean; paused: boolean;
 };
 
+/** Resumen de cómo valoran las familias a un mentor (últimos 6 meses). Medias sobre 5. */
+export type MentorRatingSummary = {
+  mentorId: string; mentorName: string; families: number; answers: number; average: number | null;
+  criteria: Record<RatingKey, number | null>; lowCount: number; lastAt: string | null;
+  comments: { studentName: string; text: string; createdAt: string }[];
+};
+
 export type StaffEvaluationsPayload = {
   role: "admin" | "coordinador";
+  mentorRatings: MentorRatingSummary[];
   rows: StaffEvaluationView[];
   students: StaffStudentSettings[];
   settings: { mode: EvalMode; testStudents: string[]; hasFixedTest: boolean } | null;
