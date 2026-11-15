@@ -20,6 +20,7 @@ import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from 
 import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
 import StaffCalls from "@/components/llamadas/StaffCalls";
+import StaffFamilyInfo from "@/components/family/StaffFamilyInfo";
 import AvailabilityOverview from "@/components/horarios/AvailabilityOverview";
 import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
 import CoordinatorSidebar, { COORDINATOR_TABS, COORDINATOR_TAB_LABEL, type CoordinatorTab } from "@/components/coordination/CoordinatorSidebar";
@@ -289,6 +290,7 @@ export default function CoordinadorPage() {
             else if (n.session_id || n.request_id) setTab("clases");
             else if (n.kind === "evaluacion_trimestral") setTab("evaluaciones");
             else if (n.kind === "llamada_familia") setTab("llamadas");
+            else if (n.kind === "informacion_familia") setTab("info-familias");
             else if (n.kind === "disponibilidad_enviada") setTab("disponibilidad");
             else if (n.kind.startsWith("registro_error")) setTab("seguimiento");
           }} />
@@ -334,6 +336,7 @@ export default function CoordinadorPage() {
         {tab === "vacaciones" && <StaffSpecialPeriods notify={notifyOffers} />}
         {tab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
         {tab === "llamadas" && <StaffCalls notify={notifyOffers} />}
+        {tab === "info-familias" && <StaffFamilyInfo />}
         {tab === "disponibilidad" && <AvailabilityOverview mentors={mentors.map((m) => ({ id: m.id, name: m.full_name }))} notify={notifyOffers} />}
         {tab === "seguimiento" && <CoordinatorFollowUp people={people} mentorOf={mentorOf} notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}

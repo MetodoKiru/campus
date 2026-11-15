@@ -70,6 +70,7 @@ const ROUTINE: Block[] = [
     hint: "Te llega un aviso o un correo",
     tasks: [
       { what: "Propuestas de alumnos", how: "Cuando entra un alumno nuevo ves los mentores candidatos y sus respuestas. Los botones de WhatsApp y correo te preparan el mensaje: lo envías tú.", tab: "propuestas" },
+      { what: "Información de una familia", how: "Al empezar, las familias pueden dejarnos (si quieren) el contacto del colegio o del psicólogo y subir informes o notas. Te llega un aviso: léelo antes de su primera llamada.", tab: "info-familias" },
       { what: "Navidad y Semana Santa", how: "Revisa lo que contestan familias y mentores y prepara el plan de cada alumno, con sustituto si hace falta.", tab: "vacaciones" },
       { what: "Disponibilidad de un mentor", how: "Cuando un mentor envía o cambia su disponibilidad te llega un aviso. Sirve para saber qué día podría dar una clase más si una familia la pide.", tab: "disponibilidad" },
       { what: "Crece con Kiru", how: "Si ves a un mentor de tu grupo preparado para una oportunidad publicada, recomiéndalo. La decisión es de administración.", tab: "crece" },

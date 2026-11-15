@@ -316,7 +316,7 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind | "llamada_familia";
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind | "llamada_familia" | "informacion_familia";
   title: string;
   body: string;
   event_key: string;
@@ -765,6 +765,11 @@ export type EvaluationStudentRow = {
   student_id: string; family_start_on: string | null; skip_initial: boolean; paused: boolean; updated_by: string | null; updated_at: string;
 };
 /** Valoración trimestral del mentor por la familia (migración 20261117090000). 1-5; null = «No lo sé». */
+export type FamilyOnboardingRow = { student_id: string; token: string; info_skipped_at: string | null; created_at: string; updated_at: string };
+export type FamilyInfoRow = {
+  id: string; student_id: string | null; student_name: string; email: string; files: Json; answers: Json;
+  submission_id: string | null; received_at: string;
+};
 export type CallStaffRow = { profile_id: string; token: string; zoom_url: string; rules_ack_at: string | null; updated_at: string };
 export type CallAvailabilityRow = {
   id: string; kind: "familia" | "equipo"; student_id: string | null; profile_id: string | null; role_label: string; name: string; email: string;
@@ -997,6 +1002,8 @@ export type Database = {
       kiru_call_availability: Table<CallAvailabilityRow, "id" | "student_id" | "profile_id" | "role_label" | "name" | "email" | "slots" | "both_parents_days" | "medium" | "phone" | "commitments" | "submission_id" | "answers" | "received_at" | "linked_by" | "archived_at">;
       kiru_call_plans: Table<CallPlanRow, "token" | "start_override" | "coordinator_id" | "mentor_id" | "status" | "weekday" | "start_time" | "mentor_weekday" | "mentor_start_time" | "medium" | "both_parents" | "confirmed_at" | "confirmed_via" | "confirmed_by" | "missing" | "options" | "form_requested_at" | "updated_at">;
       kiru_family_calls: Table<FamilyCallRow, "id" | "mentor_id" | "coordinator_id" | "medium" | "moved" | "moved_by" | "status" | "mentor_presence" | "preparacion" | "participacion" | "comunicacion" | "seguimiento" | "actitud" | "rating_average" | "comment" | "parents_topics" | "closed_at" | "closed_by" | "steps" | "created_at" | "updated_at">;
+      kiru_family_onboarding: Table<FamilyOnboardingRow, "token" | "info_skipped_at" | "created_at" | "updated_at">;
+      kiru_family_info: Table<FamilyInfoRow, "id" | "student_id" | "student_name" | "email" | "files" | "answers" | "submission_id" | "received_at">;
       kiru_settings: Table<SettingRow, "updated_at">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
