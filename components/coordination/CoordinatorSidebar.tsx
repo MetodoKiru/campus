@@ -64,7 +64,7 @@ export default function CoordinatorSidebar({ active, onSelect, isAdmin, counts }
       id: "familias",
       title: "Familias y alumnos",
       items: [
-        section("llamadas", Phone, { badge: "pronto" }),
+        section("llamadas", Phone),
         section("informes", ClipboardList),
         section("propuestas", Compass),
       ],

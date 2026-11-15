@@ -41,7 +41,7 @@ const ROUTINE: Block[] = [
     tasks: [
       { what: "Que cada alumno tenga su registro", how: "En «Mis mentores», una tarjeta en «Revisar» quiere decir que un alumno lleva más de 8 días sin registro o que hay incidencias sin leer. Púlsala para ver cuál y escribe al mentor.", tab: "mentores" },
       { what: "Valorar las notas de SkillCoins", how: "En «Supervisión», abre las que dicen «Por valorar»: verás la nota y lo que escribió el mentor esa semana. Nada de lo que hagas ahí cambia las SkillCoins.", tab: "supervision" },
-      { what: "Llamada con cada familia (20 min)", how: "Por Zoom, o por teléfono si lo prefieren; mejor con los dos padres y a una hora fija. Semanas 1 y 4: familia, mentor y tú. Semanas 2 y 3: familia y tú.", tab: "llamadas", soon: true },
+      { what: "Llamada con cada familia (20 min)", how: "El campus fija la hora sola con la disponibilidad de todos. Zoom, mejor con los dos padres. Semanas 1 y 4: familia, mentor y tú; después valora al mentor de 1 a 5. Semanas 2 y 3: familia y tú.", tab: "llamadas" },
     ],
   },
   {

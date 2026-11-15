@@ -19,11 +19,11 @@ import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { daysSince, findAnswer, isLate, parseAnswers, type SessionAnswer } from "@/lib/session-logs";
 import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriods";
 import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
+import StaffCalls from "@/components/llamadas/StaffCalls";
 import AvailabilityOverview from "@/components/horarios/AvailabilityOverview";
 import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
 import CoordinatorSidebar, { COORDINATOR_TABS, COORDINATOR_TAB_LABEL, type CoordinatorTab } from "@/components/coordination/CoordinatorSidebar";
 import CoordinatorHome from "@/components/coordination/CoordinatorHome";
-import FamilyCallsSoon from "@/components/coordination/FamilyCallsSoon";
 import LogErrorMark from "@/components/performance/LogErrorMark";
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
@@ -288,6 +288,7 @@ export default function CoordinadorPage() {
             if (n.review_id || n.warning_id) { setLinkedReview(n.review_id ?? null); setTab("supervision"); }
             else if (n.session_id || n.request_id) setTab("clases");
             else if (n.kind === "evaluacion_trimestral") setTab("evaluaciones");
+            else if (n.kind === "llamada_familia") setTab("llamadas");
             else if (n.kind === "disponibilidad_enviada") setTab("disponibilidad");
             else if (n.kind.startsWith("registro_error")) setTab("seguimiento");
           }} />
@@ -324,7 +325,7 @@ export default function CoordinadorPage() {
           <CoordinatorHome name={me.name} isAdmin={me.isAdmin} onGo={setTab}
             counts={{ mentors: mentors.length, students: totals.students, recentLogs: totals.recent, openIncidents: openIncidents.length, staleStudents: totals.stale, unassigned: unassigned.length }} />
         )}
-        {tab === "llamadas" && <FamilyCallsSoon />}
+        
         {tab === "clases" && <CoordinatorClasses notify={notifyOffers} />}
         {tab === "propuestas" && <OffersPanel notify={notifyOffers} />}
         {tab === "informes" && <CoordinatorReportsPanel />}
@@ -332,6 +333,7 @@ export default function CoordinadorPage() {
           coordinatorOf={coordinatorOf} initialReviewId={linkedReview} notify={notifyOffers} />}
         {tab === "vacaciones" && <StaffSpecialPeriods notify={notifyOffers} />}
         {tab === "evaluaciones" && <StaffEvaluations notify={notifyOffers} />}
+        {tab === "llamadas" && <StaffCalls notify={notifyOffers} />}
         {tab === "disponibilidad" && <AvailabilityOverview mentors={mentors.map((m) => ({ id: m.id, name: m.full_name }))} notify={notifyOffers} />}
         {tab === "seguimiento" && <CoordinatorFollowUp people={people} mentorOf={mentorOf} notify={notifyOffers} />}
         {tab === "reuniones" && <CoordinatorMeetings notify={notifyOffers} />}
