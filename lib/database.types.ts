@@ -1051,6 +1051,7 @@ type ClassFunctions = {
   kiru_familia_no_disponible_guardar: { Args: { p_actor: string; p_student: string; p_slots: Json }; Returns: Json };
   kiru_dias_sin_clase_guardar: { Args: { p_actor: string; p_day: string; p_reason: string; p_active?: boolean }; Returns: Json };
   kiru_familias_estado: { Args: { p_rows: Json }; Returns: Json };
+  kiru_familias_direcciones: { Args: { p_rows: Json }; Returns: Json };
   kiru_clases_tarea_diaria: { Args: Record<string, never>; Returns: Json };
   kiru_sesiones_previstas: { Args: { p_student: string; p_from: string; p_until: string }; Returns: Json };
 };
