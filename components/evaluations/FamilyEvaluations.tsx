@@ -15,7 +15,8 @@ const joinNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1)
 
 export default function FamilyEvaluations({ studentId, onOpenReports }: { studentId: string; onOpenReports?: () => void }) {
   const { data } = useEvaluations<{ evaluations: FamilyEvaluationView[] }>();
-  const items = (data?.evaluations ?? []).filter((e) => e.studentId === studentId);
+  // La evaluación inicial sin hacer la pide el paso 2 de «Vuestros primeros pasos» (FamilyOnboarding).
+  const items = (data?.evaluations ?? []).filter((e) => e.studentId === studentId && !(e.cycle === 0 && e.status !== "completada"));
   if (!items.length) return null;
   return (
     <div className="space-y-4">

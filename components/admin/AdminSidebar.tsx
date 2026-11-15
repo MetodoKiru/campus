@@ -45,6 +45,7 @@ const GROUPS: Group[] = [
       { kind: "section", id: "skillcoins", label: "SkillCoins y recompensas", icon: Coins },
       { kind: "link", href: "/coordinador?tab=informes", label: "Informes de progreso", icon: ClipboardList, note: "coordinación" },
       { kind: "link", href: "/coordinador?tab=llamadas", label: "Llamadas semanales con familias", icon: CalendarDays, note: "coordinación" },
+      { kind: "link", href: "/coordinador?tab=info-familias", label: "Información de las familias", icon: FileText, note: "coordinación" },
     ],
   },
   {

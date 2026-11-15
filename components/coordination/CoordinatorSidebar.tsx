@@ -1,17 +1,17 @@
 "use client";
 
 import {
-  AlertTriangle, CalendarDays, CalendarOff, ClipboardCheck, ClipboardList, Compass, Home, MapPin, Phone, ShieldCheck, Sprout, Star, Users,
+  AlertTriangle, CalendarDays, CalendarOff, ClipboardCheck, ClipboardList, Compass, FolderOpen, Home, MapPin, Phone, ShieldCheck, Sprout, Star, Users,
 } from "lucide-react";
 import SideMenu, { type SideMenuGroup, type SideMenuItem } from "@/components/nav/SideMenu";
 
 export type CoordinatorTab =
   | "inicio" | "mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece"
-  | "informes" | "supervision" | "vacaciones" | "evaluaciones" | "seguimiento" | "disponibilidad" | "llamadas";
+  | "informes" | "supervision" | "vacaciones" | "evaluaciones" | "seguimiento" | "disponibilidad" | "llamadas" | "info-familias";
 
 export const COORDINATOR_TABS: CoordinatorTab[] = [
   "inicio", "mentores", "clases", "incidencias", "registros", "sin-asignar", "propuestas", "reuniones", "crece",
-  "informes", "supervision", "vacaciones", "evaluaciones", "seguimiento", "disponibilidad", "llamadas",
+  "informes", "supervision", "vacaciones", "evaluaciones", "seguimiento", "disponibilidad", "llamadas", "info-familias",
 ];
 
 export const COORDINATOR_TAB_LABEL: Record<CoordinatorTab, string> = {
@@ -24,6 +24,7 @@ export const COORDINATOR_TAB_LABEL: Record<CoordinatorTab, string> = {
   reuniones: "Reuniones de coordinación",
   crece: "Crece con Kiru",
   llamadas: "Llamadas con familias",
+  "info-familias": "Información de las familias",
   informes: "Informes de progreso",
   propuestas: "Propuestas de alumnos",
   clases: "Clases y recuperaciones",
@@ -65,6 +66,7 @@ export default function CoordinatorSidebar({ active, onSelect, isAdmin, counts }
       title: "Familias y alumnos",
       items: [
         section("llamadas", Phone),
+        section("info-familias", FolderOpen),
         section("informes", ClipboardList),
         section("propuestas", Compass),
       ],

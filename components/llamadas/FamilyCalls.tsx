@@ -10,7 +10,7 @@ type Notify = (text: string, type: "success" | "error") => void;
 
 /**
  * Panel de padres: la llamada semanal de seguimiento.
- * · Sin formulario: explica la llamada y lleva al formulario de disponibilidad (paso de la incorporación).
+ * · Sin formulario: no se muestra; lo pide el paso 1 de los primeros pasos de la familia.
  * · Con hora: la hora fija, las próximas llamadas (quién está) y «Mover esta semana» a otra hora libre.
  */
 export default function FamilyCalls({ studentId, notify }: { studentId: string; notify: Notify }) {
@@ -30,20 +30,8 @@ export default function FamilyCalls({ studentId, notify }: { studentId: string; 
     await reload();
   };
 
-  if (!kid.answeredAt) {
-    return (
-      <section className={`${card} space-y-3 border-2 border-[#E4D8C5]`} aria-label="Llamada semanal">
-        <h3 className="flex items-center gap-2 font-serif text-lg font-bold text-[#292825]"><Video className="h-5 w-5" /> Nuestra llamada semanal</h3>
-        <p className="text-xs leading-relaxed text-[#45433F]">
-          Cada semana hablamos 20 minutos con vosotros{kid.coordinatorName ? ` y ${kid.coordinatorName}, vuestro coordinador,` : ""} para ver cómo va {kid.studentName}. La primera y la cuarta semana de cada ciclo se une también {kid.mentorName || "su mentor"}. Preferimos Zoom, aunque puede ser por teléfono, y nos ayuda mucho que estéis los dos.
-        </p>
-        <p className="text-xs leading-relaxed text-[#45433F]">Marcad los ratos que os vienen bien y buscamos la hora. Os llegará un correo con la hora fija.</p>
-        <a href={kid.formUrl} target="_blank" rel="noopener noreferrer" className="inline-block rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3A3835]">
-          Elegir nuestros horarios
-        </a>
-      </section>
-    );
-  }
+  // Sin formulario: lo pide el paso 1 de «Vuestros primeros pasos» (FamilyOnboarding).
+  if (!kid.answeredAt) return null;
 
   return (
     <section className={`${card} space-y-3`} aria-label="Llamada semanal">
