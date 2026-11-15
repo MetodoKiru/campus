@@ -5,7 +5,7 @@ import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins
 import { CoordinatorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, ClipboardList, Compass, LogOut, Sprout, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Compass, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
@@ -21,6 +21,9 @@ import StaffSpecialPeriods from "@/components/special-periods/StaffSpecialPeriod
 import StaffEvaluations from "@/components/evaluations/StaffEvaluations";
 import AvailabilityOverview from "@/components/horarios/AvailabilityOverview";
 import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
+import CoordinatorSidebar, { COORDINATOR_TABS, COORDINATOR_TAB_LABEL, type CoordinatorTab } from "@/components/coordination/CoordinatorSidebar";
+import CoordinatorHome from "@/components/coordination/CoordinatorHome";
+import FamilyCallsSoon from "@/components/coordination/FamilyCallsSoon";
 import LogErrorMark from "@/components/performance/LogErrorMark";
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
@@ -66,21 +69,32 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
-  const [tab, setTab] = useState<"mentores" | "clases" | "incidencias" | "registros" | "sin-asignar" | "propuestas" | "reuniones" | "crece" | "informes" | "supervision" | "vacaciones" | "evaluaciones" | "seguimiento" | "disponibilidad">("mentores");
+  const [tab, setTabState] = useState<CoordinatorTab>("inicio");
+  // Cambiar de página: la dirección guarda la pestaña (se puede recargar o compartir) y se vuelve arriba.
+  const setTab = useCallback((next: CoordinatorTab) => {
+    setTabState(next);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("revision");
+      if (next === "inicio") params.delete("tab"); else params.set("tab", next);
+      const query = params.toString();
+      window.history.replaceState(null, "", `/coordinador${query ? `?${query}` : ""}`);
+      window.scrollTo({ top: 0 });
+    } catch { /* nada */ }
+  }, []);
   // Enlaces de los correos: /coordinador?tab=supervision&revision=…
   const [linkedReview, setLinkedReview] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     // /coordinador?tab=evaluaciones (correos) o ?tab=clases, ?tab=informes… (menú lateral de administración).
     const requested = params.get("tab");
-    const direct = ["mentores", "clases", "incidencias", "registros", "sin-asignar", "propuestas", "reuniones", "crece", "informes", "vacaciones", "evaluaciones", "seguimiento", "disponibilidad"] as const;
-    const match = direct.find((t) => t === requested);
+    const match = COORDINATOR_TABS.find((t) => t === requested && t !== "supervision");
     if (match) {
-      const timer = window.setTimeout(() => setTab(match), 0);
+      const timer = window.setTimeout(() => setTabState(match), 0);
       return () => window.clearTimeout(timer);
     }
     if (params.get("tab") !== "supervision") return;
-    const timer = window.setTimeout(() => { setTab("supervision"); setLinkedReview(params.get("revision")); }, 0);
+    const timer = window.setTimeout(() => { setTabState("supervision"); setLinkedReview(params.get("revision")); }, 0);
     return () => window.clearTimeout(timer);
   }, []);
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
@@ -261,12 +275,12 @@ export default function CoordinadorPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
-      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
         <div className="flex items-center gap-3">
           <Compass className="w-6 h-6 text-cyan-800" />
           <div>
             <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel del Coordinador</h1>
-            <p className="text-[11px] sm:text-xs text-slate-500">Hola, {me.name}. Seguimiento de {me.isAdmin ? "todos los mentores" : "tus mentores"}</p>
+            <p className="text-[11px] sm:text-xs text-slate-500">{tab === "inicio" ? `Hola, ${me.name}. Seguimiento de ${me.isAdmin ? "todos los mentores" : "tus mentores"}` : COORDINATOR_TAB_LABEL[tab]}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -288,42 +302,29 @@ export default function CoordinadorPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="flex">
+      <CoordinatorSidebar active={tab} onSelect={setTab} isAdmin={me.isAdmin}
+        counts={{ incidents: openIncidents.length + missingSc.length, unassigned: unassigned.length }} />
+
+      <main className="min-w-0 flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
 
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="Mentores" value={mentors.length} />
-          <Stat label="Alumnos" value={totals.students} />
-          <Stat label={`Registros (${WINDOW_DAYS} días)`} value={totals.recent} />
-          <Stat label="Incidencias sin revisar" value={openIncidents.length} warn={openIncidents.length > 0} />
-        </section>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <nav className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap gap-2 shadow-sm text-xs font-semibold w-fit">
-            <TabButton active={tab === "mentores"} onClick={() => setTab("mentores")} icon={<Users className="w-3.5 h-3.5" />} label="Mis mentores" />
-            <TabButton active={tab === "clases"} onClick={() => setTab("clases")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Clases y recuperaciones" />
-            <TabButton active={tab === "incidencias"} onClick={() => setTab("incidencias")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Incidencias${openIncidents.length + missingSc.length ? ` (${openIncidents.length + missingSc.length})` : ""}`} />
-            <TabButton active={tab === "registros"} onClick={() => setTab("registros")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Registros de sesión" />
-            <TabButton active={tab === "supervision"} onClick={() => setTab("supervision")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Supervisión" />
-            <TabButton active={tab === "seguimiento"} onClick={() => setTab("seguimiento")} icon={<ClipboardCheck className="w-3.5 h-3.5" />} label="Seguimiento" />
-            <TabButton active={tab === "disponibilidad"} onClick={() => setTab("disponibilidad")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Disponibilidad de mentores" />
-            <TabButton active={tab === "evaluaciones"} onClick={() => setTab("evaluaciones")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Evaluaciones" />
-            <TabButton active={tab === "informes"} onClick={() => setTab("informes")} icon={<ClipboardList className="w-3.5 h-3.5" />} label="Informes de progreso" />
-            <TabButton active={tab === "propuestas"} onClick={() => setTab("propuestas")} icon={<Compass className="w-3.5 h-3.5" />} label="Propuestas de alumnos" />
-            <TabButton active={tab === "vacaciones"} onClick={() => setTab("vacaciones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Navidad y Semana Santa" />
-            <TabButton active={tab === "reuniones"} onClick={() => setTab("reuniones")} icon={<CalendarDays className="w-3.5 h-3.5" />} label="Reuniones de coordinación" />
-            {!me.isAdmin && <TabButton active={tab === "crece"} onClick={() => setTab("crece")} icon={<Sprout className="w-3.5 h-3.5" />} label="Crece con Kiru" />}
-            {me.isAdmin && <TabButton active={tab === "sin-asignar"} onClick={() => setTab("sin-asignar")} icon={<AlertTriangle className="w-3.5 h-3.5" />} label={`Sin asignar${unassigned.length ? ` (${unassigned.length})` : ""}`} />}
-          </nav>
-          {me.isAdmin && (
+        {me.isAdmin && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>Ver como:</span>
             <select value={coordinatorFilter} onChange={(e) => { setCoordinatorFilter(e.target.value); setSelectedMentor(null); }} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700">
               <option value="todos">Todos los coordinadores</option>
               {coordinators.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               <option value="ninguno">Mentores sin coordinador</option>
             </select>
-          )}
-        </div>
+          </div>
+        )}
 
+        {tab === "inicio" && (
+          <CoordinatorHome name={me.name} isAdmin={me.isAdmin} onGo={setTab}
+            counts={{ mentors: mentors.length, students: totals.students, recentLogs: totals.recent, openIncidents: openIncidents.length, staleStudents: totals.stale, unassigned: unassigned.length }} />
+        )}
+        {tab === "llamadas" && <FamilyCallsSoon />}
         {tab === "clases" && <CoordinatorClasses notify={notifyOffers} />}
         {tab === "propuestas" && <OffersPanel notify={notifyOffers} />}
         {tab === "informes" && <CoordinatorReportsPanel />}
@@ -470,15 +471,7 @@ export default function CoordinadorPage() {
           </section>
         )}
       </main>
-    </div>
-  );
-}
-
-function Stat({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
-  return (
-    <div className={`rounded-2xl border p-4 ${warn ? "bg-amber-50 border-amber-200" : "bg-white border-[#E7E3DC]"}`}>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${warn ? "text-amber-800" : "text-slate-900"}`}>{value}</p>
+      </div>
     </div>
   );
 }
@@ -489,14 +482,6 @@ function Item({ label, value, warn }: { label: string; value: string; warn?: boo
       <dt className="text-slate-400">{label}</dt>
       <dd className={`font-semibold ${warn ? "text-amber-700" : "text-slate-800"}`}>{value}</dd>
     </div>
-  );
-}
-
-function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button onClick={onClick} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}>
-      {icon}<span>{label}</span>
-    </button>
   );
 }
 
