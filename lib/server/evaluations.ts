@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, EvaluationRow, Json } from "@/lib/database.types";
-import { addDaysIso, type EvalMode } from "@/lib/evaluations";
+import { addDaysIso, madridTodayIso, RATING_DAYS, type EvalMode } from "@/lib/evaluations";
 
 type Admin = SupabaseClient<Database>;
 
@@ -106,3 +106,29 @@ export async function notifyEval(admin: Admin, e: Pick<EvaluationRow, "id" | "st
 }
 
 export const firstNameOf = (full: string) => full.trim().split(/\s+/)[0] ?? "";
+
+/**
+ * Mentores que la familia puede valorar con esta evaluación: solo en las trimestrales
+ * (no en la inicial), hasta 30 días después de abrirse, a cada mentor actual del alumno
+ * que le ha dado clase en los últimos 3 meses y que aún no ha valorado.
+ */
+export async function pendingRatingMentors(
+  admin: Admin, e: Pick<EvaluationRow, "id" | "student_id" | "target" | "cycle" | "status" | "due_on">,
+): Promise<{ id: string; name: string }[]> {
+  if (e.target !== "familia" || e.cycle < 1 || !["abierta", "completada"].includes(e.status)) return [];
+  if (madridTodayIso() > addDaysIso(e.due_on, RATING_DAYS)) return [];
+  const { data: links } = await admin.from("student_mentors").select("mentor_id").eq("student_id", e.student_id);
+  const ids = [...new Set((links ?? []).map((l) => l.mentor_id))];
+  if (!ids.length) return [];
+  const [{ data: mentors }, { data: logs }, { data: done }] = await Promise.all([
+    admin.from("profiles").select("id,full_name").in("id", ids).eq("role", "mentor").eq("is_active", true),
+    admin.from("kiru_session_logs").select("mentor_id,manual_status").eq("student_id", e.student_id).in("mentor_id", ids)
+      .gte("session_date", addDaysIso(e.due_on, -92)),
+    admin.from("kiru_mentor_ratings").select("mentor_id").eq("evaluation_id", e.id),
+  ]);
+  const taught = new Set((logs ?? []).filter((l) => l.manual_status !== "archivado").map((l) => l.mentor_id));
+  const rated = new Set((done ?? []).map((r) => r.mentor_id));
+  return (mentors ?? []).filter((m) => taught.has(m.id) && !rated.has(m.id))
+    .map((m) => ({ id: m.id, name: m.full_name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}

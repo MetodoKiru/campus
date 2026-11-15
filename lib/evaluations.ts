@@ -63,6 +63,8 @@ export function mentorWindow(dueOn: string): { opensOn: string; closesOn: string
 export type FamilyEvaluationView = {
   id: string; studentId: string; studentName: string; cycle: number; dueOn: string;
   status: EvaluationStatus; link: string; holiday: string | null;
+  /** Mentores que la familia aún puede valorar con esta evaluación (nombre de pila). */
+  rateMentors: string[];
 };
 
 export type FileRef = { which: "academica" | "escaneo" | "test_fijo"; index?: number };
@@ -84,16 +86,38 @@ export type StaffEvaluationView = {
   completedAt: string | null; completedVia: string | null; late: boolean;
   academicStatus: AcademicStatus; academicName: string; academicByName: string; scans: number; givenBy: string; note: string;
   holiday: string | null;
+  /** Solo en la evaluación de la familia: su valoración de cada mentor (media sobre 5). */
+  mentorRatings: { mentorName: string; average: number | null; low: boolean; comment: string }[];
 };
 
 export type StaffStudentSettings = {
   studentId: string; studentName: string; familyStartOn: string | null; firstSession: string | null; skipInitial: boolean; paused: boolean;
 };
 
+/** Resumen de cómo valoran las familias a un mentor (últimos 6 meses). Medias sobre 5. */
+export type MentorRatingSummary = {
+  mentorId: string; mentorName: string; families: number; answers: number; average: number | null;
+  criteria: Record<RatingKey, number | null>; lowCount: number; lastAt: string | null;
+  comments: { studentName: string; text: string; createdAt: string }[];
+};
+
 export type StaffEvaluationsPayload = {
   role: "admin" | "coordinador";
+  mentorRatings: MentorRatingSummary[];
   rows: StaffEvaluationView[];
   students: StaffStudentSettings[];
   settings: { mode: EvalMode; testStudents: string[]; hasFixedTest: boolean } | null;
   allStudents: { id: string; name: string }[];
 };
+
+/** Valoración del mentor por la familia (cada 3 meses, con la evaluación trimestral). */
+export const RATING_CRITERIA = [
+  { key: "puntualidad", label: "Puntualidad", hint: "Llega a su hora y avisa con tiempo si hay algún cambio." },
+  { key: "comunicacion", label: "Comunicación con la familia", hint: "Os cuenta cómo van las sesiones y responde cuando le escribís." },
+  { key: "efectividad", label: "Efectividad", hint: "Notáis avances en organización, hábitos o estudio desde que trabaja con {mentor}." },
+  { key: "trato", label: "Trato con vuestro hijo/a", hint: "Conecta con {kid}, le motiva y le trata con respeto." },
+  { key: "profesionalidad", label: "Profesionalidad", hint: "Prepara las sesiones, es seria y cumple lo que acuerda." },
+] as const;
+export type RatingKey = (typeof RATING_CRITERIA)[number]["key"];
+/** Hasta cuántos días después de abrirse la evaluación se puede valorar al mentor. */
+export const RATING_DAYS = 30;
