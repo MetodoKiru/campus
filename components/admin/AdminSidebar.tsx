@@ -57,6 +57,7 @@ const GROUPS: Group[] = [
       { kind: "section", id: "horarios", label: "Cambios de horario y disponibilidad", icon: CalendarDays },
       { kind: "section", id: "dias-sin-clase", label: "Días sin clase", icon: CalendarOff },
       { kind: "section", id: "periodos-especiales", label: "Navidad y Semana Santa", icon: CalendarOff },
+      { kind: "link", href: "https://kiru-navidad-2026-sofia-munoz-s-projects.vercel.app/admin.html", label: "Sustituciones de Navidad", icon: UserCheck, note: "Navidad", external: true },
     ],
   },
   {

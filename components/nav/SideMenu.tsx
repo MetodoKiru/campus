@@ -13,7 +13,7 @@ import { ChevronDown, ChevronsLeft, ChevronsRight, Menu, X } from "lucide-react"
 
 export type SideMenuItem<T extends string> =
   | { kind: "section"; id: T; label: string; icon: React.ElementType; badge?: number | string; warn?: boolean }
-  | { kind: "link"; href: string; label: string; icon: React.ElementType; note?: string };
+  | { kind: "link"; href: string; label: string; icon: React.ElementType; note?: string; external?: boolean };
 
 export interface SideMenuGroup<T extends string> { id: string; title: string; items: SideMenuItem<T>[] }
 
@@ -98,6 +98,8 @@ export default function SideMenu<T extends string>({
       <li key={item.href}>
         <Link
           href={item.href}
+          target={item.external ? "_blank" : undefined}
+          rel={item.external ? "noopener noreferrer" : undefined}
           title={compact ? `${item.label} (panel de ${item.note ?? "otra sección"})` : undefined}
           className={`${base} text-slate-600 hover:bg-[#F3F0EA]`}
         >
