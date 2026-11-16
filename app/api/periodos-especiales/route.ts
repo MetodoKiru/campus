@@ -306,11 +306,23 @@ export async function POST(request: Request) {
     const subSlots = sub ? cleanSubSlots(body.slots, period) : [];
     const zones = sub ? (Array.isArray(body.zones) ? body.zones : []).map((z) => text(z, 60)).filter((z) => period.zones.includes(z)) : [];
     const max = sub ? Math.max(0, Math.min(60, Math.trunc(Number(body.maxSessions) || 0))) : 0;
-    const { error } = await admin.from("kiru_special_period_mentors").upsert({
+    // El índice único (period_id, mentor_id) es parcial (los sustitutos sin cuenta no tienen mentor_id),
+    // y PostgREST no puede usar un índice parcial en ON CONFLICT: se busca la fila y se actualiza o se crea.
+    const answerRow = {
       period_id: period.id, mentor_id: user.id, own_classes: own as unknown as Json, wants_to_substitute: sub, slots: subSlots as unknown as Json,
       zones, max_sessions: max, comments: text(body.comments), answered_by: user.id, answered_at: new Date().toISOString(),
-    }, { onConflict: "period_id,mentor_id" });
-    if (error) return fail("No se pudo guardar tu respuesta.", 500);
+    };
+    const { data: existing } = await admin.from("kiru_special_period_mentors").select("id").eq("period_id", period.id).eq("mentor_id", user.id).maybeSingle();
+    let { error } = existing
+      ? await admin.from("kiru_special_period_mentors").update(answerRow).eq("id", existing.id)
+      : await admin.from("kiru_special_period_mentors").insert(answerRow);
+    if (error?.code === "23505") {
+      ({ error } = await admin.from("kiru_special_period_mentors").update(answerRow).eq("period_id", period.id).eq("mentor_id", user.id));
+    }
+    if (error) {
+      console.error("periodos-especiales mentor_responder", error);
+      return fail("No se pudo guardar tu respuesta.", 500);
+    }
     const cannot = own.filter((o) => !o.can).length;
     await logEvent(admin, { periodId: period.id, actorId: user.id, action: "mentor_respondio",
       details: { resumen: `${own.length - cannot} de ${own.length} clases propias${sub ? ` · sustituye ${subSlots.length} días, hasta ${max} sesiones` : ""}` } });
