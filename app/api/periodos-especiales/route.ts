@@ -62,6 +62,18 @@ export async function GET(request: Request) {
         admin.from("kiru_special_period_family").select("*").eq("period_id", p.id).in("student_id", kidIds.length ? kidIds : ["00000000-0000-0000-0000-000000000000"]),
         admin.from("kiru_special_period_plans").select("*").eq("period_id", p.id).eq("status", "aprobado").in("student_id", kidIds.length ? kidIds : ["00000000-0000-0000-0000-000000000000"]),
       ]);
+      // Lo que han dicho los mentores habituales: qué clases no pueden dar (solo eso, nunca sus comentarios).
+      const mentorIds = [...new Set(slots.filter((sl) => kidIds.includes(sl.studentId)).map((sl) => sl.mentorId))];
+      const cannot = new Set<string>();
+      const mentorFirst = new Map<string, string>();
+      if (mentorIds.length) {
+        const [{ data: mAnswers }, { data: mNames }] = await Promise.all([
+          admin.from("kiru_special_period_mentors").select("mentor_id,own_classes").eq("period_id", p.id).in("mentor_id", mentorIds),
+          admin.from("profiles").select("id,full_name").in("id", mentorIds),
+        ]);
+        for (const m of mAnswers ?? []) for (const o of parseOwn(m.own_classes)) if (!o.can) cannot.add(`${o.studentId}|${classKey(o.date, o.start)}`);
+        for (const m of mNames ?? []) mentorFirst.set(m.id, firstName(m.full_name));
+      }
       // Del sustituto, la familia solo ve nombre de pila, especialidades acreditadas y desde cuándo está en Kiru.
       const subIds = [...new Set((plans ?? []).flatMap((pl) => parseAssignments(pl.assignments).map((a) => a.substituteId).filter((x): x is string => !!x)))];
       const subs = new Map<string, { firstName: string; specialties: string[]; inKiruSince: string | null }>();
@@ -87,7 +99,9 @@ export async function GET(request: Request) {
           const pl = (plans ?? []).find((x) => x.student_id === k.id);
           return {
             id: k.id, name: k.full_name,
-            classes: classesFor(slots, k.id, p.startsOn, p.endsOn, closed),
+            classes: classesFor(slots, k.id, p.startsOn, p.endsOn, closed).map((c) => ({
+              ...c, mentorCannot: cannot.has(`${k.id}|${classKey(c.date, c.start)}`), mentorFirstName: mentorFirst.get(c.mentorId) ?? "",
+            })),
             answer: a ? { choices: parseChoices(a.choices), acceptsSubstitute: a.accepts_substitute, extraSessions: a.extra_sessions, comments: a.comments, late: a.late, answeredAt: a.answered_at } : null,
             plan: pl ? {
               assignments: parseAssignments(pl.assignments).map((x) => ({ ...x, substitute: x.who === "sustituto" && x.substituteId ? subs.get(x.substituteId) ?? null : null })),
