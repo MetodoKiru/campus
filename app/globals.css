@@ -2,13 +2,21 @@
 
 @layer base {
   :root {
-    --bg-kiru: #FAF9F6;
+    --bg-kiru: #F4F1EC;        /* papel cálido, algo más de contraste */
     --card-kiru: #FFFFFF;
-    --border-kiru: #EAE7E1;
-    --text-kiru: #2D312E;
-    --muted-kiru: #737873;
-    --forest-kiru: #2D5A43;
-    --forest-light-kiru: #EAF2ED;
+    --border-kiru: #E3DCD1;
+    --text-kiru: #1F1C18;      /* tinta casi negra: más contraste */
+    --muted-kiru: #6F675C;     /* gris cálido */
+    --forest-kiru: #15533A;    /* verde botella */
+    --forest-light-kiru: #E2EEE7;
+    /* Paleta Kiru: negros, grises, marrón, azul marino, verde botella */
+    --ink-kiru: #1F1C18;
+    --navy-kiru: #23416B;
+    --navy-light-kiru: #E1E8F0;
+    --brown-kiru: #7A4E2E;
+    --brown-light-kiru: #F1E7DB;
+    --sand-kiru: #C9A26A;
+    --amber-kiru: #9A6A15;
   }
 
   body {
@@ -27,3 +35,12 @@
 .bg-kiru-forest-light { background-color: var(--forest-light-kiru); }
 .text-kiru-forest { color: var(--forest-kiru); }
 .border-kiru-forest { border-color: var(--forest-kiru); }
+.bg-kiru-ink { background-color: var(--ink-kiru); }
+.text-kiru-ink { color: var(--ink-kiru); }
+.bg-kiru-navy { background-color: var(--navy-kiru); }
+.text-kiru-navy { color: var(--navy-kiru); }
+.bg-kiru-navy-light { background-color: var(--navy-light-kiru); }
+.bg-kiru-brown { background-color: var(--brown-kiru); }
+.text-kiru-brown { color: var(--brown-kiru); }
+.bg-kiru-brown-light { background-color: var(--brown-light-kiru); }
+.text-kiru-sand { color: var(--sand-kiru); }

@@ -293,12 +293,12 @@ export default function CoordinadorPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
-      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
+      <header className="bg-[#1F1C18] border-b border-[#332E28] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
         <div className="flex items-center gap-3">
-          <Compass className="w-6 h-6 text-[#6B5A3E]" />
+          <Compass className="w-6 h-6 text-[#C9A26A]" />
           <div>
-            <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel del Coordinador</h1>
-            <p className="text-[11px] sm:text-xs text-slate-500">{tab === "inicio" ? `Hola, ${me.name}. Seguimiento de ${me.isAdmin ? "todos los mentores" : "tus mentores"}` : COORDINATOR_TAB_LABEL[tab]}</p>
+            <h1 className="font-serif text-xl sm:text-2xl text-[#F4F1EC] font-bold">Panel del Coordinador</h1>
+            <p className="text-[11px] sm:text-xs text-[#B9B2A6]">{tab === "inicio" ? `Hola, ${me.name}. Seguimiento de ${me.isAdmin ? "todos los mentores" : "tus mentores"}` : COORDINATOR_TAB_LABEL[tab]}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -312,11 +312,11 @@ export default function CoordinadorPage() {
             else if (n.kind.startsWith("registro_error") || n.kind.startsWith("evidencia_") || n.kind.startsWith("exencion_") || n.kind === "coordinacion_pendiente") setTab("seguimiento");
           }} />
           {me.isAdmin && (
-            <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-[#4A443C] px-3 py-2 text-xs font-semibold text-[#E5DFD5] hover:bg-[#2B2722]">
               <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Administración</span>
             </Link>
           )}
-          <button onClick={logout} title="Cerrar sesión" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          <button onClick={logout} title="Cerrar sesión" className="inline-flex items-center gap-2 rounded-xl border border-[#4A443C] px-3 py-2 text-xs font-semibold text-[#E5DFD5] hover:bg-[#2B2722]">
             <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar sesión</span>
           </button>
         </div>
