@@ -332,7 +332,7 @@ export type SupervisionNotificationKind =
   | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento"
   | "registro_error" | "registro_error_respuesta"
   | "evidencia_entregada" | "evidencia_aclaracion" | "evidencia_validada" | "evidencia_recordatorio" | "evidencia_revision"
-  | "exencion_propuesta" | "exencion_resuelta";
+  | "exencion_propuesta" | "exencion_resuelta" | "coordinacion_pendiente";
 
 // Supervisión metodológica (migración 20261109110000): solicitudes de justificación
 // de una nota de SkillCoins, sus mensajes y evidencias, y avisos metodológicos.
