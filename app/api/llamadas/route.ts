@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { CallPlanRow, FamilyCallRow, Json } from "@/lib/database.types";
 import { requireStaff, UUID_RE } from "@/lib/server/require-staff";
 import {
-  CALL_MINUTES, fromMinutes, isWeekday, madridToUtcIso, MENTOR_CALL_CRITERIA, toMinutes,
+  availabilityDays, CALL_MINUTES, fromMinutes, isWeekday, madridToUtcIso, MENTOR_CALL_CRITERIA, toMinutes,
   type CallMode, type CallView, type FamilyCallsPayload, type MatchOption, type MentorCallKey, type MentorCallsPayload,
-  type MentorPresence, type PlanView, type StaffCallsPayload,
+  type MentorPresence, type PersonAvailability, type PlanResponses, type PlanView, type StaffCallsPayload,
 } from "@/lib/llamadas";
 import {
   anchorMonday, confirmPlan, ensurePlan, firstName, formLink, latestFamilyAvailability, latestStaffAvailability, loadCallSettings,
-  generateCalls, matchPlan, moveCall, moveOptions, planTimes, planWhatsapp, runCallsTask, saveCallSettings, scopeStudents, staffRow, teamFormUrl, zoomOf,
+  generateCalls, matchPlan, moveCall, moveOptions, planTimes, planWhatsapp, runCallsTask, saveCallSettings, scopeStudents, slotsFrom, staffRow, teamFormUrl, zoomOf,
 } from "@/lib/server/llamadas";
 
 export const runtime = "nodejs";
@@ -120,6 +120,24 @@ export async function GET(request: Request) {
   for (const p of plans) {
     const fam = await latestFamilyAvailability(admin, p.student_id);
     phones.set(p.student_id, fam?.phone ?? "");
+    const [coordAvail, mentorAvail] = await Promise.all([
+      p.coordinator_id ? latestStaffAvailability(admin, p.coordinator_id) : Promise.resolve(null),
+      p.mentor_id ? latestStaffAvailability(admin, p.mentor_id) : Promise.resolve(null),
+    ]);
+    const responses: PlanResponses = {
+      family: fam ? {
+        name: "Familia", answeredAt: fam.received_at, days: availabilityDays(slotsFrom(fam.slots)),
+        bothParentsDays: fam.both_parents_days ?? [], medium: p.medium, phone: fam.phone ?? "", note: fam.commitments ?? "",
+      } : null,
+      coordinator: coordAvail ? {
+        name: who.get(p.coordinator_id ?? "") ?? "Coordinador", answeredAt: coordAvail.received_at,
+        days: availabilityDays(slotsFrom(coordAvail.slots)), note: coordAvail.commitments ?? "",
+      } as PersonAvailability : null,
+      mentor: mentorAvail ? {
+        name: who.get(p.mentor_id ?? "") ?? "Mentor", answeredAt: mentorAvail.received_at,
+        days: availabilityDays(slotsFrom(mentorAvail.slots)), note: mentorAvail.commitments ?? "",
+      } as PersonAvailability : null,
+    };
     const missingLabel: Record<string, string> = {
       familia: "La familia aún no ha rellenado su formulario.",
       coordinador: "Falta tu disponibilidad (formulario del equipo).",
@@ -135,7 +153,7 @@ export async function GET(request: Request) {
       anchorMonday: await anchorMonday(admin, p.student_id, p.start_override), startOverride: p.start_override, confirmedVia: p.confirmed_via,
       familyFormUrl: formLink(settings.familyForm, settings.codeField, p.token), familyAnswered: fam?.received_at ?? null,
       commitments: fam?.commitments ?? "", phone: fam?.phone ?? "",
-      whatsappText: p.status === "confirmada" ? await planWhatsapp(admin, p) : "", inScope: true,
+      whatsappText: p.status === "confirmada" ? await planWhatsapp(admin, p) : "", inScope: true, responses,
     });
   }
   planViews.sort((a, b) => a.studentName.localeCompare(b.studentName, "es"));

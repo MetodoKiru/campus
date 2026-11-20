@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, FileText, LoaderCircle, Save, Send } from "lucide-react";
+import { CalendarClock, CheckCircle2, FileText, LoaderCircle, Lock, Save, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Json } from "@/lib/database.types";
 import ProgressReportDocument from "@/components/reports/ProgressReportDocument";
 
 type Fields = { advance: string; attitudeContext: string; schoolRelationship: string; schoolNotes: string; adaptation: string; adaptationNotes: string; familyAdvice: string; recommendations: string; nextSteps: string; nextStepsOwner: string };
 type ReportRow = { id: string; status: "borrador" | "publicado"; content: Json; period_start: string; period_end: string; due_date: string };
-type StudentPeriod = { studentId: string; studentName: string; email: string; cadence: "mensual" | "trimestral"; periodStart: string; periodEnd: string; dueDate: string; report: ReportRow | null };
+type StudentPeriod = { studentId: string; studentName: string; email: string; cadence: "mensual" | "trimestral"; periodStart: string; periodEnd: string; dueDate: string; report: ReportRow | null; locked: boolean };
 const EMPTY: Fields = { advance: "", attitudeContext: "", schoolRelationship: "no_aplica", schoolNotes: "", adaptation: "no_aplica", adaptationNotes: "", familyAdvice: "", recommendations: "", nextSteps: "", nextStepsOwner: "familia" };
 const SUBJECTS = [{ id: "ingles", label: "Inglés" }, { id: "lengua", label: "Lengua" }];
 const fmt = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
@@ -16,6 +16,7 @@ const getRecord = (value: unknown) => value && typeof value === "object" && !Arr
 
 export default function CoordinatorReportsPanel() {
   const [students, setStudents] = useState<StudentPeriod[]>([]);
+  const [graceDays, setGraceDays] = useState(10);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fields, setFields] = useState<Fields>(EMPTY);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -30,6 +31,7 @@ export default function CoordinatorReportsPanel() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "No se pudieron cargar los informes.");
     setStudents(result.students ?? []);
+    if (typeof result.graceDays === "number") setGraceDays(result.graceDays);
   }, []);
 
   useEffect(() => {
@@ -76,23 +78,24 @@ export default function CoordinatorReportsPanel() {
 
   return <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
     <aside className="space-y-3">
-      <div className="rounded-2xl bg-white border border-slate-200 p-4"><h2 className="font-serif text-lg font-bold text-slate-900">Informes por preparar</h2><p className="mt-1 text-xs text-slate-500">La fecha límite es cuatro días antes del fin del periodo familiar. Puedes prepararlo antes de la llamada.</p></div>
+      <div className="rounded-2xl bg-white border border-slate-200 p-4"><h2 className="font-serif text-lg font-bold text-slate-900">Informes por preparar</h2><p className="mt-1 text-xs text-slate-500">La fecha límite es cuatro días antes del fin del periodo familiar. Puedes prepararlo antes de la llamada y hasta {graceDays} días después de que acabe el periodo. Los informes antiguos siguen visibles aquí.</p></div>
       {students.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No hay periodos de renovación activos para tus alumnos.</div>}
       {students.map((item) => <button key={`${item.studentId}|${item.periodStart}`} type="button" onClick={() => { setSelectedId(`${item.studentId}|${item.periodStart}`); setError(""); setMessage(""); }} className={`w-full rounded-2xl border p-4 text-left transition ${selectedId === `${item.studentId}|${item.periodStart}` ? "border-emerald-700 bg-emerald-50 ring-2 ring-emerald-100" : "border-slate-200 bg-white hover:border-slate-300"}`}>
         <span className="flex items-center justify-between gap-2"><span className="font-semibold text-slate-900">{item.studentName}</span>{item.report?.status === "publicado" ? <CheckCircle2 className="h-4 w-4 text-emerald-700" /> : <FileText className="h-4 w-4 text-slate-400" />}</span>
         <span className="mt-1 block text-[10px] font-bold uppercase tracking-wide text-emerald-800">Informe {item.cadence}</span>
         <span className="mt-2 block text-[11px] text-slate-500">{fmt(item.periodStart)} – {fmt(item.periodEnd)}</span>
         <span className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-800"><CalendarClock className="h-3.5 w-3.5" />Listo antes del {fmt(item.dueDate)}</span>
-        <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{item.report?.status === "publicado" ? "Compartido" : item.report ? "Borrador guardado" : "Pendiente"}</span>
+        <span className="mt-2 inline-flex items-center gap-1 flex-wrap"><span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{item.report?.status === "publicado" ? "Compartido" : item.report ? "Borrador guardado" : "Pendiente"}</span>{item.locked && item.report?.status !== "publicado" && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800"><Lock className="h-3 w-3" />Fuera de plazo</span>}</span>
       </button>)}
     </aside>
 
     {!selected ? <div className="flex min-h-64 items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Selecciona un alumno para preparar su informe.</div> : <section className="min-w-0 space-y-4">
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-      {!report && <div className="rounded-3xl border border-slate-200 bg-white p-6"><h2 className="font-serif text-xl font-bold">{selected.studentName}</h2><p className="mt-2 text-sm text-slate-600">El Campus reunirá sus registros del {fmt(selected.periodStart)} al {fmt(selected.periodEnd)} y preparará el borrador {selected.cadence}.</p><button type="button" onClick={() => void call("guardar")} disabled={working} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{working ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}Crear borrador {selected.cadence}</button></div>}
+      {selected.locked && <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><Lock className="mt-0.5 h-4 w-4 shrink-0" />Han pasado más de {graceDays} días desde que acabó este periodo, así que el plazo para prepararlo o editarlo está cerrado. Pídele a administración que lo reabra para {report ? "editarlo o rehacerlo" : "crearlo"}.</p>}
+      {!report && !selected.locked && <div className="rounded-3xl border border-slate-200 bg-white p-6"><h2 className="font-serif text-xl font-bold">{selected.studentName}</h2><p className="mt-2 text-sm text-slate-600">El Campus reunirá sus registros del {fmt(selected.periodStart)} al {fmt(selected.periodEnd)} y preparará el borrador {selected.cadence}.</p><button type="button" onClick={() => void call("guardar")} disabled={working} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{working ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}Crear borrador {selected.cadence}</button></div>}
       {report && <>
-        {!published && <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 space-y-4">
+        {!published && !selected.locked && <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 space-y-4">
           <div><h2 className="font-serif text-xl font-bold">Completar informe</h2><p className="mt-1 text-xs text-slate-500">Los datos del Campus y todas las respuestas del registro del mentor aparecerán en el informe familiar.</p></div>
           <fieldset className="space-y-2"><legend className="text-xs font-bold uppercase tracking-wide text-slate-500">Asignaturas del informe</legend><div className="flex flex-wrap gap-2">{SUBJECTS.map((subject) => <label key={subject.id} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs"><input type="checkbox" checked={selectedSubjects.includes(subject.id)} onChange={(event) => setSelectedSubjects((previous) => event.target.checked ? [...previous, subject.id] : previous.filter((item) => item !== subject.id))} />{subject.label}</label>)}</div><p className="mt-2 text-xs text-slate-500">Calculalo queda pendiente de incorporación y no se añadirá hasta disponer de sus datos.</p></fieldset>
           <Field label="Avance principal del periodo" value={fields.advance} onChange={(advance) => setFields((current) => ({ ...current, advance }))} />
