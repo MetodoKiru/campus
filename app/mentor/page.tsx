@@ -10,7 +10,6 @@ import {
   ExternalLink,
   Layers,
   Plus,
-  Send,
   Award,
   PenLine
 } from "lucide-react";
@@ -21,7 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { previewRole } from "@/lib/preview";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 import Toast from "@/components/Toast";
-import { getKiruRecords, saveKiruRecord, type KiruRecordData } from "@/lib/kiru-records";
+import { saveKiruRecord } from "@/lib/kiru-records";
 import { MentorMenu, MentorStepView, StepPager, useMentorPanel } from "@/components/mentor/MentorSteps";
 import MentorMeetings from "@/components/mentor/MentorMeetings";
 import GrowWithKiru from "@/components/mentor/GrowWithKiru";
@@ -36,19 +35,11 @@ import MentorEvaluations from "@/components/evaluations/MentorEvaluations";
 import MentorCalls from "@/components/llamadas/MentorCalls";
 import MentorAvailability from "@/components/horarios/MentorAvailability";
 import MentorScheduleChanges from "@/components/horarios/MentorScheduleChanges";
+import MentorSubjects from "@/components/asignaturas/MentorSubjects";
 
 // Client-only: every visit generates a different random activity, which must not be prerendered.
 const MentorEnglishTasks = dynamic(() => import("@/components/english/MentorEnglishTasks"), { ssr: false });
 
-const ALL_SUBJECTS = [
-  { id: "geo", name: "Geografía" },
-  { id: "his", name: "Historia" },
-  { id: "fis", name: "Física y Química" },
-  { id: "len", name: "Lengua y Literatura" },
-  { id: "ing", name: "Inglés" },
-  { id: "qui", name: "Química" },
-  { id: "bio", name: "Biología" }
-];
 
 export default function MentorPage() {
   const router = useRouter();
@@ -79,17 +70,12 @@ export default function MentorPage() {
     return () => { alive = false; };
   }, [router]);
 
-  const [activeTab, setActiveTab] = useState<"asignaturas" | "envio_recursos" | "flashcards" | "ingles" | "lengua" | "skillcoins" | "informes">("asignaturas");
+  const [activeTab, setActiveTab] = useState<"asignaturas" | "flashcards" | "ingles" | "lengua" | "skillcoins" | "informes">("asignaturas");
   const [students, setStudents] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const [studentSubjects, setStudentSubjects] = useState<Record<string, string[]>>({});
 
-  const [msgSubject, setMsgSubject] = useState("geo");
-  const [msgTarget, setMsgTarget] = useState("");
-  const [msgText, setMsgText] = useState("");
-  const [msgLink, setMsgLink] = useState("");
 
   const [bulkCategory, setBulkCategory] = useState("Geografía");
   const [bulkText, setBulkText] = useState("");
@@ -119,6 +105,7 @@ export default function MentorPage() {
     return () => window.clearTimeout(timer);
   }, [authorized]);
   const openNotification = (item: { kind?: string; review_id?: string | null; warning_id?: string | null }) => {
+    if (item.kind?.startsWith("tarea")) { setActiveTab("asignaturas"); return; }
     if (!item.review_id && !item.warning_id && !item.kind?.startsWith("registro_error")) return;
     setInitialReview(item.review_id ?? null);
     setMenuStep("justificaciones");
@@ -139,39 +126,13 @@ export default function MentorPage() {
         if (!active) return;
         const assigned = (profiles || []).flatMap((p) => (p.username ? [{ id: p.id, username: p.username, name: p.full_name }] : []));
         setStudents(assigned);
-        if (assigned.length) { setSelectedStudent(assigned[0].username); setMsgTarget(assigned[0].username); setBulkTarget(assigned[0].username); }
-        const activities = await getKiruRecords<KiruRecordData>("activity");
-        if (!active) return;
-        const subjects: Record<string, string[]> = {};
-        activities.map((r) => r.data).filter((d) => d?.kind === "subject_config").forEach((d) => { const student = assigned.find((s) => s.id === d.studentId); if (student) subjects[student.username] = d.subjects || []; });
-        setStudentSubjects(subjects);
+        if (assigned.length) { setSelectedStudent(assigned[0].username); setBulkTarget(assigned[0].username); }
       } catch (error) { console.error("No se pudieron cargar los alumnos asignados.", error); }
     };
     void loadAssignedStudents();
     return () => { active = false; };
   }, []);
 
-
-  const handleToggleSubject = async (subjectId: string) => {
-    const student = students.find((item) => item.username === selectedStudent);
-    if (!student) { setSavedMsg("No tienes alumnos asignados todavía."); return; }
-    const current = studentSubjects[selectedStudent] || [];
-    const updated = current.includes(subjectId) ? current.filter((id) => id !== subjectId) : [...current, subjectId];
-    setStudentSubjects((previous) => ({ ...previous, [selectedStudent]: updated }));
-    try { await saveKiruRecord("activity", `subject_config_${student.id}`, { kind: "subject_config", studentId: student.id, subjects: updated }); setSavedMsg("Asignaturas guardadas en el sistema."); }
-    catch { setSavedMsg("No se pudieron guardar las asignaturas."); }
-  };
-
-  const handleSendSubjectMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!msgText.trim()) return;
-    const targets = msgTarget === "todos" ? students : students.filter((student) => student.username === msgTarget);
-    if (!targets.length) { setSavedMsg("No hay alumnos asignados a los que enviar el mensaje."); return; }
-    try {
-      for (const student of targets) await saveKiruRecord("message", `mentor_message_${Date.now()}_${student.id}`, { studentId: student.id, studentUsername: student.username, subjectId: msgSubject, text: msgText.trim(), link: msgLink.trim() || undefined, date: new Date().toISOString() }, student.id);
-      setMsgText(""); setMsgLink(""); setSavedMsg("Recomendación guardada y enviada a los alumnos seleccionados.");
-    } catch { setSavedMsg("No se pudo guardar el mensaje. Comprueba la asignación y los permisos."); }
-  };
 
   const handleCreateBulkFlashcards = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,16 +282,7 @@ export default function MentorPage() {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Selección de Asignaturas</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("envio_recursos")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
-              activeTab === "envio_recursos" ? "bg-[#242321] text-white shadow-xs" : "text-[#6D6962] hover:bg-[#FAF8F5]"
-            }`}
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>Asignaturas (Enviar Recursos)</span>
+            <span>Asignaturas y tareas</span>
           </button>
           <button
             onClick={() => setActiveTab("flashcards")}
@@ -378,125 +330,11 @@ export default function MentorPage() {
         </div>
 
         {activeTab === "asignaturas" && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-6">
-            <div>
-              <h2 className="text-xl font-serif text-[#292825] font-bold">Asignaturas Visibles para @{selectedStudent}</h2>
-              <p className="text-xs text-[#77736B] mt-1">
-                Activa solo las asignaturas que cursa este alumno para evitar materias innecesarias en su panel.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {ALL_SUBJECTS.map((sub) => {
-                const isSelected = (studentSubjects[selectedStudent] || []).includes(sub.id);
-                return (
-                  <div
-                    key={sub.id}
-                    onClick={() => handleToggleSubject(sub.id)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between select-none ${
-                      isSelected
-                        ? "bg-[#F3EEE5]/60 border-[#D9C8AE] text-[#4A4032] font-bold"
-                        : "bg-[#FAF8F5] border-[#E7E3DC] text-[#6D6962] hover:border-slate-300 font-medium"
-                    }`}
-                  >
-                    <span className="text-xs">{sub.name}</span>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      readOnly
-                      className="rounded text-[#806C50] focus:ring-0 cursor-pointer pointer-events-none"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "envio_recursos" && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E7E3DC] shadow-xs space-y-5 animate-in fade-in duration-150">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#806C50] bg-[#F3EEE5] px-2.5 py-0.5 rounded-full border border-[#E4D8C5]">
-                Sección Asignaturas
-              </span>
-              <h2 className="text-xl font-serif text-[#292825] font-bold mt-1.5">
-                Enviar Recomendaciones y Enlaces por Asignatura
-              </h2>
-              <p className="text-xs text-[#77736B]">
-                Escribe una recomendación y adjunta un enlace para que aparezca en el espacio de la asignatura del alumno.
-              </p>
-            </div>
-
-            <form onSubmit={handleSendSubjectMessage} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
-                    Asignatura
-                  </label>
-                  <select
-                    value={msgSubject}
-                    onChange={(e) => setMsgSubject(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F] focus:outline-none"
-                  >
-                    {ALL_SUBJECTS.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
-                    Enviar a
-                  </label>
-                  <select
-                    value={msgTarget}
-                    onChange={(e) => setMsgTarget(e.target.value)}
-                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs font-semibold text-[#45433F] focus:outline-none"
-                  >
-                    <option value="todos">Todos los alumnos</option>
-                    {students.map((s) => (
-                      <option key={s.username} value={s.username}>{s.name} (@{s.username})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
-                  Mensaje / Recomendación Pedagógica
-                </label>
-                <textarea
-                  rows={3}
-                  value={msgText}
-                  onChange={(e) => setMsgText(e.target.value)}
-                  placeholder="Ej: Mira este vídeo sobre el relieve peninsular..."
-                  className="w-full p-3 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl text-xs text-[#45433F] focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
-                  Enlace externo o recurso (Opcional)
-                </label>
-                <input
-                  type="url"
-                  value={msgLink}
-                  onChange={(e) => setMsgLink(e.target.value)}
-                  placeholder="https://youtube.com/..."
-                  className="w-full p-2.5 bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl text-xs text-[#45433F] focus:outline-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-[#242321] text-white rounded-xl text-xs font-bold hover:bg-[#3A3835] transition flex items-center gap-2 shadow-xs"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Publicar en la asignatura del alumno</span>
-              </button>
-            </form>
-          </div>
+          <MentorSubjects
+            students={students}
+            selectedStudentId={students.find((s) => s.username === selectedStudent)?.id ?? null}
+            notify={setSavedMsg}
+          />
         )}
 
         {activeTab === "flashcards" && (

@@ -26,6 +26,14 @@ import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
 import CoordinatorSidebar, { COORDINATOR_TABS, COORDINATOR_TAB_LABEL, type CoordinatorTab } from "@/components/coordination/CoordinatorSidebar";
 import CoordinatorHome from "@/components/coordination/CoordinatorHome";
 import LogErrorMark from "@/components/performance/LogErrorMark";
+import { fetchTaskSummary, type SubjectTaskSummaryRow } from "@/lib/subjects";
+
+/** «4 de 5 (1 tarde)» o «—» si no tuvo tareas con plazo vencido. */
+function deliveryLabel(row: SubjectTaskSummaryRow | undefined): string {
+  if (!row || row.total === 0) return row?.pendiente ? `${row.pendiente} en plazo` : "—";
+  const extra = [row.tarde ? `${row.tarde} tarde` : "", row.no_entregada ? `${row.no_entregada} sin entregar` : ""].filter(Boolean).join(", ");
+  return `${row.a_tiempo} de ${row.total}${extra ? ` (${extra})` : ""}`;
+}
 
 interface Person { id: string; full_name: string; username: string | null; role: string }
 interface SessionLog {
@@ -70,6 +78,15 @@ export default function CoordinadorPage() {
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
+  // Tareas de las asignaturas (últimos 30 días): cuántas llegaron a tiempo, por alumno.
+  const [taskSummary, setTaskSummary] = useState<Record<string, SubjectTaskSummaryRow>>({});
+  useEffect(() => {
+    const ids = Object.keys(mentorOf);
+    if (!ids.length) return;
+    let alive = true;
+    fetchTaskSummary(ids, 30).then((rows) => { if (alive) setTaskSummary(rows); }).catch(() => { /* sin datos: la columna sale vacía */ });
+    return () => { alive = false; };
+  }, [mentorOf]);
   const [tab, setTabState] = useState<CoordinatorTab>("inicio");
   // Cambiar de página: la dirección guarda la pestaña (se puede recargar o compartir) y se vuelve arriba.
   const setTab = useCallback((next: CoordinatorTab) => {
@@ -398,7 +415,7 @@ export default function CoordinadorPage() {
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
                         <th className="pb-2">Alumno</th><th className="pb-2">Familia</th><th className="pb-2">Último registro</th>
-                        <th className="pb-2">Registros {WINDOW_DAYS} días</th><th className="pb-2">Practicó en el campus</th><th className="pb-2">Tareas</th>
+                        <th className="pb-2">Registros {WINDOW_DAYS} días</th><th className="pb-2">Practicó en el campus</th><th className="pb-2">Tareas</th><th className="pb-2">Entregas a tiempo (30 días)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -410,9 +427,10 @@ export default function CoordinadorPage() {
                           <td className="py-2.5">{row.count}</td>
                           <td className="py-2.5">{ago(row.practice)}</td>
                           <td className="py-2.5">{row.tasks}</td>
+                          <td className="py-2.5">{deliveryLabel(taskSummary[row.student.id])}</td>
                         </tr>
                       ))}
-                      {selected.students.length === 0 && <tr><td colSpan={6} className="py-3 text-slate-400">Este mentor aún no tiene alumnos.</td></tr>}
+                      {selected.students.length === 0 && <tr><td colSpan={7} className="py-3 text-slate-400">Este mentor aún no tiene alumnos.</td></tr>}
                     </tbody>
                   </table>
                 </div>

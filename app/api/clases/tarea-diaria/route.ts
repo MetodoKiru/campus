@@ -26,5 +26,27 @@ export async function GET(request: Request) {
   // Recordatorios de justificaciones de SkillCoins (no duplica si ya los mandó pg_cron).
   const supervision = await admin.rpc("kiru_supervision_tarea_diaria", {});
   if (supervision.error) console.error("Tarea diaria de supervisión:", supervision.error.code, supervision.error.message);
-  return NextResponse.json({ ok: true, resultado: data, supervision: supervision.data ?? null, horarios: horarios.data ?? null });
+  // Tareas de las asignaturas: recordatorios (si pg_cron no los mandó ya; no duplica) y,
+  // desde el 1 de septiembre, borrar los archivos entregados el curso anterior.
+  const tareas = await admin.rpc("kiru_tareas_tarea_horaria", {});
+  if (tareas.error) console.error("Tareas de asignaturas:", tareas.error.code, tareas.error.message);
+  const entregas = await purgeOldSubmissionFiles(admin);
+  return NextResponse.json({ ok: true, resultado: data, supervision: supervision.data ?? null, horarios: horarios.data ?? null, tareas: tareas.data ?? null, entregas });
+}
+
+/** Archivos de entregas de cursos anteriores: se borran del almacén y se marcan (la entrega se queda). */
+async function purgeOldSubmissionFiles(admin: NonNullable<ReturnType<typeof serviceClient>>): Promise<number | string> {
+  let removed = 0;
+  for (let round = 0; round < 5; round += 1) {
+    const { data, error } = await admin.rpc("kiru_entregas_caducadas", { p_limit: 200 });
+    if (error) { console.error("Entregas caducadas:", error.code, error.message); return "error"; }
+    const paths = (data ?? []).map((row) => row.storage_path);
+    if (!paths.length) break;
+    const storage = await admin.storage.from("kiru-entregas").remove(paths);
+    if (storage.error) { console.error("Borrar entregas:", storage.error.message); return "error"; }
+    const marked = await admin.rpc("kiru_entregas_marcar_borradas", { p_paths: paths });
+    if (marked.error) { console.error("Marcar entregas:", marked.error.code, marked.error.message); return "error"; }
+    removed += marked.data ?? 0;
+  }
+  return removed;
 }

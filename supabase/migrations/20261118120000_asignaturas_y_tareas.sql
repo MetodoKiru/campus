@@ -904,8 +904,8 @@ GRANT EXECUTE ON FUNCTION public.kiru_tareas_tarea_horaria(), public.kiru_entreg
 INSERT INTO public.kiru_student_subjects (student_id, subject_id, added_by)
 SELECT DISTINCT (r.data ->> 'studentId')::uuid, s.id, r.created_by
 FROM public.kiru_app_records r
-CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(r.data -> 'subjects') = 'array' THEN r.data -> 'subjects' ELSE '[]'::jsonb END) AS code
-JOIN public.kiru_subjects s ON s.code = code
+CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(r.data -> 'subjects') = 'array' THEN r.data -> 'subjects' ELSE '[]'::jsonb END) AS e(subject_code)
+JOIN public.kiru_subjects s ON s.code = e.subject_code
 WHERE r.record_type = 'activity' AND r.data ->> 'kind' = 'subject_config'
   AND (r.data ->> 'studentId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = (r.data ->> 'studentId')::uuid AND p.role = 'alumno')
