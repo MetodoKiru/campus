@@ -24,11 +24,13 @@ import StudentEnglishTasks from "@/components/english/StudentEnglishTasks";
 import { getKiruRecords, saveKiruRecord, type KiruRecord, type KiruRecordData } from "@/lib/kiru-records";
 import { isFlashcardSet } from "@/lib/english/flashcards";
 import { supabase } from "@/lib/supabase";
+import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
 import StudentGoal from "@/components/skillcoins/StudentGoal";
 import StudentShop from "@/components/skillcoins/StudentShop";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import ProgressBar from "@/components/skillcoins/ProgressBar";
+import StudentSubjects, { StudentPendingTasks, type FixedResources } from "@/components/asignaturas/StudentSubjects";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
 import { latestWeekInfo, weekLabel } from "@/lib/skillcoins";
 
@@ -40,14 +42,6 @@ interface Flashcard {
   targetStudents?: string[];
 }
 
-interface MentorMessage {
-  id: string;
-  studentId: string;
-  subjectId: string;
-  text: string;
-  link?: string;
-  date: string;
-}
 
 /** Picks a random card and two distractor definitions. Kept outside the component so render stays pure. */
 // Single cards from the mentor's bulk generator, plus card sets (English tasks and the
@@ -143,6 +137,9 @@ const SUBJECTS = [
   }
 ];
 
+// Recursos fijos de cada asignatura común (por código), para la sección de asignaturas.
+const FIXED_RESOURCES: FixedResources = Object.fromEntries(SUBJECTS.map((subject) => [subject.id, { desc: subject.desc, links: subject.links }]));
+
 
 export default function AlumnoPage() {
   const router = useRouter();
@@ -156,6 +153,11 @@ export default function AlumnoPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como un alumno» desde administración: sin datos de nadie.
+        if (previewRole() === "alumno" && user.app_metadata?.kiru_role === "admin") {
+          if (alive) { setCurrentStudentName(PREVIEW_NAME.alumno); setStudentId(user.id); setAuthorized(true); }
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("id,full_name,username,role,is_active").eq("id", user.id).single();
         if (error || !profile?.is_active || profile.role !== "alumno" || user.app_metadata?.kiru_role !== "alumno") {
           router.replace("/");
@@ -201,18 +203,14 @@ export default function AlumnoPage() {
   const [gameOptions, setGameOptions] = useState<string[]>([]);
   const [gameFinished, setGameFinished] = useState(false);
 
-  // Asignaturas y mensajes del mentor
-  const [selectedSubjectId, setSelectedSubjectId] = useState("geo");
-  const [mentorMessages, setMentorMessages] = useState<MentorMessage[]>([]);
 
   // Todos los datos personales y compartidos se consultan en Supabase; no se usa almacenamiento local.
   useEffect(() => {
     let active = true;
     const loadStudentData = async () => {
       try {
-        const [activityRecords, messageRecords, progressRecords] = await Promise.all([
+        const [activityRecords, progressRecords] = await Promise.all([
           getKiruRecords<KiruRecordData>("activity"),
-          getKiruRecords<KiruRecordData>("message"),
           getKiruRecords<KiruRecordData>("progress"),
         ]);
         if (!active) return;
@@ -229,7 +227,6 @@ export default function AlumnoPage() {
           if (typeof savedPractice.cardIndex === "number") setCardIndex(savedPractice.cardIndex);
         }
         setFlashcardProgressLoaded(true);
-        setMentorMessages(messageRecords.map((record) => record.data).filter((value) => value && typeof value.text === "string").map((value) => ({ ...value, studentId: value.studentUsername || value.studentId, date: typeof value.date === "string" ? new Date(value.date).toLocaleDateString("es-ES") : "" })) as MentorMessage[]);
       } catch (error) {
         console.error("No se pudieron cargar los datos del alumno desde Supabase.", error);
       }
@@ -354,8 +351,6 @@ export default function AlumnoPage() {
     setupNewQuestion();
   };
 
-  const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId) || SUBJECTS[0];
-  const activeSubjectMessages = mentorMessages.filter((m) => m.subjectId === selectedSubjectId);
 
   if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-[#6D6962]">Comprobando permisos…</main>;
   if (!authorized) return null;
@@ -388,7 +383,7 @@ export default function AlumnoPage() {
           >
             <Coins className="w-3.5 h-3.5" /> {summary.balance.toLocaleString("es-ES")} SC
           </button>
-          <NotificationBell onOpenItem={(n) => goTo(n.kind === "canje_completado" ? "progreso" : "inicio")} />
+          <NotificationBell onOpenItem={(n) => goTo(n.kind === "canje_completado" ? "progreso" : n.kind.startsWith("tarea") ? "asignaturas" : "inicio")} />
           <button
             onClick={() => router.push("/")}
             title="Cerrar sesión"
@@ -478,6 +473,8 @@ export default function AlumnoPage() {
               </p>
             </div>
 
+            <StudentPendingTasks studentId={studentId} onOpen={() => goTo("asignaturas")} />
+
             {studentId && (
               <StudentGoal
                 studentId={studentId}
@@ -518,103 +515,9 @@ export default function AlumnoPage() {
           </div>
         )}
 
-        {/* SECCIÓN 1.1: ASIGNATURAS */}
+        {/* SECCIÓN 1.1: ASIGNATURAS (solo las que activa el mentor; tareas, preguntas y recursos) */}
         {mainTab === "asignaturas" && (
-          <div className="space-y-6 animate-in fade-in duration-150">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-serif text-[#292825] font-bold">1.1. Asignaturas y Recursos</h2>
-                <p className="text-xs text-[#77736B]">Listado oficial de materias, herramientas recomendadas y notas del mentor.</p>
-              </div>
-
-              <select
-                value={selectedSubjectId}
-                onChange={(e) => setSelectedSubjectId(e.target.value)}
-                className="p-2.5 bg-white border border-[#E7E3DC] rounded-xl text-xs font-bold text-[#45433F] focus:outline-none shadow-xs cursor-pointer"
-              >
-                {SUBJECTS.map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-[#E7E3DC] p-6 sm:p-8 space-y-6 shadow-xs">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A775B] bg-[#F3EEE5] px-2.5 py-1 rounded-full border border-[#E4D8C5]">
-                  Materia Activa
-                </span>
-                <h3 className="text-2xl font-serif text-[#292825] font-bold mt-2">{activeSubject.name}</h3>
-                <p className="text-xs text-[#77736B] mt-1">{activeSubject.desc}</p>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#6D6962]">Herramientas y Práctica</h4>
-                {activeSubject.links.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {activeSubject.links.map((lnk, idx) => (
-                      <a
-                        key={idx}
-                        href={lnk.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-4 rounded-2xl border border-[#E7E3DC] bg-[#F7F5F1] hover:bg-white hover:border-slate-400 transition flex flex-col justify-between space-y-2 group shadow-2xs"
-                      >
-                        <div className="flex justify-between items-start">
-                          <span className="font-bold text-xs text-[#292825] group-hover:text-[#8A775B]">
-                            {lnk.title}
-                          </span>
-                          <ExternalLink className="w-3.5 h-3.5 text-[#8D887F] group-hover:text-[#292825]" />
-                        </div>
-                        <p className="text-[11px] text-[#77736B] leading-relaxed">{lnk.note}</p>
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#8D887F] italic">No hay enlaces externos predeterminados para esta materia.</p>
-                )}
-              </div>
-
-              <div className="pt-4 border-t border-[#EEEAE4] space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#6D6962]">
-                    Recomendaciones de tu Mentor
-                  </h4>
-                  <span className="text-[10px] text-[#8D887F] font-medium">De más reciente a más antiguo</span>
-                </div>
-
-                {activeSubjectMessages.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {activeSubjectMessages.map((m) => (
-                      <div key={m.id} className="p-4 rounded-2xl bg-blue-50/60 border border-[#E2DED7] text-xs text-[#403D38] space-y-2">
-                        <div className="flex justify-between items-center text-[10px] text-[#77736B] font-bold uppercase">
-                          <span>Recomendación pedagógica</span>
-                          <span>{m.date}</span>
-                        </div>
-                        <p className="leading-relaxed font-medium">{m.text}</p>
-                        {m.link && (
-                          <a
-                            href={m.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-[#8A775B] font-bold hover:underline pt-1"
-                          >
-                            <span>Abrir enlace adjunto</span>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-[#E2DED7] text-xs text-blue-900 leading-relaxed">
-                    💬 &ldquo;{activeSubject.defaultNote}&rdquo;
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <StudentSubjects studentId={studentId} resources={FIXED_RESOURCES} notify={showMessage} />
         )}
 
         {/* SECCIÓN 3: FLASHCARDS */}

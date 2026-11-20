@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
+import { Camera, CalendarDays, ChevronLeft, ChevronRight, Clock, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -76,6 +76,9 @@ const ACTIVITY: { id: MentorSection; title: string; hint: string; icon: typeof C
   { id: "sesiones", title: "Registro de sesiones", hint: "Tus clases registradas y su detalle", icon: ClipboardList },
   { id: "pagos", title: "Mis pagos", hint: "Lo cobrado y lo pendiente de cobro", icon: Wallet },
   { id: "justificaciones", title: "Justificaciones de SkillCoins", hint: "Solicitudes de coordinación y avisos", icon: MessageSquareText },
+  { id: "disponibilidad", title: "Mi disponibilidad para clases", hint: "Días y horas en los que puedes dar clase", icon: Clock },
+  // Solo cuando el desempeño sale del modo oculto (desde enero de 2027).
+  { id: "evidencias", title: "Mis evidencias", hint: "«Descubrirme» y misión de cada bimestre", icon: Camera },
 ];
 
 const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [
@@ -88,9 +91,10 @@ const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof C
  * ha completado la incorporación (o administración le ha autorizado
  * expresamente), «Reuniones con tu coordinador» y «Crece con Kiru».
  */
-export function MentorMenu({ data, active, onSelect, onClose, pendingJustifications = 0 }: {
+export function MentorMenu({ data, active, onSelect, onClose, pendingJustifications = 0, showEvidence = false }: {
   data: MentorPanelData | null;
   pendingJustifications?: number;
+  showEvidence?: boolean;
   active: StepId | MentorSection | null;
   onSelect: (step: StepId | MentorSection | null) => void;
   onClose: () => void;
@@ -159,7 +163,7 @@ export function MentorMenu({ data, active, onSelect, onClose, pendingJustificati
         <div className="mx-3 my-2 border-t border-[#E7E3DC]" />
         <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Mi actividad</p>
         <ul className="space-y-1">
-          {ACTIVITY.map((item) => {
+          {ACTIVITY.filter((item) => item.id !== "evidencias" || showEvidence).map((item) => {
             const Icon = item.icon;
             const alert = item.id === "justificaciones" && pendingJustifications > 0;
             return (
@@ -324,7 +328,7 @@ export function MentorStepView({ step, data, reload, notify }: {
     return (
       <Section number={3} title="Llamadas con las familias" status={info.status}>
         <Block title="Cómo son">
-          <p>Cada mes tendrás dos llamadas por Zoom con los padres o tutores de tu alumno y con su coordinador.</p>
+          <p>Cada semana hay una llamada de 20 minutos con los padres de tu alumno y su coordinador, normalmente por Zoom. Tú te unes en la 1.ª y la 4.ª semana de cada ciclo de 4 semanas (el ciclo empieza la semana de su primera clase). Después de esas llamadas, el coordinador valora tu preparación, participación, comunicación, seguimiento y actitud.</p>
         </Block>
         <Block title="Para qué sirven">
           <ul className="list-disc space-y-1 pl-5">
@@ -345,13 +349,14 @@ export function MentorStepView({ step, data, reload, notify }: {
           </ul>
         </Block>
         <div className="rounded-2xl border border-[#E7E3DC] bg-[#FAF8F5] p-4">
-          <p className="text-xs font-semibold text-[#555149]">Formulario de llamadas</p>
+          <p className="text-xs font-semibold text-[#555149]">Tu disponibilidad para llamadas</p>
+          <p className="mt-1 text-xs text-[#77736B]">Marca cuándo puedes hacer llamadas. El campus busca solo la hora con la familia y tu coordinador, y te avisa por correo.</p>
           {data.callsFormUrl ? (
             <a href={data.callsFormUrl} target="_blank" rel="noopener noreferrer" className={`${secondaryButton} mt-2`}>
-              Abrir el formulario <ExternalLink className="h-3.5 w-3.5" />
+              Rellenar mi disponibilidad <ExternalLink className="h-3.5 w-3.5" />
             </a>
           ) : (
-            <p className="mt-1 text-xs text-[#77736B]">Estamos preparando el formulario para registrar las llamadas. Aparecerá aquí cuando esté listo.</p>
+            <p className="mt-1 text-xs text-[#77736B]">El formulario no está disponible ahora mismo. Vuelve a intentarlo más tarde.</p>
           )}
         </div>
         {info.status === "completado" ? (

@@ -12,8 +12,13 @@ import {
 } from "lucide-react";
 import SkillCoinsChart from "@/components/SkillCoinsChart";
 import { supabase } from "@/lib/supabase";
+import { previewRole } from "@/lib/preview";
 import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
+import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
+import FamilyEvaluations from "@/components/evaluations/FamilyEvaluations";
+import FamilyCalls from "@/components/llamadas/FamilyCalls";
+import FamilyTasks from "@/components/asignaturas/FamilyTasks";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -21,6 +26,9 @@ import { latestWeekInfo } from "@/lib/skillcoins";
 import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renovaciones/RenewalCard";
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 import FamilySessionCalendar from "@/components/family/FamilySessionCalendar";
+import FamilyScheduleChange from "@/components/horarios/FamilyScheduleChange";
+import FamilyOnboarding from "@/components/family/FamilyOnboarding";
+import FamilyGuide, { type FamilyTab } from "@/components/family/FamilyGuide";
 
 interface Child {
   id: string;
@@ -96,6 +104,11 @@ export default function PadrePage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace("/"); return; }
+        // «Ver el campus como…» desde administración: sin datos de nadie.
+        if (previewRole() === "padre" && user.app_metadata?.kiru_role === "admin") {
+          if (alive) setAuthorized(true);
+          return;
+        }
         const { data: profile, error } = await supabase.from("profiles").select("role,is_active").eq("id", user.id).single();
         if (error || !profile?.is_active || profile.role !== "padre" || user.app_metadata?.kiru_role !== "padre") {
           router.replace("/");
@@ -119,6 +132,7 @@ export default function PadrePage() {
   // Hijos con una renovación de mensualidad esperando respuesta.
   const [renewalPending, setRenewalPending] = useState<Set<string>>(new Set());
   const childIds = childrenList.map((c) => c.id).join(",");
+  const [scheduleRefresh, setScheduleRefresh] = useState(0);
   const reloadRenewals = React.useCallback(async () => {
     try {
       const open = await fetchOpenRenewals(childIds ? childIds.split(",") : []);
@@ -342,7 +356,7 @@ export default function PadrePage() {
                 const child = childrenList.find((c) => c.id === n.student_id);
                 if (child) {
                   setSelectedChild(child);
-                  setActiveTab(n.kind === "renovacion" ? "inicio" : n.kind === "informe_progreso" ? "informes" : n.session_id || n.request_id ? "sesiones" : "recompensas");
+                  setActiveTab(n.kind === "renovacion" || n.kind === "evaluacion_trimestral" ? "inicio" : n.kind === "informe_progreso" ? "informes" : n.session_id || n.request_id ? "sesiones" : "recompensas");
                   if (n.kind === "informe_progreso" && n.event_key.startsWith("informe_progreso:")) {
                     const params = new URLSearchParams(window.location.search);
                     params.set("informe", n.event_key.slice("informe_progreso:".length));
@@ -359,6 +373,9 @@ export default function PadrePage() {
               Consulta el progreso, los documentos y los pagos de cada alumno vinculado a tu cuenta.
             </p>
           </div>
+
+          <FamilyOnboarding kids={childrenList.map((c) => ({ id: c.id, name: c.name }))} notify={(text, type) => setClassMsg({ text, type })} />
+          {classMsg && <Toast text={classMsg.text} type={classMsg.type} onClose={() => setClassMsg(null)} />}
 
           <div className="space-y-3 pt-2">
             {childrenList.length === 0 ? (
@@ -393,6 +410,10 @@ export default function PadrePage() {
               </div>
             ))}
           </div>
+
+          {childrenList.length > 0 && (
+            <FamilyGuide onGo={childrenList.length === 1 ? (tab: FamilyTab) => { setSelectedChild(childrenList[0]); setActiveTab(tab); } : undefined} />
+          )}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-4 space-y-5">
@@ -500,7 +521,12 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
-              <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => void reloadRenewals()} />
+              <FamilyOnboarding kids={[{ id: selectedChild.id, name: selectedChild.name }]} notify={(text, type) => setClassMsg({ text, type })} />
+              <FamilyEvaluations studentId={selectedChild.id} onOpenReports={() => setActiveTab("informes")} />
+              <FamilyCalls studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
+              <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
+              <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => { void reloadRenewals(); setScheduleRefresh((n) => n + 1); }} />
+              <FamilyScheduleChange studentId={selectedChild.id} studentName={selectedChild.name} refreshKey={scheduleRefresh} />
               {childNeedsAnswer && (
                 <button
                   onClick={() => setActiveTab("recompensas")}
@@ -636,6 +662,7 @@ export default function PadrePage() {
             </section>
           )}
 
+          {activeTab === "progreso" && <FamilyTasks studentId={selectedChild.id} studentName={selectedChild.name} />}
           {activeTab === "progreso" && (
             <div className="bg-white rounded-3xl p-6 border border-[#E7E3DC] shadow-xs space-y-5">
               <div className="flex justify-between items-center">

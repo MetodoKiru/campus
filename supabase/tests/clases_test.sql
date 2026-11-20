@@ -55,6 +55,15 @@ create function pg_temp.opt(days int, hhmm text) returns jsonb language sql stab
   select jsonb_build_object('start', pg_temp.at(days, hhmm), 'end', pg_temp.at(days, hhmm) + interval '1 hour') $$;
 create temp table sess(k text primary key, id uuid);
 grant select on t, sess to authenticated;
+-- Las pruebas generales usan una sola fecha a horas tempranas: se relajan aquí las
+-- reglas de fechas realistas del mentor y se prueban aparte en la sección 10.
+update kiru_settings set value = '1'::jsonb where key = 'propuestas_mentor_minimas';
+update kiru_settings set value = '1440'::jsonb where key = 'propuestas_mentor_fin_max_minutos';
+update kiru_settings set value = '0'::jsonb where key = 'propuestas_mentor_dia_no_permitido';
+create function pg_temp.wd(isodow int, hhmm text, mins int default 60) returns jsonb language sql stable as $$
+  select jsonb_build_object('start', kiru_private.madrid_ts(d, hhmm::time), 'end', kiru_private.madrid_ts(d, hhmm::time) + make_interval(mins => mins))
+  from (select min(g)::date d from generate_series((now() at time zone 'Europe/Madrid')::date + 35, (now() at time zone 'Europe/Madrid')::date + 41, interval '1 day') g
+        where extract(isodow from g) = isodow) x $$;
 
 -- 1. Generación ----------------------------------------------------------------
 select pg_temp.expect('genera las clases de 4 semanas de S1', (
@@ -263,4 +272,86 @@ select pg_temp.expect('el aviso no se repite cada día', (select count(*) from k
 select pg_temp.expect('a los 2 días, recordatorio amable al propio mentor (una vez)', (select count(*) from kiru_notifications where kind = 'recuperacion_recordatorio' and recipient_id = pg_temp.i('M') and event_key like '%:auto:%'), (select count(*) from kiru_class_sessions where mentor_id = pg_temp.i('M') and kind = 'regular' and recovery = 'pendiente' and recovery_status_since < now() - interval '2 days'));
 select pg_temp.expect('el recordatorio al mentor existe para la recuperación parada', (select count(*) from kiru_notifications where kind = 'recuperacion_recordatorio' and event_key like 'recuperacion_recordatorio:' || pg_temp.s('pronto_familia') || ':auto:%'), 1);
 select pg_temp.expect_denied('el historial no se modifica', $q$update kiru_class_events set action = 'x'$q$);
+
+-- 10. Fechas realistas que propone el mentor -----------------------------------
+update kiru_settings set value = '3'::jsonb where key = 'propuestas_mentor_minimas';
+update kiru_settings set value = '1230'::jsonb where key = 'propuestas_mentor_fin_max_minutos';
+update kiru_settings set value = '5'::jsonb where key = 'propuestas_mentor_dia_no_permitido';
+select pg_temp.expect_denied('el mentor tiene que proponer al menos 3 fechas', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(2,'17:00'))));
+select pg_temp.expect_denied('las 3 fechas tienen que ser en días distintos', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'10:00'), pg_temp.wd(1,'12:00'), pg_temp.wd(2,'17:00'))));
+select pg_temp.expect_denied('nada de viernes', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(2,'17:00'), pg_temp.wd(5,'17:00'))));
+select pg_temp.expect_denied('una clase de 20:00 a 21:00 no vale (termina después de las 20:30)', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(2,'17:00'), pg_temp.wd(4,'20:00'))));
+select pg_temp.expect_denied('también se aplica al pedir un cambio de clase', format($q$select public.kiru_clases_solicitar(%L, %L, 'cambio', 'Tengo examen', %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'))));
+insert into req select 'real_ok', (public.kiru_recuperaciones_proponer(pg_temp.i('M'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(1,'19:30'), pg_temp.wd(3,'17:00'), pg_temp.wd(6,'11:00')))->>'id')::uuid;
+select pg_temp.expect('3 días distintos, sin viernes y acabando a las 20:30: se envía', (select jsonb_array_length(options) from kiru_class_requests where id = pg_temp.r('real_ok')), 3);
+-- Coordinación retira las fechas del mentor y le pide otras.
+select pg_temp.expect_denied('el mentor no retira sus fechas desde coordinación', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', 'x')$q$, pg_temp.i('M'), pg_temp.s('pronto_familia')));
+select pg_temp.expect_denied('otro coordinador no las retira', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', 'x')$q$, pg_temp.i('C2'), pg_temp.s('pronto_familia')));
+select public.kiru_recuperaciones_gestionar(pg_temp.i('C'), pg_temp.s('pronto_familia'), 'pedir_otras_fechas', 'Esas horas no le van a Álvaro');
+select pg_temp.expect('la propuesta del mentor queda retirada', (select count(*) from kiru_class_requests where id = pg_temp.r('real_ok') and status = 'retirada' and decision_note = 'Esas horas no le van a Álvaro'), 1);
+select pg_temp.expect('vuelve a «Pendiente de organizar»', (select count(*) from kiru_class_sessions where id = pg_temp.s('pronto_familia') and recovery = 'pendiente'), 1);
+select pg_temp.expect('al mentor le llega el aviso con la nota', (select count(*) from kiru_notifications where recipient_id = pg_temp.i('M') and request_id = pg_temp.r('real_ok') and body like '%Esas horas no le van%'), 1);
+select pg_temp.expect('la familia sabe que ya no tiene que elegir', (select count(*) from kiru_notifications where recipient_id = pg_temp.i('P') and request_id = pg_temp.r('real_ok') and title = 'Las fechas de recuperación van a cambiar'), 1);
+select pg_temp.expect_denied('sin propuesta abierta no hay nada que retirar', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', '')$q$, pg_temp.i('C'), pg_temp.s('pronto_familia')));
+insert into req select 'coord_libre', (public.kiru_recuperaciones_proponer(pg_temp.i('C'), pg_temp.s('pronto_familia'),
+  jsonb_build_array(pg_temp.wd(5,'20:00')))->>'id')::uuid;
+select pg_temp.expect('coordinación no tiene ese límite', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre')), 1);
+
+-- 11. Ninguna fecha encaja: la familia propone las suyas y responde el mentor ----
+select pg_temp.expect_denied('la familia tampoco puede proponer viernes', format($q$select public.kiru_recuperaciones_contraproponer(%L, %L, %L::jsonb)$q$, pg_temp.i('P'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(5,'17:00'))));
+select pg_temp.expect_denied('otra familia no responde', format($q$select public.kiru_recuperaciones_contraproponer(%L, %L, %L::jsonb)$q$, pg_temp.i('P2'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(2,'17:00'))));
+insert into req select 'fam_prop', (public.kiru_recuperaciones_contraproponer(pg_temp.i('P'), pg_temp.r('coord_libre'),
+  jsonb_build_array(pg_temp.wd(2,'17:00'), pg_temp.wd(4,'18:00')), 'Mejor martes o jueves por la tarde')->>'id')::uuid;
+select pg_temp.expect_denied('si propuso la familia, coordinación no retira sus fechas (le toca al mentor)', format($q$select public.kiru_recuperaciones_gestionar(%L, %L, 'pedir_otras_fechas', '')$q$, pg_temp.i('C'), pg_temp.s('pronto_familia')));
+select pg_temp.expect('la propuesta anterior queda como «ninguna encaja»', (select count(*) from kiru_class_requests where id = pg_temp.r('coord_libre') and status = 'sin_encaje'), 1);
+select pg_temp.expect('al mentor le llega la propuesta de la familia', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('M') and request_id = pg_temp.r('fam_prop')), 1);
+select pg_temp.expect('y a su coordinador también', (select count(*) from kiru_notifications where kind = 'recuperacion_propuesta' and recipient_id = pg_temp.i('C') and request_id = pg_temp.r('fam_prop')), 1);
+select pg_temp.expect_denied('la familia no elige sus propias fechas', format($q$select public.kiru_recuperaciones_elegir(%L, %L, 0)$q$, pg_temp.i('P'), pg_temp.r('fam_prop')));
+select pg_temp.expect_denied('el mentor no puede decir «ninguna» sin proponer otras', format($q$select public.kiru_recuperaciones_elegir(%L, %L, null)$q$, pg_temp.i('M'), pg_temp.r('fam_prop')));
+select public.kiru_recuperaciones_elegir(pg_temp.i('M'), pg_temp.r('fam_prop'), 1);
+select pg_temp.expect('el mentor acepta una fecha de la familia: recuperación programada', (select count(*) from kiru_class_sessions where recovers_session_id = pg_temp.s('pronto_familia') and delivery = 'programada' and scheduled_start = (pg_temp.wd(4,'18:00')->>'start')::timestamptz), 1);
+select pg_temp.expect('la confirmación llega a la familia', (select count(*) from kiru_notifications where kind = 'recuperacion_confirmada' and recipient_id = pg_temp.i('P') and request_id = pg_temp.r('fam_prop')), 1);
+-- 12. Días y horas en que la familia no puede -------------------------------------
+select pg_temp.expect_denied('otra familia no marca franjas de este alumno', format($q$select public.kiru_familia_no_disponible_guardar(%L, %L, '[{"weekday":2,"start":"16:00","end":"20:30"}]'::jsonb)$q$, pg_temp.i('P2'), pg_temp.i('S1')));
+select pg_temp.expect_denied('el mentor tampoco', format($q$select public.kiru_familia_no_disponible_guardar(%L, %L, '[]'::jsonb)$q$, pg_temp.i('M'), pg_temp.i('S1')));
+select pg_temp.expect_denied('fin antes del inicio no vale', format($q$select public.kiru_familia_no_disponible_guardar(%L, %L, '[{"weekday":2,"start":"19:00","end":"18:00"}]'::jsonb)$q$, pg_temp.i('P'), pg_temp.i('S1')));
+select pg_temp.expect('la familia guarda sus franjas', (select (public.kiru_familia_no_disponible_guardar(pg_temp.i('P'), pg_temp.i('S1'),
+  '[{"weekday":2,"start":"16:00","end":"20:30"},{"weekday":4,"start":"17:00","end":"18:00"}]'::jsonb)->>'franjas')::int), 2);
+insert into sess select 'para_franjas', id from kiru_class_sessions
+  where student_id = pg_temp.i('S1') and kind = 'regular' and delivery = 'programada' and scheduled_start > now()
+  order by scheduled_start desc limit 1;
+select public.kiru_clases_registrar_cancelacion(pg_temp.i('C'), pg_temp.s('para_franjas'), 'mentor', 'Prueba de franjas');
+select pg_temp.expect_denied('el mentor no puede proponer un martes a las 17:00', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('para_franjas'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(2,'17:00'), pg_temp.wd(3,'17:00'))));
+select pg_temp.expect_denied('ni una clase que se solapa con el jueves de 17:00 a 18:00', format($q$select public.kiru_recuperaciones_proponer(%L, %L, %L::jsonb)$q$, pg_temp.i('M'), pg_temp.s('para_franjas'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(3,'17:00'), pg_temp.wd(4,'16:30'))));
+select pg_temp.expect('fuera de la franja sí vale', (select count(*) from (select public.kiru_recuperaciones_proponer(pg_temp.i('M'), pg_temp.s('para_franjas'),
+  jsonb_build_array(pg_temp.wd(1,'17:00'), pg_temp.wd(3,'17:00'), pg_temp.wd(4,'19:00')))) x), 1);
+select pg_temp.expect('coordinación no queda bloqueada', (select count(*) from (select public.kiru_recuperaciones_proponer(pg_temp.i('C'), pg_temp.s('para_franjas'),
+  jsonb_build_array(pg_temp.wd(2,'17:00')))) x), 1);
+select public.kiru_familia_no_disponible_guardar(pg_temp.i('P'), pg_temp.i('S1'), '[{"weekday":4,"start":"17:00","end":"18:00"}]'::jsonb);
+select pg_temp.expect('al cambiarlas no se borra nada: la anterior queda retirada', (select count(*) from kiru_family_unavailability where student_id = pg_temp.i('S1') and removed_at is not null), 1);
+select pg_temp.expect('y sigue activa la que se mantiene', (select count(*) from kiru_family_unavailability where student_id = pg_temp.i('S1') and removed_at is null), 1);
+select pg_temp.as_user('P');
+select pg_temp.expect('la familia ve sus franjas', (select count(*) from kiru_family_unavailability where removed_at is null), 1);
+reset role;
+select pg_temp.as_user('M');
+select pg_temp.expect('su mentor las ve', (select count(*) from kiru_family_unavailability where removed_at is null), 1);
+reset role;
+select pg_temp.as_user('P2');
+select pg_temp.expect('otra familia no las ve', (select count(*) from kiru_family_unavailability), 0);
+reset role;
+select pg_temp.as_user('M2');
+select pg_temp.expect('otro mentor no las ve', (select count(*) from kiru_family_unavailability), 0);
+reset role;
+select pg_temp.expect_denied('nadie escribe directamente en la tabla', $q$set local role authenticated; insert into kiru_family_unavailability(student_id, weekday, start_time, end_time) values (gen_random_uuid(), 1, '10:00', '11:00')$q$);
+reset role;
 rollback;

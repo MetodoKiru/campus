@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+// Vista previa de administración: se instala antes de crear el cliente.
+import "./preview";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -17,4 +19,6 @@ const tabStorage = typeof window !== "undefined" ? window.sessionStorage : undef
 
 export const supabase = createClient<Database>(clientUrl, clientKey, {
   auth: { storage: tabStorage, persistSession: true },
+  // Se busca fetch en cada petición para que pase por el filtro de la vista previa.
+  global: { fetch: (input, init) => globalThis.fetch(input, init) },
 });

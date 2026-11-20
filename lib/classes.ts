@@ -61,6 +61,9 @@ export type UnlinkedLog = {
   probableDuplicate: boolean;
 };
 
+/** Franja semanal en la que la familia no puede recuperar clases (hora de Madrid). */
+export type UnavailableSlot = { studentId: string; weekday: number; start: string; end: string };
+
 export type StaffClassesData = {
   role: "mentor" | "coordinador" | "admin";
   viewerId: string;
@@ -68,6 +71,7 @@ export type StaffClassesData = {
   requests: StaffRequest[];
   unlinkedLogs: UnlinkedLog[];
   noClassDays: { day: string; reason: string }[];
+  unavailable: UnavailableSlot[];
 };
 
 export type FamilyClass = {
@@ -125,6 +129,7 @@ export type FamilyClassesData = {
   requests: FamilyRequest[];
   periods: FamilyPeriod[];
   noticeHours: number;
+  unavailable: UnavailableSlot[];
 };
 
 export const NOTICE_HOURS = 48;
@@ -144,7 +149,7 @@ export const CAUSE_LABEL: Record<ClassCancelCause, string> = {
 /** Los cinco puntos del seguimiento de recuperaciones del coordinador. */
 export const RECOVERY_STAGE: Partial<Record<ClassRecovery, string>> = {
   pendiente: "Pendiente de organizar",
-  propuesta: "Propuestas esperando a la familia",
+  propuesta: "Fechas propuestas, esperando respuesta",
   sin_encaje: "Ninguna fecha encaja",
   programada: "Confirmada, pendiente de hacer",
   realizada: "Realizada",
@@ -183,6 +188,20 @@ export function hoursUntil(iso: string, now = Date.now()): number {
   return (new Date(iso).getTime() - now) / 3_600_000;
 }
 
+/**
+ * Desde cuándo está una recuperación en su punto actual, en palabras: «desde hoy,
+ * 08:15», «desde ayer, 21:02» o «desde hace 4 días». Cuenta días de calendario
+ * en Madrid, no bloques de 24 h.
+ */
+export function sinceLabel(iso: string, now = Date.now()): string {
+  const day = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" });
+  const diff = Math.round((Date.parse(day(now)) - Date.parse(day(new Date(iso).getTime()))) / 86_400_000);
+  const time = new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
+  if (diff <= 0) return `desde hoy, ${time}`;
+  if (diff === 1) return `desde ayer, ${time}`;
+  return `desde hace ${diff} días`;
+}
+
 /** Días completos desde una fecha (para «lleva N días»). */
 export function daysSince(iso: string, now = Date.now()): number {
   return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86_400_000));
@@ -208,4 +227,53 @@ export function madridToIso(day: string, time: string): string | null {
     if (local === `${day}T${time}`) return d.toISOString();
   }
   return null;
+}
+
+/**
+ * Fechas que propone el mentor (cambio o recuperación): solo opciones realistas.
+ * El servidor aplica las mismas reglas (kiru_private.class_check_mentor_options).
+ */
+export const MENTOR_PROPOSAL_RULES = { minOptions: 3, latestEnd: "20:30", blockedWeekday: 5 } as const;
+
+function madridParts(iso: string): { day: string; weekday: number; time: string } {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
+  const time = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Madrid" });
+  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay() || 7;
+  return { day, weekday, time };
+}
+
+export const WEEKDAY_LABEL: Record<number, string> = { 1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado", 7: "Domingo" };
+
+/** «Lunes de 17:00 a 19:00», para mostrar una franja en la que la familia no puede. */
+export function unavailableLabel(u: UnavailableSlot): string {
+  return `${WEEKDAY_LABEL[u.weekday] ?? ""} de ${u.start} a ${u.end}`;
+}
+
+/** Fechas que caen en una franja en la que la familia ha dicho que no puede. */
+export function blockedProblems(options: ClassOption[], blocked: UnavailableSlot[]): string[] {
+  const problems: string[] = [];
+  for (const o of options) {
+    const s = madridParts(o.start);
+    const e = madridParts(o.end);
+    const hit = blocked.find((u) => u.weekday === s.weekday && u.start < (e.day === s.day ? e.time : "24:00") && u.end > s.time);
+    if (hit) problems.push(`La familia no puede los ${unavailableLabel(hit).toLowerCase()} (${classDateLabel(o.start)}).`);
+  }
+  return problems;
+}
+
+/** Problemas de una lista de fechas propuestas por el mentor (vacía = todo bien). */
+export function mentorProposalProblems(options: ClassOption[], minOptions: number = MENTOR_PROPOSAL_RULES.minOptions, blocked: UnavailableSlot[] = []): string[] {
+  const { latestEnd, blockedWeekday } = MENTOR_PROPOSAL_RULES;
+  const problems: string[] = [];
+  const days = new Set(options.map((o) => madridParts(o.start).day));
+  if (minOptions > 1 && (options.length < minOptions || days.size < minOptions)) problems.push(`Propón al menos ${minOptions} fechas, cada una en un día distinto.`);
+  if (minOptions <= 1 && options.length < 1) problems.push("Indica al menos una fecha.");
+  for (const o of options) {
+    const s = madridParts(o.start);
+    const e = madridParts(o.end);
+    if (s.weekday === blockedWeekday) problems.push(`Los viernes no se pueden proponer (${classDateLabel(o.start)}).`);
+    if (e.day !== s.day || e.time > latestEnd) problems.push(`La clase tiene que terminar como tarde a las ${latestEnd} (${classDateLabel(o.start)}).`);
+  }
+  return [...problems, ...blockedProblems(options, blocked)];
 }

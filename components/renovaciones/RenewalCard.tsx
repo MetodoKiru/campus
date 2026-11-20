@@ -13,7 +13,8 @@ const GRACE_DAYS = 5;
 /** Desde cuántos días antes del fin se pide respuesta (a la vez que el correo). */
 const NOTICE_DAYS = 7;
 
-type Plan = "mantener" | "subir" | "no_renueva";
+type Plan = "mantener" | "subir" | "bajar" | "no_renueva";
+type PayPlan = "mantener" | "subir" | "bajar";
 type Option = PrepayOption;
 type Result = { plan: Plan | null; plan_source: "correo" | "campus" | null; paid_reported: boolean; closed: boolean; already: boolean };
 
@@ -26,9 +27,10 @@ export function euros(n: number | null | undefined): string {
   return `${Number(n ?? 0).toLocaleString("es-ES")} €`;
 }
 
-export function planLabel(r: Pick<RenewalRow, "plan" | "keep_label" | "up_label">): string {
+export function planLabel(r: Pick<RenewalRow, "plan" | "keep_label" | "up_label" | "down_label">): string {
   if (r.plan === "mantener") return r.keep_label;
   if (r.plan === "subir") return r.up_label ?? "Un día más por semana";
+  if (r.plan === "bajar") return r.down_label ?? "Un día menos por semana";
   if (r.plan === "no_renueva") return "No renovar";
   return "";
 }
@@ -59,14 +61,14 @@ export function addMonths(periodEnd: string, months: number): string {
 }
 
 /** Opciones de pago de un plan: el mes siguiente y, si hay, varios por adelantado. */
-export function paymentOptions(r: RenewalRow, plan: "mantener" | "subir"): Option[] {
-  const price = Number(plan === "mantener" ? r.keep_price : r.up_price ?? 0);
+export function paymentOptions(r: RenewalRow, plan: PayPlan): Option[] {
+  const price = Number(plan === "mantener" ? r.keep_price : plan === "subir" ? r.up_price ?? 0 : r.down_price ?? 0);
   return [{ meses: 1, total: price, ahorro: 0, pct: 0 }, ...(r.prepay?.[plan] ?? [])];
 }
 
 /** Importe de lo elegido. */
 export function chosenTotal(r: RenewalRow): number | null {
-  if (r.plan !== "mantener" && r.plan !== "subir") return null;
+  if (r.plan !== "mantener" && r.plan !== "subir" && r.plan !== "bajar") return null;
   return paymentOptions(r, r.plan).find((o) => o.meses === r.months)?.total ?? null;
 }
 
@@ -154,8 +156,8 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
   const total = chosenTotal(renewal);
   const button = "px-4 py-2.5 rounded-xl text-xs font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed";
 
-  const planBlock = (plan: "mantener" | "subir") => {
-    const label = plan === "mantener" ? renewal.keep_label : renewal.up_label ?? "";
+  const planBlock = (plan: PayPlan) => {
+    const label = plan === "mantener" ? renewal.keep_label : plan === "subir" ? renewal.up_label ?? "" : renewal.down_label ?? "";
     const main = plan === "subir";
     return (
       <div key={plan} className={`rounded-2xl border p-3 space-y-2 ${main ? "border-[#242321] bg-white" : "border-[#E4D8C5] bg-white"}`}>
@@ -165,9 +167,10 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
         <div className="grid gap-2 sm:grid-cols-2">
           {paymentOptions(renewal, plan).map((o) => (
             <button key={o.meses} type="button" disabled={busy}
-              onClick={() => void choose(plan, o.meses, o.meses === 1
+              onClick={() => void choose(plan, o.meses, (o.meses === 1
                 ? `Hemos registrado: ${label}.`
-                : `Hemos registrado: ${label}, ${o.meses} meses por adelantado (${euros(o.total)}).`)}
+                : `Hemos registrado: ${label}, ${o.meses} meses por adelantado (${euros(o.total)}).`)
+                + (plan === "mantener" ? "" : " Ahora elegid el nuevo horario aquí abajo."))}
               className={`${button} text-left border ${o.meses === 1 && main ? "bg-[#242321] border-[#242321] text-white hover:bg-[#3A3835]" : "bg-white border-[#242321] text-[#242321] hover:bg-[#F3F0EA]"}`}>
               {monthsText(o.meses)}
               <span className={`block font-normal ${o.meses === 1 && main ? "text-[#D7C8AF]" : "text-[#6D6962]"}`}>
@@ -217,7 +220,11 @@ export default function RenewalCard({ studentId, studentName, onChanged }: { stu
           <div className="space-y-2">
             {planBlock("mantener")}
             {renewal.up_label && planBlock("subir")}
+            {renewal.down_label && planBlock("bajar")}
           </div>
+          {(renewal.up_label || renewal.down_label) && (
+            <p className="text-[11px] text-[#77736B]">Si cambiáis el número de días, después elegiréis el nuevo horario según la disponibilidad de {renewal.mentor_name || "vuestro mentor"}.</p>
+          )}
           {!confirmNo ? (
             <div className="flex flex-wrap items-center gap-4">
               <button type="button" disabled={busy} onClick={() => setConfirmNo(true)} className="text-xs text-[#77736B] underline underline-offset-2 hover:text-[#292825]">

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { teamFormUrl } from "@/lib/server/llamadas";
 import { requireStaff } from "@/lib/server/require-staff";
 import { linkOffersToMentor } from "@/lib/server/assignment-offers";
 import { mentorGrowthAccess } from "@/lib/server/growth";
@@ -13,7 +14,6 @@ const TEAM_FORM_URL = "https://docs.google.com/forms/d/1_J5QUAv-RgDhbOL3DTpqrwh2
  * se definan sus campos; al ponerlo en Vercel el botón aparece en el paso 3
  * con el nombre (?mentor=) y el correo (?correo=) del mentor ya puestos.
  */
-const CALLS_FORM_URL = process.env.NEXT_PUBLIC_KIRU_LLAMADAS_FORM_URL ?? "";
 
 /**
  * Estado real de los cuatro pasos del menú del mentor y sus propuestas de
@@ -76,13 +76,8 @@ export async function GET(request: Request) {
 
   const mentorName = profileResult.data?.full_name ?? "";
   const certificateRow = rows.get("certificado");
-  let callsFormUrl = "";
-  if (/^https:\/\//.test(CALLS_FORM_URL)) {
-    const callsUrl = new URL(CALLS_FORM_URL);
-    if (mentorName) callsUrl.searchParams.set("mentor", mentorName);
-    if (user.email) callsUrl.searchParams.set("correo", user.email);
-    callsFormUrl = callsUrl.toString();
-  }
+  // Enlace personal al formulario «Disponibilidad para llamadas · Equipo» (con su código oculto).
+  const callsFormUrl = await teamFormUrl(admin, user.id, user.email ?? "", mentorName).catch(() => "");
 
   const data: MentorPanelData = {
     steps: { certificado, nuestro_equipo: fromRow("nuestro_equipo"), llamadas: fromRow("llamadas"), asignacion },

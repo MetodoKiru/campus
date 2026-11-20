@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, RotateCcw } from "lucide-react";
-import { REQUEST_STATUS_LABEL, classDateLabel, hoursUntil, type FamilyClass, type FamilyClassesData, type FamilyRequest } from "@/lib/classes";
+import { CalendarClock, CalendarX, RotateCcw } from "lucide-react";
+import {
+  REQUEST_STATUS_LABEL, WEEKDAY_LABEL, classDateLabel, hoursUntil, mentorProposalProblems, unavailableLabel,
+  type FamilyClass, type FamilyClassesData, type FamilyRequest, type UnavailableSlot,
+} from "@/lib/classes";
 import type { ClassOption } from "@/lib/database.types";
 import { Badge, Empty, OptionsEditor, btnDark, btnLight, card, classAction, input, subtle, timeRange, useClasses } from "./shared";
 
@@ -41,7 +44,8 @@ export default function FamilyClasses({ studentId, notify }: { studentId: string
 
   const sessions = data.sessions.filter((s) => s.studentId === studentId);
   const requests = data.requests.filter((r) => r.studentId === studentId);
-  const proposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente");
+  const proposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole !== "padre");
+  const ourProposals = requests.filter((r) => r.kind === "propuesta_recuperacion" && r.status === "pendiente" && r.requesterRole === "padre");
   const upcoming = sessions.filter((s) => s.delivery === "programada" && new Date(s.scheduledStart).getTime() > now).slice(0, 12);
   const past = sessions.filter((s) => s.kind === "regular" && new Date(s.originalStart).getTime() <= now || s.delivery === "no_impartida").slice(-12).reverse();
   const myRequests = requests.filter((r) => r.kind !== "propuesta_recuperacion" && (OPEN.includes(r.status) || hoursUntil(r.createdAt) > -14 * 24));
@@ -70,10 +74,28 @@ export default function FamilyClasses({ studentId, notify }: { studentId: string
         </div>
       )}
 
+      <Unavailability studentId={studentId} slots={data.unavailable.filter((u) => u.studentId === studentId)} onDone={done} />
+
       {proposals.length > 0 && (
         <div className="space-y-2">
           <h4 className="flex items-center gap-1.5 text-sm font-bold text-[#292825]"><RotateCcw className="h-4 w-4" /> Elegid la fecha de recuperación</h4>
           {proposals.map((r) => <ProposalCard key={r.id} request={r} session={sessions.find((s) => s.id === r.sessionId)} onDone={done} />)}
+        </div>
+      )}
+
+      {ourProposals.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="flex items-center gap-1.5 text-sm font-bold text-[#292825]"><RotateCcw className="h-4 w-4" /> Fechas que habéis propuesto</h4>
+          {ourProposals.map((r) => {
+            const s = sessions.find((x) => x.id === r.sessionId);
+            return (
+              <div key={r.id} className={`${subtle} space-y-1 text-xs`}>
+                <p>Para recuperar la clase del <span className="capitalize">{s ? classDateLabel(s.originalStart) : ""}</span>:</p>
+                <ul className="list-inside list-disc text-[11px] capitalize">{r.options.map((o) => <li key={o.start}>{timeRange(o)}</li>)}</ul>
+                <p className="text-[11px] text-[#77736B]">Esperando a que el mentor acepte una o proponga otras. Os llegará un correo.</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -121,6 +143,76 @@ export default function FamilyClasses({ studentId, notify }: { studentId: string
   );
 }
 
+/** Días de la semana que se pueden marcar (los viernes no hay recuperaciones). */
+const DAYS = [1, 2, 3, 4, 6, 7];
+type DayDraft = { on: boolean; start: string; end: string };
+
+/**
+ * Mini formulario: días y horas en que la familia no puede recuperar clases.
+ * El mentor no podrá proponer fechas en esas franjas.
+ */
+function Unavailability({ studentId, slots, onDone }: { studentId: string; slots: UnavailableSlot[]; onDone: (m: string | null, ok: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<Record<number, DayDraft>>({});
+  const open = () => {
+    setDraft(Object.fromEntries(DAYS.map((d) => {
+      const s = slots.find((u) => u.weekday === d);
+      return [d, s ? { on: true, start: s.start, end: s.end } : { on: false, start: "16:00", end: "20:30" }];
+    })));
+    setEditing(true);
+  };
+  const chosen = DAYS.filter((d) => draft[d]?.on);
+  const invalid = chosen.some((d) => !draft[d].start || !draft[d].end || draft[d].end <= draft[d].start);
+  const save = async () => {
+    setBusy(true);
+    const message = await classAction({ action: "no_disponible", studentId, slots: chosen.map((d) => ({ weekday: d, start: draft[d].start, end: draft[d].end })) });
+    setBusy(false);
+    if (!message) setEditing(false);
+    await onDone(message, "Guardado. El mentor no podrá proponer fechas en esos días y horas.");
+  };
+  return (
+    <div className={`${subtle} space-y-2 text-xs`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="flex items-center gap-1.5 text-sm font-bold text-[#292825]"><CalendarX className="h-4 w-4" /> ¿Cuándo no podéis recuperar clases?</h4>
+        {!editing && <button type="button" className={btnLight} onClick={open}>{slots.length ? "Cambiar" : "Indicarlo"}</button>}
+      </div>
+      {!editing && (slots.length
+        ? <p className="text-[11px] text-[#45433F]">No podéis: {slots.map(unavailableLabel).join(" · ")}. El mentor no os propondrá fechas en esos huecos.</p>
+        : <p className="text-[11px] text-[#77736B]">Si hay días u horas en los que nunca podéis, marcadlos y el mentor no os los propondrá para recuperar.</p>)}
+      {editing && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-[#77736B]">Marcad los días en que no podéis y, si es solo un rato, cambiad las horas.</p>
+          {DAYS.map((d) => {
+            const row = draft[d];
+            const set = (patch: Partial<DayDraft>) => setDraft((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
+            return (
+              <div key={d} className="flex flex-wrap items-center gap-2">
+                <label className="flex w-28 items-center gap-2 font-semibold text-[#292825]">
+                  <input type="checkbox" checked={row.on} onChange={(e) => set({ on: e.target.checked })} /> {WEEKDAY_LABEL[d]}
+                </label>
+                {row.on && (
+                  <>
+                    <span className="text-[#77736B]">de</span>
+                    <input type="time" aria-label={`${WEEKDAY_LABEL[d]}: desde`} className={`${input} w-auto`} value={row.start} onChange={(e) => set({ start: e.target.value })} />
+                    <span className="text-[#77736B]">a</span>
+                    <input type="time" aria-label={`${WEEKDAY_LABEL[d]}: hasta`} className={`${input} w-auto`} value={row.end} onChange={(e) => set({ end: e.target.value })} />
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {invalid && <p className="text-[11px] text-orange-800">La hora de fin tiene que ser posterior a la de inicio.</p>}
+          <div className="flex gap-2">
+            <button type="button" className={btnDark} disabled={busy || invalid} onClick={save}>Guardar</button>
+            <button type="button" className={btnLight} onClick={() => setEditing(false)}>Volver</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: number | string }) {
   return <p className="rounded-lg bg-white p-2 text-center"><span className="block font-serif text-lg font-bold text-[#292825]">{value}</span><span className="text-[10px] text-[#77736B]">{label}</span></p>;
 }
@@ -165,6 +257,8 @@ function FamilyRequestForm({ session, hours, onCancel, onDone }: { session: Fami
 function ProposalCard({ request: r, session, onDone }: { request: FamilyRequest; session?: FamilyClass; onDone: (m: string | null, ok: string) => void }) {
   const [none, setNone] = useState(false);
   const [note, setNote] = useState("");
+  const [mine, setMine] = useState<ClassOption[]>([]);
+  const [busy, setBusy] = useState(false);
   return (
     <div className={`${subtle} space-y-2 text-xs`}>
       <p>Para recuperar la clase del <span className="capitalize">{session ? classDateLabel(session.originalStart) : ""}</span>:</p>
@@ -177,8 +271,13 @@ function ProposalCard({ request: r, session, onDone }: { request: FamilyRequest;
       </div>
       {none && (
         <div className="space-y-2">
-          <input className={input} placeholder="¿Qué días y horas os vendrían bien?" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
-          <button type="button" className={btnDark} onClick={() => classAction({ action: "elegir_recuperacion", requestId: r.id, option: null, note }).then((m) => onDone(m, "Avisado: coordinación buscará otras fechas."))}>Enviar</button>
+          <p className="text-[11px] text-[#77736B]">Decidnos qué días y horas os vienen bien. Se lo mandamos al mentor para que acepte una o proponga otras.</p>
+          <OptionsEditor value={mine} onChange={setMine} max={3} realistic family />
+          <input className={input} placeholder="Comentario (opcional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
+          <button type="button" className={btnDark} disabled={busy || mentorProposalProblems(mine, 1).length > 0}
+            onClick={async () => { setBusy(true); const m = await classAction({ action: "contraproponer_recuperacion", requestId: r.id, options: mine, note }); setBusy(false); onDone(m, "Enviado al mentor. Os llegará un correo con su respuesta."); }}>
+            Enviar al mentor
+          </button>
         </div>
       )}
     </div>

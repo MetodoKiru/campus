@@ -30,6 +30,22 @@
  * se ha respondido en el campus («Plan elegido» y la columna R).
  * Necesita la propiedad del script KIRU_ALTA_SECRET (la misma clave de los
  * avisos a familias). Sin ella, todo funciona como antes, solo por correo.
+ *
+ * NUEVO (13/11/2026): el campus manda. Si en el panel de admin («Mis alumnos»)
+ * un alumno está «En pausa» o «Baja», aquí se ve en la columna AC («Estado en
+ * el campus», se actualiza cada 10 minutos) y no se le manda renovación,
+ * recordatorio ni aviso de impago. Al volver a «Activo», todo sigue normal.
+ *
+ * NUEVO (13/11/2026): cambio de intensidad. Además de mantener y subir, la
+ * renovación ofrece «Bajar a N días» al precio de «Tarifa N» (Config renovación).
+ * Si la familia sube o baja, el campus le pide el nuevo horario (según la
+ * disponibilidad de su mentor), el mentor lo confirma y el día que empieza la
+ * nueva mensualidad se aplica. Entonces CambioIntensidad.gs pone en «Familias»
+ * los días por semana y el precio nuevos (y lo apunta en «Notas»).
+ * AVISO: el script instalado en la hoja tiene más cosas que esta copia
+ * (periodos especiales, pagos de «Ingresos», sesiones previstas). No pegar
+ * este archivo entero encima: la copia buena está en el Mac, en
+ * Metodo Kiru/copias/contabilidad-despues-estado-campus-2026-11-13/.
  *******************************************************/
 
 const CFG = {
@@ -39,6 +55,7 @@ const CFG = {
   REGISTRO_HOJA: 'Respuestas de formulario 1',
   DIAS_AVISO: 7,
   DIAS_RECORDATORIO: 2,
+  DIAS_CONFIRMAR_MENTOR: 12, // el mentor confirma su disponibilidad antes de que salga la renovación
   DIAS_HISTORIAL: 35, // sesiones que se miran para el resumen del mes
   ZONA: 'Europe/Madrid',
   CAMPUS_URL: 'https://campus.metodokiru.es',
@@ -53,13 +70,19 @@ const COL = {
   DESCUENTO: 8, MOTIVO_DESCUENTO: 9, FIN: 10, PLAN: 12, NOTAS: 13, PRECIO_SUBE: 14,
   ENV_AVISO: 15, ENV_RECORDATORIO: 16, ENV_IMPAGO: 17,
   DICE_PAGADO: 18, // NUEVO: «La familia dice que ha pagado»
+  ESTADO_CAMPUS: 29, // NUEVO (13/11/2026): columna AC «Estado en el campus» (lo pone el campus). OJO: la S es «Estado del servicio», a mano
 };
+
+// Lo que se escribe en «Estado en el campus».
+const ESTADO_HOJA = { activo: 'Activo', en_pausa: 'En pausa', baja: 'Baja' };
+// En pausa o de baja en el campus: no se manda renovación, recordatorio ni aviso de impago.
+function parado_(estado) { return estado === 'en_pausa' || estado === 'baja'; }
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 // Lo que se escribe en «Plan elegido próximo mes» para cada opción.
-const PLAN_HOJA = { mantener: 'Mantener plan', subir: '+1 día', no_renueva: 'No renueva' };
+const PLAN_HOJA = { mantener: 'Mantener plan', subir: '+1 día', bajar: '-1 día', no_renueva: 'No renueva' };
 // Con pago adelantado: «Mantener plan · 3 meses».
 function planHoja_(plan, meses) { return PLAN_HOJA[plan] + (meses > 1 ? ' · ' + meses + ' meses' : ''); }
 
@@ -162,14 +185,30 @@ function revisarRenovaciones() {
   const datos = sh.getRange(1, 1, sh.getLastRow(), Math.max(sh.getLastColumn(), COL.DICE_PAGADO)).getValues();
   const hoy = hoy_();
   const impagos = [];
+  const estados = estadosCampus_(sh, datos);
 
   for (let i = 1; i < datos.length; i++) {
     const fam = leerFamilia_(datos[i]);
     if (!fam.alumno || !fam.email || !fam.fin) continue;
     if (fam.plan === 'No renueva') continue;
+    if (parado_(estados[i])) continue; // en pausa o de baja en el campus
     const fila = i + 1;
     const diaAviso = sumarDias_(fam.fin, -CFG.DIAS_AVISO);
     const diaRecordatorio = sumarDias_(fam.fin, -CFG.DIAS_RECORDATORIO);
+
+    // 0) NUEVO (13/11/2026): desde 12 días antes, el campus pide al mentor que confirme su
+    //    disponibilidad. Si el día del correo no lo ha hecho, el correo se APLAZA (el campus
+    //    le manda avisos urgentes y apunta la falta); 4 días antes sale igualmente sin «subir».
+    //    Si el campus no responde, todo sigue como siempre.
+    let prep = null;
+    if (hoy >= sumarDias_(fam.fin, -CFG.DIAS_CONFIRMAR_MENTOR) && hoy < fam.fin && !mismoDia_(fam.envAviso, fam.fin)) {
+      prep = campus_({ accion: 'preparar', email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), enviar: hoy >= diaAviso });
+      if (hoy >= diaAviso && prep && prep.listo === false) {
+        console.log('Renovación de ' + fam.alumno + ' aplazada: ' + (prep.motivo || 'falta la confirmación del mentor'));
+        continue;
+      }
+      fam.sinSubir = !!(prep && prep.found && prep.subir === false);
+    }
 
     // 1) Correo de renovación (si se pasó el día, se manda igualmente antes del fin)
     if (hoy >= diaAviso && hoy < fam.fin && !mismoDia_(fam.envAviso, fam.fin)) {
@@ -248,6 +287,9 @@ function correoRenovacion_(fam, cfg) {
 
   h += '<p style="margin:18px 0 6px"><b>¿Cómo seguimos?</b></p><ul style="margin:0 0 12px 18px;padding:0">';
   h += '<li style="margin:4px 0"><b>' + op.mantener.etiqueta + ':</b> ' + precioConDescuento_(fam, op.mantener.precio) + '/mes.</li>';
+  if (op.bajar) {
+    h += '<li style="margin:4px 0"><b>' + op.bajar.etiqueta + ':</b> ' + euros_(op.bajar.precio) + '/mes.</li>';
+  }
   if (op.subir) {
     const area = d.trabajando ? minus_(d.trabajando) : 'la organización y la rutina de estudio';
     h += '<li style="margin:4px 0"><b>' + op.subir.etiqueta + ' (recomendado):</b> ' + euros_(op.subir.precio)
@@ -257,6 +299,10 @@ function correoRenovacion_(fam, cfg) {
   }
   h += '</ul>';
   h += botones_(fam, op, cfg, false);
+  if (op.subir || op.bajar) {
+    h += p_('<span style="color:#555">Si cambiáis el número de días, os llegará otro correo para elegir el nuevo horario en el campus, según la disponibilidad de '
+      + esc_(fam.mentor || 'vuestro mentor') + '.</span>');
+  }
   h += bloqueAdelantado_(fam, cfg);
 
   if (cfg.datosPagoEnCorreo) h += p_(bloquePago_(cfg, nombre, mesSig));
@@ -301,6 +347,7 @@ function botones_(fam, op, cfg, conPrecio) {
   let h = '<p style="margin:14px 0">';
   h += boton_(op.mantener.etiqueta + (conPrecio ? ' · ' + euros_(op.mantener.precio) : ''), enlacePlan_(fam, 'mantener', cfg), false);
   if (op.subir) h += ' ' + boton_(op.subir.etiqueta + (conPrecio ? ' · ' + euros_(op.subir.precio) : ''), enlacePlan_(fam, 'subir', cfg), true);
+  if (op.bajar) h += ' ' + boton_(op.bajar.etiqueta + (conPrecio ? ' · ' + euros_(op.bajar.precio) : ''), enlacePlan_(fam, 'bajar', cfg), false);
   return h + '</p>';
 }
 
@@ -393,7 +440,7 @@ function datosDelMes_(alumno, desde, hasta) {
 function doGet(e) {
   const a = (e && e.parameter.a) || '', p = (e && e.parameter.p) || '', t = (e && e.parameter.t) || '';
   const m = Number((e && e.parameter.m) || 1);
-  if (!a || t !== token_(a) || ['mantener', 'subir', 'no', 'pagado'].indexOf(p) < 0) {
+  if (!a || t !== token_(a) || ['mantener', 'subir', 'bajar', 'no', 'pagado'].indexOf(p) < 0) {
     return pagina_('Enlace no válido', 'Este enlace no es válido. Escríbenos a metodokiru@gmail.com y lo vemos.');
   }
   const lock = LockService.getScriptLock();
@@ -449,8 +496,11 @@ function respuestaPlan_(sh, fila, fam, plan, cfg, meses) {
     ? n + ' meses por adelantado (hasta el ' + fechaLarga_(sumarMeses_(fam.fin, n)) + '): <b>' + euros_(opcion.total) + '</b>'
       + (opcion.ahorro > 0 ? ', ahorráis ' + euros_(opcion.ahorro) : '')
     : euros_(op.precio) + '/mes';
+  const horario = plan === 'subir' || plan === 'bajar'
+    ? '<br><br><b>Siguiente paso:</b> entra en el campus (<a href="' + CFG.CAMPUS_URL + '/padre">' + CFG.CAMPUS_URL.replace('https://', '') + '</a>) y elige el nuevo horario. También te llegará un correo con el enlace.'
+    : '';
   return pagina_('¡Gracias!',
-    'Hemos registrado tu elección para ' + esc_(nombre) + ': <b>' + op.etiqueta + '</b>, ' + importe + '.<br><br>'
+    'Hemos registrado tu elección para ' + esc_(nombre) + ': <b>' + op.etiqueta + '</b>, ' + importe + '.' + horario + '<br><br>'
     + bloquePago_(cfg, nombre, MESES[fam.fin.getMonth()])
     + (cfg.calendly ? '<br><br>Si quieres hablarlo, <a href="' + esc_(cfg.calendly) + '">reserva una llamada</a>.' : ''));
 }
@@ -549,6 +599,7 @@ function datosCampus_(fam, cfg) {
     email: fam.email, alumno: fam.alumno, fin: ymd_(fam.fin), mentor: fam.mentor,
     mantenerEtiqueta: op.mantener.etiqueta, mantenerPrecio: op.mantener.precio,
     subirEtiqueta: op.subir ? op.subir.etiqueta : '', subirPrecio: op.subir ? op.subir.precio : '',
+    bajarEtiqueta: op.bajar ? op.bajar.etiqueta : '', bajarPrecio: op.bajar ? op.bajar.precio : '',
     pago: textoPlano_(bloquePago_(cfg, primerNombre_(fam.alumno), MESES[fam.fin.getMonth()])),
     llamada: cfg.calendly,
     adelantado: adelantado_(fam, cfg),
@@ -570,6 +621,7 @@ function planDeHoja_(texto) {
   const t = norm_(String(texto || '').split('·')[0]);
   if (t === norm_(PLAN_HOJA.mantener)) return 'mantener';
   if (t === norm_(PLAN_HOJA.subir)) return 'subir';
+  if (t === norm_(PLAN_HOJA.bajar)) return 'bajar';
   if (t === norm_(PLAN_HOJA.no_renueva)) return 'no_renueva';
   return '';
 }
@@ -594,6 +646,32 @@ function publicarRenovacionesEnCurso_() {
     if (r && r.found) n++;
   }
   return n;
+}
+
+/**
+ * Pregunta al campus si cada alumno está activo, en pausa o de baja, lo escribe
+ * en la columna «Estado en el campus» (solo si cambia) y devuelve { índice de fila: estado }.
+ * Si el campus no responde, devuelve {} y todo sigue como siempre.
+ */
+function estadosCampus_(sh, datos) {
+  const filas = [];
+  for (let i = 1; i < datos.length; i++) {
+    const fam = leerFamilia_(datos[i]);
+    if (fam.alumno && fam.email) filas.push({ i: i, email: fam.email, alumno: fam.alumno });
+  }
+  const r = campus_({ accion: 'estados', familias: filas.map(f => ({ email: f.email, alumno: f.alumno })) });
+  if (!r || !Array.isArray(r.estados)) return {};
+  if (!sh.getRange(1, COL.ESTADO_CAMPUS).getValue()) sh.getRange(1, COL.ESTADO_CAMPUS).setValue('Estado en el campus');
+  const res = {};
+  r.estados.forEach((e, k) => {
+    const f = filas[k];
+    if (!f) return;
+    res[f.i] = e.estado || '';
+    const texto = e.estado ? ESTADO_HOJA[e.estado] || e.estado : 'No enlazado en el campus';
+    const actual = datos[f.i].length >= COL.ESTADO_CAMPUS ? String(datos[f.i][COL.ESTADO_CAMPUS - 1] || '') : '';
+    if (actual !== texto) sh.getRange(f.i + 1, COL.ESTADO_CAMPUS).setValue(texto);
+  });
+  return res;
 }
 
 function campusElegir_(fam, accion, meses) {
@@ -646,6 +724,8 @@ function sincronizarRenovacionesCampus() {
       hechos.push({ id: pend.id, seq: pend.seq });
     });
     if (hechos.length) campus_({ accion: 'confirmar', items: hechos });
+    estadosCampus_(sh, datos);
+    sincronizarHorariosCampus_(sh, datos, cfg); // NUEVO (13/11/2026): en CambioIntensidad.gs
   } finally {
     lock.releaseLock();
   }
@@ -657,9 +737,15 @@ function opciones_(fam, cfg) {
   const dias = Number(fam.dias) || 0;
   const precioActual = Number(fam.paga) || Number(fam.tarifa) || 0;
   const r = { mantener: { etiqueta: 'Mantener ' + dias + (dias === 1 ? ' día' : ' días') + ' por semana', precio: precioActual } };
-  if (dias && dias < cfg.maxDias) {
+  // «Subir» solo si el mentor ha confirmado que tiene hueco (lo decide el campus: fam.sinSubir).
+  if (dias && dias < cfg.maxDias && !fam.sinSubir) {
     const precio = Number(fam.precioSube) || Number(cfg.tarifas[dias + 1]) || 0;
     if (precio) r.subir = { etiqueta: 'Pasar a ' + (dias + 1) + ' días por semana', precio: precio };
+  }
+  // NUEVO (13/11/2026): bajar un día, al precio de la tarifa de ese número de días («Tarifa 1», «Tarifa 2»…).
+  if (dias > 1) {
+    const precio = Number(cfg.tarifas[dias - 1]) || 0;
+    if (precio) r.bajar = { etiqueta: 'Bajar a ' + (dias - 1) + (dias - 1 === 1 ? ' día' : ' días') + ' por semana', precio: precio };
   }
   return r;
 }
