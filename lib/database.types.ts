@@ -316,7 +316,8 @@ export type NotificationRow = {
   request_id: string | null;
   review_id: string | null;
   warning_id: string | null;
-  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind | "llamada_familia" | "informacion_familia";
+  subject_item_id?: string | null;
+  kind: "objetivo_pendiente" | "objetivo_aprobado" | "objetivo_rechazado" | "canje_solicitado" | "canje_completado" | "canje_aplazado" | "renovacion" | "informe_progreso" | ClassNotificationKind | SupervisionNotificationKind | "periodo_especial" | "evaluacion_trimestral" | ScheduleNotificationKind | "llamada_familia" | "informacion_familia" | SubjectNotificationKind;
   title: string;
   body: string;
   event_key: string;
@@ -1005,6 +1006,11 @@ export type Database = {
       kiru_family_onboarding: Table<FamilyOnboardingRow, "token" | "info_skipped_at" | "created_at" | "updated_at">;
       kiru_family_info: Table<FamilyInfoRow, "id" | "student_id" | "student_name" | "email" | "files" | "answers" | "submission_id" | "received_at">;
       kiru_settings: Table<SettingRow, "updated_at">;
+      kiru_subjects: Table<SubjectRow, "id" | "code" | "description" | "owner_mentor_id" | "country" | "course_level" | "sort_order" | "archived_at" | "created_by" | "created_at" | "updated_at">;
+      kiru_student_subjects: Table<StudentSubjectRow, "added_by" | "created_at">;
+      kiru_subject_items: Table<SubjectItemRow, "id" | "author_id" | "body" | "url" | "due_at" | "time_zone" | "requires_file" | "batch_id" | "seen_at" | "reviewed_at" | "reviewed_by" | "feedback" | "archived_at" | "legacy_record_id" | "created_at" | "updated_at">;
+      kiru_subject_submissions: Table<SubjectSubmissionRow, "id" | "answer" | "comment" | "submitted_at" | "due_at_snapshot" | "late">;
+      kiru_subject_files: Table<SubjectFileRow, "id" | "created_at" | "deleted_at" | "deleted_reason">;
       kiru_sheet_outbox: Table<SheetOutboxRow, Timestamps | "id" | "status" | "attempts" | "last_error" | "claimed_at" | "sent_at">;
     };
     Views: {
@@ -1013,6 +1019,7 @@ export type Database = {
       kiru_family_classes: { Row: FamilyClassRow; Relationships: [] };
       kiru_family_class_requests: { Row: FamilyClassRequestRow; Relationships: [] };
       kiru_unlinked_session_logs: { Row: UnlinkedSessionLogRow; Relationships: [] };
+      kiru_subject_items_status: { Row: SubjectItemStatusRow; Relationships: [] };
     };
     Functions: {
       kiru_skillcoin_summary: { Args: { p_student: string }; Returns: Json };
@@ -1060,7 +1067,7 @@ export type Database = {
         Args: { p_days?: number };
         Returns: SessionScheduleMismatchRow[];
       };
-    } & ClassFunctions & SupervisionFunctions & MentorPayFunctions & PerformanceFunctions;
+    } & ClassFunctions & SupervisionFunctions & MentorPayFunctions & PerformanceFunctions & SubjectFunctions;
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };
@@ -1132,4 +1139,122 @@ type PerformanceFunctions = {
   kiru_log_error_mark: { Args: { p_log: string; p_kind: LogErrorKind; p_comment: string }; Returns: string };
   kiru_log_error_reply: { Args: { p_mark: string; p_body: string }; Returns: undefined };
   kiru_log_error_withdraw: { Args: { p_mark: string; p_reason: string }; Returns: undefined };
+};
+
+/** Asignaturas, recursos, preguntas y tareas con entrega (18/11/2026). */
+export type SubjectNotificationKind = "tarea_nueva" | "tarea_recordatorio" | "tarea_entregada" | "tarea_revisada" | "tareas_no_entregadas";
+export type SubjectItemKind = "recurso" | "pregunta" | "tarea";
+export type SubjectItemStatus = "pendiente" | "a_tiempo" | "tarde" | "no_entregada" | "sin_responder" | "respondida" | "nuevo" | "visto";
+export type SubjectAnswer = "si" | "a_medias" | "no";
+
+export type SubjectRow = {
+  id: string;
+  code: string | null;
+  name: string;
+  description: string;
+  owner_mentor_id: string | null;
+  country: string;
+  course_level: string | null;
+  sort_order: number;
+  archived_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudentSubjectRow = { student_id: string; subject_id: string; added_by: string | null; created_at: string };
+
+export type SubjectItemRow = {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  author_id: string | null;
+  kind: SubjectItemKind;
+  title: string;
+  body: string;
+  url: string | null;
+  due_at: string | null;
+  time_zone: string;
+  requires_file: boolean;
+  batch_id: string | null;
+  seen_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  feedback: string;
+  archived_at: string | null;
+  legacy_record_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubjectItemStatusRow = SubjectItemRow & {
+  subject_name: string;
+  subject_code: string | null;
+  first_submitted_at: string | null;
+  last_submitted_at: string | null;
+  submissions_count: number | null;
+  last_answer: SubjectAnswer | null;
+  status: SubjectItemStatus;
+};
+
+export type SubjectSubmissionRow = {
+  id: string;
+  item_id: string;
+  student_id: string;
+  answer: SubjectAnswer | null;
+  comment: string;
+  submitted_at: string;
+  due_at_snapshot: string | null;
+  late: boolean;
+};
+
+export type SubjectFileRow = {
+  id: string;
+  submission_id: string;
+  item_id: string;
+  student_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_reason: string | null;
+};
+
+export type FamilySubjectTaskRow = {
+  item_id: string;
+  subject_name: string;
+  kind: SubjectItemKind;
+  title: string;
+  due_at: string;
+  time_zone: string;
+  first_submitted_at: string | null;
+  status: SubjectItemStatus;
+  created_at: string;
+};
+
+export type SubjectTaskSummaryRow = { student_id: string; total: number; a_tiempo: number; tarde: number; no_entregada: number; pendiente: number };
+
+type SubjectFunctions = {
+  kiru_subject_create: { Args: { p_name: string; p_description?: string; p_common?: boolean }; Returns: string };
+  kiru_subject_update: { Args: { p_subject: string; p_name?: string | null; p_archive?: boolean | null }; Returns: undefined };
+  kiru_subject_make_common: { Args: { p_subject: string }; Returns: undefined };
+  kiru_student_subject_set: { Args: { p_student: string; p_subject: string; p_visible: boolean }; Returns: undefined };
+  kiru_subject_item_send: {
+    Args: { p_students: string[]; p_subject: string; p_kind: SubjectItemKind; p_title: string; p_body?: string; p_url?: string | null; p_due_at?: string | null; p_requires_file?: boolean; p_time_zone?: string };
+    Returns: string[];
+  };
+  kiru_subject_item_update: {
+    Args: { p_item: string; p_title?: string | null; p_body?: string | null; p_url?: string | null; p_due_at?: string | null; p_archive?: boolean | null };
+    Returns: undefined;
+  };
+  kiru_subject_item_review: { Args: { p_item: string; p_feedback?: string }; Returns: undefined };
+  kiru_subject_item_seen: { Args: { p_items: string[] }; Returns: undefined };
+  kiru_subject_submit: { Args: { p_item: string; p_answer?: SubjectAnswer | null; p_comment?: string; p_files?: Json }; Returns: string };
+  kiru_family_subject_tasks: { Args: { p_student: string }; Returns: FamilySubjectTaskRow[] };
+  kiru_subject_task_summary: { Args: { p_students: string[]; p_days?: number }; Returns: SubjectTaskSummaryRow[] };
+  kiru_tareas_tarea_horaria: { Args: Record<string, never>; Returns: Json };
+  kiru_entregas_caducadas: { Args: { p_limit?: number }; Returns: { storage_path: string }[] };
+  kiru_entregas_marcar_borradas: { Args: { p_paths: string[] }; Returns: number };
 };
