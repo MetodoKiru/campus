@@ -581,7 +581,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
       {/* Cabecera */}
-      <header className="bg-[#1F1C18] border-b border-[#332E28] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
+      <header className="bg-[#184A36] border-b border-[#103A29] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm h-[73px]">
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6 text-[#C9A26A]" />
           <div>
