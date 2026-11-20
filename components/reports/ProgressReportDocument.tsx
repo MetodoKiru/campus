@@ -12,12 +12,13 @@ const percent = (value: unknown) => `${Math.round(Number(value) * 100)} %`;
 
 const shortWeek = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 
-/** Las cuatro áreas del seguimiento, cada una con su color para que se distingan de un vistazo. */
+/** Las cuatro áreas del seguimiento, cada una con su color (paleta Kiru: verde botella,
+ * azul marino, marrón y carbón) para que se distingan de un vistazo con buen contraste. */
 const SKILL_AREAS = [
-  { key: "estudios", label: "Estudios", color: "#2F6F4F" },
-  { key: "compromiso", label: "Compromiso", color: "#C76E2A" },
-  { key: "organizacion", label: "Organización", color: "#3B6EA5" },
-  { key: "bienestar", label: "Bienestar", color: "#8A5BA6" },
+  { key: "estudios", label: "Estudios", color: "#15533A" },
+  { key: "compromiso", label: "Compromiso", color: "#23416B" },
+  { key: "organizacion", label: "Organización", color: "#8A5A2B" },
+  { key: "bienestar", label: "Bienestar", color: "#44403C" },
 ] as const;
 
 function MiniBars({ rows, color = "#2D5A43" }: { rows: AnyRecord[]; color?: string }) {
@@ -107,8 +108,8 @@ export default function ProgressReportDocument({ content: rawContent, periodStar
 
     {(text(coordinator.advance) || advice.length > 0) && <section className="space-y-2"><h2 className="font-serif text-lg font-bold">Avances de este periodo</h2>{text(coordinator.advance) && <p className="text-sm leading-relaxed">{text(coordinator.advance)}</p>}{advice.map((item, index) => <p key={index} className="text-sm leading-relaxed">{item}</p>)}</section>}
 
-    {subjects.includes("ingles") && <Subject title="Inglés"><p className="mb-4 text-sm">Se completaron {text(english.completed || 0)} de {text(english.assigned || 0)} tareas asignadas durante el periodo.</p><MiniBars rows={asArray(english.weekly)} color="#3B6EA5" /></Subject>}
-    {subjects.includes("lengua") && <Subject title="Lengua"><p className="mb-4 text-sm">Se completaron {text(lengua.attempts || 0)} sesiones de práctica en el periodo.</p><MiniBars rows={asArray(lengua.weekly)} color="#2F6F4F" /></Subject>}
+    {subjects.includes("ingles") && <Subject title="Inglés"><p className="mb-4 text-sm">Se completaron {text(english.completed || 0)} de {text(english.assigned || 0)} tareas asignadas durante el periodo.</p><MiniBars rows={asArray(english.weekly)} color="#23416B" /></Subject>}
+    {subjects.includes("lengua") && <Subject title="Lengua"><p className="mb-4 text-sm">Se completaron {text(lengua.attempts || 0)} sesiones de práctica en el periodo.</p><MiniBars rows={asArray(lengua.weekly)} color="#15533A" /></Subject>}
     {subjects.includes("calculalo") && <Subject title="Matemáticas · Calculalo"><p className="text-sm">{text(asRecord(academics.calculalo).note) || "Se ha incorporado el informe de Calculalo."}</p></Subject>}
 
     <Subject title="Actitud, hábitos y SkillCoins"><p className="mb-4 text-sm">Las valoraciones de actitud corresponden a {text(attitude.count || 0)} sesiones registradas; SkillCoins se puntúa una vez por semana.</p><SkillcoinBars rows={skillcoins} /></Subject>
