@@ -320,7 +320,7 @@ export default function PadrePage() {
   });
   const historyWithoutPaymentPeriod = childSessionHistory.filter((session) => !assignedHistoryIds.has(session.id));
 
-  if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#77736B]">Comprobando permisos…</main>;
+  if (authChecking) return <main className="min-h-screen flex items-center justify-center text-sm text-[#595349]">Comprobando permisos…</main>;
   if (!authorized) return null;
 
   return (
@@ -349,7 +349,7 @@ export default function PadrePage() {
               </svg>
             </button>
             <div className="flex items-center gap-3">
-              <span className="text-xs font-serif font-bold text-[#8D887F] uppercase tracking-widest">
+              <span className="text-xs font-serif font-bold text-[#696359] uppercase tracking-widest">
                 Método Kiru
               </span>
               <NotificationBell onOpenItem={(n) => {
@@ -369,7 +369,7 @@ export default function PadrePage() {
 
           <div className="space-y-1 text-left">
             <h2 className="text-2xl font-serif text-[#292825] font-bold">Mis hijos</h2>
-            <p className="text-xs text-[#77736B]">
+            <p className="text-xs text-[#595349]">
               Consulta el progreso, los documentos y los pagos de cada alumno vinculado a tu cuenta.
             </p>
           </div>
@@ -381,7 +381,7 @@ export default function PadrePage() {
             {childrenList.length === 0 ? (
               <div className="rounded-2xl border border-[#E7E3DC] bg-white p-6 text-center space-y-2">
                 <p className="font-serif text-base font-bold text-[#292825]">Todavía no hay alumnos vinculados</p>
-                <p className="text-xs leading-relaxed text-[#77736B]">Cuando Método Kiru vincule la cuenta de tu familia con la del alumno, aparecerá aquí.</p>
+                <p className="text-xs leading-relaxed text-[#595349]">Cuando Método Kiru vincule la cuenta de tu familia con la del alumno, aparecerá aquí.</p>
               </div>
             ) : childrenList.map((child) => (
               <div
@@ -394,9 +394,9 @@ export default function PadrePage() {
               >
                 <div className="space-y-1">
                   <h3 className="font-serif text-xl font-bold text-[#292825]">{child.name}</h3>
-                  <p className="text-xs text-[#77736B] font-medium">{child.level}</p>
+                  <p className="text-xs text-[#595349] font-medium">{child.level}</p>
                   {renewalPending.has(child.id) && (
-                    <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-[#806C50] bg-[#F3EEE5] border border-[#E4D8C5] px-2 py-0.5 rounded-full">
+                    <span className="inline-block mt-1 text-[11px] font-bold uppercase tracking-wider text-[#6B5230] bg-[#F3EEE5] border border-[#E4D8C5] px-2 py-0.5 rounded-full">
                       Renovación pendiente
                     </span>
                   )}
@@ -423,21 +423,21 @@ export default function PadrePage() {
               <button
                 onClick={() => setActiveTab("inicio")}
                 className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
-                  activeTab === "inicio" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                  activeTab === "inicio" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"
                 }`}
               >
                 Inicio
               </button>
               <button
                 onClick={() => setActiveTab("sesiones")}
-                className={`px-3 py-1.5 rounded-xl transition shrink-0 ${activeTab === "sesiones" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"}`}
+                className={`px-3 py-1.5 rounded-xl transition shrink-0 ${activeTab === "sesiones" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"}`}
               >
                 Sesiones
               </button>
               <button
                 onClick={() => setActiveTab("progreso")}
                 className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
-                  activeTab === "progreso" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                  activeTab === "progreso" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"
                 }`}
               >
                 Progreso
@@ -445,7 +445,7 @@ export default function PadrePage() {
               <button
                 onClick={() => setActiveTab("recompensas")}
                 className={`relative px-3 py-1.5 rounded-xl transition shrink-0 ${
-                  activeTab === "recompensas" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                  activeTab === "recompensas" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"
                 }`}
               >
                 Recompensas
@@ -453,14 +453,14 @@ export default function PadrePage() {
               </button>
               <button
                 onClick={() => setActiveTab("informes")}
-                className={`px-3 py-1.5 rounded-xl transition shrink-0 ${activeTab === "informes" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"}`}
+                className={`px-3 py-1.5 rounded-xl transition shrink-0 ${activeTab === "informes" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"}`}
               >
                 Informes
               </button>
               <button
                 onClick={() => setActiveTab("documentos")}
                 className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
-                  activeTab === "documentos" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                  activeTab === "documentos" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"
                 }`}
               >
                 Mis documentos
@@ -468,7 +468,7 @@ export default function PadrePage() {
               <button
                 onClick={() => setActiveTab("pagos")}
                 className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
-                  activeTab === "pagos" ? "bg-[#242321] text-white" : "text-[#6D6962] hover:bg-[#FAF8F5]"
+                  activeTab === "pagos" ? "bg-[#242321] text-white" : "text-[#49453E] hover:bg-[#FAF8F5]"
                 }`}
               >
                 Mis pagos
@@ -476,7 +476,7 @@ export default function PadrePage() {
               <button
                 onClick={() => router.push("/")}
                 title="Cerrar sesión"
-                className="p-1.5 rounded-xl text-[#77736B] hover:text-[#292825] hover:bg-[#F3F0EA] transition ml-1 shrink-0"
+                className="p-1.5 rounded-xl text-[#595349] hover:text-[#292825] hover:bg-[#F3F0EA] transition ml-1 shrink-0"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -510,11 +510,11 @@ export default function PadrePage() {
               </div>
               <div>
                 <h2 className="font-serif text-lg font-bold text-[#292825] leading-tight">{selectedChild.name}</h2>
-                <span className="text-[11px] text-[#77736B] font-medium">{selectedChild.level}</span>
+                <span className="text-[11px] text-[#595349] font-medium">{selectedChild.level}</span>
               </div>
             </div>
 
-            <span className="text-[10px] uppercase tracking-wider font-bold text-[#806C50] bg-[#F3EEE5] border border-[#E4D8C5] px-2.5 py-1 rounded-full">
+            <span className="text-[11px] uppercase tracking-wider font-bold text-[#6B5230] bg-[#F3EEE5] border border-[#E4D8C5] px-2.5 py-1 rounded-full">
               Activo
             </span>
           </div>
@@ -538,7 +538,7 @@ export default function PadrePage() {
               )}
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Avisos importantes</h3>
-                <p className="text-xs text-[#77736B]">Comunicaciones de Método Kiru, festivos y cambios de horario.</p>
+                <p className="text-xs text-[#595349]">Comunicaciones de Método Kiru, festivos y cambios de horario.</p>
               </div>
 
               {currentChildNotices.length > 0 ? (
@@ -550,20 +550,20 @@ export default function PadrePage() {
                     >
                       <div className="flex justify-between items-start">
                         <span className="font-semibold text-xs text-[#292825]">{n.title}</span>
-                        <span className="text-[10px] text-[#8D887F]">{n.date}</span>
+                        <span className="text-[11px] text-[#696359]">{n.date}</span>
                       </div>
-                      <p className="text-xs text-[#6D6962] leading-relaxed">{n.content}</p>
+                      <p className="text-xs text-[#49453E] leading-relaxed">{n.content}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="bg-white p-6 rounded-2xl border border-[#E7E3DC] text-center text-xs text-[#8D887F]">
+                <div className="bg-white p-6 rounded-2xl border border-[#E7E3DC] text-center text-xs text-[#696359]">
                   No hay avisos pendientes en este momento.
                 </div>
               )}
 
-              <div className="bg-[#FAF8F5] p-4 rounded-2xl border border-[#E7E3DC] text-[11px] text-[#77736B] flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-[#8D887F] shrink-0" />
+              <div className="bg-[#FAF8F5] p-4 rounded-2xl border border-[#E7E3DC] text-[11px] text-[#595349] flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#696359] shrink-0" />
                 <span>Las incidencias de las sesiones se actualizarán automáticamente aquí tras cada registro de sesión del mentor.</span>
               </div>
             </div>
@@ -575,7 +575,7 @@ export default function PadrePage() {
             <section className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E7E3DC] shadow-xs space-y-4">
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Horario semanal</h3>
-                <p className="text-xs text-[#77736B]">
+                <p className="text-xs text-[#595349]">
                   Horario habitual de {selectedChild.name}. El calendario separa las sesiones registradas de las próximas previstas.
                 </p>
               </div>
@@ -588,14 +588,14 @@ export default function PadrePage() {
                     {scheduleSlots.filter((slot) => slot.student_id === selectedChild.id).map((slot) => (
                       <li key={slot.id} className="flex flex-wrap justify-between gap-2 rounded-2xl border border-[#E7E3DC] bg-[#FDFCFB] p-4 text-xs">
                         <span className="font-semibold text-[#292825]">{new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(new Date(Date.UTC(2024, 0, slot.weekday - 1)))}</span>
-                        <span className="text-[#6D6962]">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</span>
-                        <span className="text-[#6D6962]">{slot.mentor_name}</span>
+                        <span className="text-[#49453E]">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}</span>
+                        <span className="text-[#49453E]">{slot.mentor_name}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ) : (
-                <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#77736B]">Aún no hay un horario semanal cargado en el campus.</p>
+                <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#595349]">Aún no hay un horario semanal cargado en el campus.</p>
               )}
 
               <FamilySessionCalendar
@@ -605,11 +605,11 @@ export default function PadrePage() {
 
               <div className="space-y-1 border-t border-[#E7E3DC] pt-4">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Historial de sesiones</h3>
-                <p className="text-xs text-[#77736B]">Despliega el periodo de acompañamiento pagado para ver sus sesiones registradas y las que quedan.</p>
+                <p className="text-xs text-[#595349]">Despliega el periodo de acompañamiento pagado para ver sus sesiones registradas y las que quedan.</p>
               </div>
 
               {sessionHistoryLoading ? (
-                <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#77736B]">Cargando sesiones…</p>
+                <p className="rounded-2xl bg-[#FAF8F5] p-4 text-xs text-[#595349]">Cargando sesiones…</p>
               ) : childSessionHistory.length ? (
                 <div className="space-y-2">
                   {paymentHistoryGroups.map(({ payment, sessions }, index) => {
@@ -620,9 +620,9 @@ export default function PadrePage() {
                         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-4 marker:hidden">
                           <span className="space-y-0.5">
                             <span className="block text-xs font-bold text-[#45433F]">Periodo de acompañamiento · {payment.coverageStart && new Date(`${payment.coverageStart}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })} – {payment.coverageEnd && new Date(`${payment.coverageEnd}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</span>
-                            <span className="block text-[10px] text-[#77736B]">{sessions.length} realizadas{included !== null ? ` de ${included} previstas` : ""}{remaining !== null ? ` · ${remaining} por realizar` : ""}</span>
+                            <span className="block text-[11px] text-[#595349]">{sessions.length} realizadas{included !== null ? ` de ${included} previstas` : ""}{remaining !== null ? ` · ${remaining} por realizar` : ""}</span>
                           </span>
-                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${payment.status === "Pagado" ? "bg-[#E7F0E4] text-[#38523A]" : "bg-[#F3EEE5] text-[#806C50]"}`}>{payment.status}</span>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${payment.status === "Pagado" ? "bg-[#E7F0E4] text-[#38523A]" : "bg-[#F3EEE5] text-[#6B5230]"}`}>{payment.status}</span>
                         </summary>
                         <ol className="space-y-2 border-t border-[#E7E3DC] p-3 sm:p-4">
                           {sessions.length ? sessions.map((session) => (
@@ -630,23 +630,23 @@ export default function PadrePage() {
                               <time className="block font-serif text-sm font-bold capitalize text-[#292825]">
                                 {session.session_date ? new Date(`${session.session_date}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Fecha no indicada"}
                               </time>
-                              <p className="text-xs text-[#6D6962]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
-                              <p className="text-xs leading-relaxed text-[#6D6962]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
+                              <p className="text-xs text-[#49453E]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
+                              <p className="text-xs leading-relaxed text-[#49453E]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
                             </li>
-                          )) : <li className="text-xs text-[#8D887F]">Aún no hay sesiones registradas en este periodo.</li>}
+                          )) : <li className="text-xs text-[#696359]">Aún no hay sesiones registradas en este periodo.</li>}
                         </ol>
                       </details>
                     );
                   })}
                   {historyWithoutPaymentPeriod.length > 0 && (
                     <details className="rounded-2xl border border-dashed border-[#DCD6CC] bg-[#FAF8F5]">
-                      <summary className="cursor-pointer p-4 text-xs font-bold text-[#6D6962]">Sesiones sin periodo de pago vinculado · {historyWithoutPaymentPeriod.length}</summary>
+                      <summary className="cursor-pointer p-4 text-xs font-bold text-[#49453E]">Sesiones sin periodo de pago vinculado · {historyWithoutPaymentPeriod.length}</summary>
                       <ol className="space-y-2 border-t border-[#E7E3DC] p-3 sm:p-4">
                         {historyWithoutPaymentPeriod.map((session) => (
                           <li key={session.id} className="rounded-xl border border-[#E7E3DC] bg-white p-3 space-y-1.5">
                             <time className="block font-serif text-sm font-bold capitalize text-[#292825]">{session.session_date ? new Date(`${session.session_date}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Fecha no indicada"}</time>
-                            <p className="text-xs text-[#6D6962]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
-                            <p className="text-xs leading-relaxed text-[#6D6962]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
+                            <p className="text-xs text-[#49453E]"><strong className="text-[#45433F]">Mentor/a:</strong> {session.mentor_name || "No indicado"}</p>
+                            <p className="text-xs leading-relaxed text-[#49453E]"><strong className="text-[#45433F]">Tema:</strong> {session.topic || "No se indicó el tema en el registro."}</p>
                           </li>
                         ))}
                       </ol>
@@ -656,7 +656,7 @@ export default function PadrePage() {
               ) : (
                 <div className="rounded-2xl border border-dashed border-[#DCD6CC] bg-[#FAF8F5] p-6 text-center space-y-1">
                   <p className="font-serif text-sm font-bold text-[#45433F]">Aún no hay sesiones registradas</p>
-                  <p className="text-xs text-[#77736B]">Cuando el mentor registre una sesión, aparecerá aquí con su fecha y tema.</p>
+                  <p className="text-xs text-[#595349]">Cuando el mentor registre una sesión, aparecerá aquí con su fecha y tema.</p>
                 </div>
               )}
             </section>
@@ -668,40 +668,40 @@ export default function PadrePage() {
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="font-serif text-lg text-[#292825] font-bold">SkillCoins Semanales</h3>
-                  <p className="text-xs text-[#77736B]">{latestTitle}: puntuación de 0 a 10 por categoría.</p>
+                  <p className="text-xs text-[#595349]">{latestTitle}: puntuación de 0 a 10 por categoría.</p>
                 </div>
-                <span className="text-[10px] font-medium text-[#8D887F] text-right">{latestWeek ? latestNote : "Sin datos"}</span>
+                <span className="text-[11px] font-medium text-[#696359] text-right">{latestWeek ? latestNote : "Sin datos"}</span>
               </div>
 
               <div className="grid grid-cols-3 gap-3 rounded-2xl bg-[#242321] text-white p-4">
-                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Saldo</p><p className="text-xl font-serif font-bold">{childSummary.balance} SC</p></div>
-                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Ganadas</p><p className="text-xl font-serif font-bold">{childSummary.earned} SC</p></div>
-                <div><p className="text-[10px] uppercase font-bold text-[#D7C8AF]">Canjeadas</p><p className="text-xl font-serif font-bold">{childSummary.spent} SC</p></div>
+                <div><p className="text-[11px] uppercase font-bold text-[#D7C8AF]">Saldo</p><p className="text-xl font-serif font-bold">{childSummary.balance} SC</p></div>
+                <div><p className="text-[11px] uppercase font-bold text-[#D7C8AF]">Ganadas</p><p className="text-xl font-serif font-bold">{childSummary.earned} SC</p></div>
+                <div><p className="text-[11px] uppercase font-bold text-[#D7C8AF]">Canjeadas</p><p className="text-xl font-serif font-bold">{childSummary.spent} SC</p></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="p-4 rounded-2xl bg-[#F3EEE5] border border-[#E7DCCB] space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#806C50]">Estudios</span>
-                  <p className="text-2xl font-serif font-bold text-[#4A4032]">{scData.estudios} SC</p>
-                  <span className="text-[10px] text-[#77736B] block">Técnicas y asimilación</span>
+                <div className="p-4 rounded-2xl bg-[#E7F0EA] border border-[#C4DBCF] space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#15533A]">Estudios</span>
+                  <p className="text-2xl font-serif font-bold text-[#15533A]">{scData.estudios} SC</p>
+                  <span className="text-[11px] text-[#4E4A42] block">Técnicas y asimilación</span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[#F5F3EF] border border-[#E7E3DC] space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6962]">Compromiso</span>
-                  <p className="text-2xl font-serif font-bold text-[#343330]">{scData.compromiso} SC</p>
-                  <span className="text-[10px] text-[#77736B] block">Actitud y puntualidad</span>
+                <div className="p-4 rounded-2xl bg-[#E6ECF3] border border-[#C6D4E4] space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#23416B]">Compromiso</span>
+                  <p className="text-2xl font-serif font-bold text-[#23416B]">{scData.compromiso} SC</p>
+                  <span className="text-[11px] text-[#4E4A42] block">Actitud y puntualidad</span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[#F5F3EF] border border-[#E7E3DC] space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6962]">Organización</span>
-                  <p className="text-2xl font-serif font-bold text-[#343330]">{scData.organizacion} SC</p>
-                  <span className="text-[10px] text-[#77736B] block">Agenda y orden</span>
+                <div className="p-4 rounded-2xl bg-[#F4EADD] border border-[#E2D0BA] space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#8A5A2B]">Organización</span>
+                  <p className="text-2xl font-serif font-bold text-[#6B4420]">{scData.organizacion} SC</p>
+                  <span className="text-[11px] text-[#4E4A42] block">Agenda y orden</span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[#F5F3EF] border border-[#E7E3DC] space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6962]">Bienestar</span>
+                <div className="p-4 rounded-2xl bg-[#ECEAE6] border border-[#D6D1CA] space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#44403C]">Bienestar</span>
                   <p className="text-2xl font-serif font-bold text-[#343330]">{scData.bienestar} SC</p>
-                  <span className="text-[10px] text-[#77736B] block">Calma y confianza</span>
+                  <span className="text-[11px] text-[#4E4A42] block">Calma y confianza</span>
                 </div>
               </div>
 
@@ -720,7 +720,7 @@ export default function PadrePage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Mis documentos</h3>
-                <p className="text-xs text-[#77736B]">Documentación vinculada a {selectedChild.name}.</p>
+                <p className="text-xs text-[#595349]">Documentación vinculada a {selectedChild.name}.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -734,11 +734,11 @@ export default function PadrePage() {
                     >
                       <div className="space-y-3">
                         <div className="flex justify-between items-start">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8D887F]">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#696359]">
                             {doc.type}
                           </span>
                           {doc.requiresAcceptance && !isAccepted && (
-                            <span className="text-[10px] font-bold text-[#806C50] bg-[#F5F0E7] px-2 py-0.5 rounded-full border border-amber-200">
+                            <span className="text-[11px] font-bold text-[#6B5230] bg-[#F5F0E7] px-2 py-0.5 rounded-full border border-amber-200">
                               Pendiente de aceptación
                             </span>
                           )}
@@ -749,11 +749,11 @@ export default function PadrePage() {
                         </h4>
 
                         <div className="w-full h-28 bg-[#FAF8F5] border border-[#E7E3DC] rounded-2xl flex flex-col items-center justify-center p-3 text-center space-y-1 shadow-inner">
-                          <FileText className="w-7 h-7 text-[#8D887F]" />
-                          <span className="text-[11px] font-medium text-[#77736B] truncate max-w-[180px]">
+                          <FileText className="w-7 h-7 text-[#696359]" />
+                          <span className="text-[11px] font-medium text-[#595349] truncate max-w-[180px]">
                             {doc.fileName || "Documento PDF"}
                           </span>
-                          <span className="text-[9px] text-[#8D887F] uppercase tracking-widest">Previsualización</span>
+                          <span className="text-[11px] text-[#696359] uppercase tracking-widest">Previsualización</span>
                         </div>
                       </div>
 
@@ -764,7 +764,7 @@ export default function PadrePage() {
                             download={doc.fileName || "documento.pdf"}
                             className="w-full py-2 bg-white border border-[#E7E3DC] hover:bg-[#FAF8F5] text-[#292825] text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-1.5 transition shadow-xs"
                           >
-                            <Download className="w-3.5 h-3.5 text-[#77736B]" />
+                            <Download className="w-3.5 h-3.5 text-[#595349]" />
                             <span>Abrir documento</span>
                           </a>
                         ) : (
@@ -773,7 +773,7 @@ export default function PadrePage() {
                             onClick={() => alert(`Abriendo: ${doc.title}`)}
                             className="w-full py-2 bg-white border border-[#E7E3DC] hover:bg-[#FAF8F5] text-[#292825] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs"
                           >
-                            <Download className="w-3.5 h-3.5 text-[#77736B]" />
+                            <Download className="w-3.5 h-3.5 text-[#595349]" />
                             <span>Abrir documento</span>
                           </button>
                         )}
@@ -781,11 +781,11 @@ export default function PadrePage() {
                         {doc.requiresAcceptance && (
                           <div className="pt-1">
                             {isAccepted ? (
-                              <div className="p-2.5 bg-[#F3EEE5] border border-[#E4D8C5] rounded-xl text-[10px] text-[#806C50] space-y-0.5">
+                              <div className="p-2.5 bg-[#F3EEE5] border border-[#E4D8C5] rounded-xl text-[11px] text-[#6B5230] space-y-0.5">
                                 <p className="font-bold flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3 text-[#806C50]" /> Documento aceptado
+                                  <CheckCircle2 className="w-3 h-3 text-[#6B5230]" /> Documento aceptado
                                 </p>
-                                <p className="text-[#806C50]/80">
+                                <p className="text-[#6B5230]/80">
                                   Por: {acceptedLog[doc.id].user} · {acceptedLog[doc.id].date}
                                 </p>
                               </div>
@@ -812,19 +812,19 @@ export default function PadrePage() {
             <div className="space-y-4">
               <div className="space-y-1">
                 <h3 className="font-serif text-lg text-[#292825] font-bold">Mis pagos</h3>
-                <p className="text-xs text-[#77736B]">Historial de facturación y cuotas de acompañamiento.</p>
+                <p className="text-xs text-[#595349]">Historial de facturación y cuotas de acompañamiento.</p>
               </div>
 
               {pendingPayment && (
                 <div className="bg-white rounded-3xl p-6 border border-[#E7E3DC] shadow-xs space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8D887F]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#696359]">
                     Próximo pago
                   </span>
                   <div className="flex items-baseline justify-between">
                     <div>
                       <span className="text-3xl font-serif font-bold text-[#292825]">{pendingPayment.amount} €</span>
-                      <p className="text-xs text-[#77736B] mt-0.5">
-                        Fecha límite: {pendingPayment.dueDate} · <strong className="text-[#806C50]">Pendiente</strong>
+                      <p className="text-xs text-[#595349] mt-0.5">
+                        Fecha límite: {pendingPayment.dueDate} · <strong className="text-[#6B5230]">Pendiente</strong>
                       </p>
                     </div>
 
@@ -845,7 +845,7 @@ export default function PadrePage() {
                 <h4 className="font-serif text-sm font-bold text-[#292825]">Historial de pagos</h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="border-b border-[#EEEAE3] text-[#8D887F] uppercase text-[10px]">
+                    <thead className="border-b border-[#EEEAE3] text-[#696359] uppercase text-[11px]">
                       <tr>
                         <th className="pb-2">Fecha</th>
                         <th className="pb-2">Concepto y periodo</th>
@@ -857,15 +857,15 @@ export default function PadrePage() {
                     <tbody className="divide-y divide-[#EEEAE3]">
                       {currentChildPayments.map((pay) => (
                         <tr key={pay.id}>
-                          <td className="py-3 text-[#77736B]">
+                          <td className="py-3 text-[#595349]">
                             <span className="block font-medium text-[#45433F]">{pay.concept}</span>
                             {pay.coverageStart && pay.coverageEnd ? (
-                              <span className="mt-1 block text-[10px]">
+                              <span className="mt-1 block text-[11px]">
                                 Periodo: {new Date(`${pay.coverageStart}T12:00:00`).toLocaleDateString("es-ES")} – {new Date(`${pay.coverageEnd}T12:00:00`).toLocaleDateString("es-ES")}
                               </span>
-                            ) : pay.dueDate ? <span className="mt-1 block text-[10px]">Fecha: {pay.dueDate}</span> : null}
+                            ) : pay.dueDate ? <span className="mt-1 block text-[11px]">Fecha: {pay.dueDate}</span> : null}
                           </td>
-                          <td className="py-3 text-[#77736B]">
+                          <td className="py-3 text-[#595349]">
                             {pay.sessionsIncluded !== null && pay.sessionsIncluded !== undefined && pay.coverageStart && pay.coverageEnd ? (() => {
                               const consumed = sessionHistory.filter((session) =>
                                 session.student_id === pay.studentId && !!session.session_date
@@ -878,7 +878,7 @@ export default function PadrePage() {
                                   <strong className="block text-[#45433F]">{pay.sessionsIncluded} sesiones previstas</strong>
                                   {pay.daysPerWeek ? <span className="block">{pay.daysPerWeek} {pay.daysPerWeek === 1 ? "día" : "días"} por semana</span> : null}
                                   <span className="block">{consumed} realizadas · {remaining} por realizar</span>
-                                  {pay.status === "Pago comunicado · pendiente de confirmar" && <span className="block text-[#806C50]">Pago por confirmar</span>}
+                                  {pay.status === "Pago comunicado · pendiente de confirmar" && <span className="block text-[#6B5230]">Pago por confirmar</span>}
                                 </span>
                               );
                             })() : <span>Sesiones del periodo pendientes de configurar</span>}
@@ -886,10 +886,10 @@ export default function PadrePage() {
                           <td className="py-3 font-serif font-bold text-[#292825]">{pay.amount} €</td>
                           <td className="py-3 text-right">
                             <span
-                              className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                              className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
                                 pay.status === "Pagado"
-                                  ? "bg-[#F3EEE5] text-[#806C50]"
-                                  : "bg-[#F5F0E7] text-[#806C50]"
+                                  ? "bg-[#F3EEE5] text-[#6B5230]"
+                                  : "bg-[#F5F0E7] text-[#6B5230]"
                               }`}
                             >
                               {pay.status}
