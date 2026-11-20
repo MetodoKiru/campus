@@ -20,24 +20,22 @@
 -- los periodos). Todo se escribe con funciones que comprueban el rol.
 
 -- 0. Avisos nuevos ----------------------------------------------------------------------
-ALTER TABLE public.kiru_notifications DROP CONSTRAINT IF EXISTS kiru_notifications_kind_check;
-ALTER TABLE public.kiru_notifications ADD CONSTRAINT kiru_notifications_kind_check CHECK (kind IN (
-  'objetivo_pendiente', 'objetivo_aprobado', 'objetivo_rechazado', 'canje_solicitado', 'canje_completado',
-  'canje_aplazado', 'renovacion', 'informe_progreso', 'clase_solicitud', 'clase_decision', 'clase_mas_info',
-  'recuperacion_propuesta', 'recuperacion_confirmada', 'recuperacion_sin_encaje', 'recuperacion_nueva',
-  'recuperacion_sin_avanzar', 'recuperacion_recordatorio', 'recuperacion_fin_periodo', 'registro_aviso',
-  'clase_incidencia', 'justificacion_solicitada', 'justificacion_respondida', 'justificacion_repregunta',
-  'justificacion_cerrada', 'justificacion_recordatorio', 'justificacion_por_valorar', 'aviso_metodologico',
-  'aviso_seguimiento', 'periodo_especial', 'evaluacion_trimestral',
-  'horario_elegir', 'horario_confirmar', 'horario_confirmado', 'horario_otro', 'disponibilidad_actualizar',
-  'disponibilidad_confirmar', 'disponibilidad_urgente', 'disponibilidad_falta',
-  'registro_error', 'registro_error_respuesta',
-  'disponibilidad_enviada',
-  'llamada_familia',
-  'informacion_familia',
-  'evidencia_entregada', 'evidencia_aclaracion', 'evidencia_validada', 'evidencia_recordatorio', 'evidencia_revision',
-  'exencion_propuesta', 'exencion_resuelta'
-));
+-- Se leen los tipos que ya existen y se añaden los nuevos, para no quitar los que hayan
+-- añadido otras migraciones (por ejemplo, las de tareas por asignatura).
+DO $kinds$
+DECLARE
+  v_kinds text[];
+BEGIN
+  SELECT coalesce(array_agg(DISTINCT m[1]), '{}') INTO v_kinds
+    FROM pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_0-9]+)''', 'g') AS m
+   WHERE c.conname = 'kiru_notifications_kind_check' AND c.conrelid = 'public.kiru_notifications'::regclass;
+  v_kinds := ARRAY(SELECT DISTINCT k FROM unnest(v_kinds || ARRAY[
+    'evidencia_entregada', 'evidencia_aclaracion', 'evidencia_validada', 'evidencia_recordatorio', 'evidencia_revision',
+    'exencion_propuesta', 'exencion_resuelta']) AS k ORDER BY 1);
+  ALTER TABLE public.kiru_notifications DROP CONSTRAINT IF EXISTS kiru_notifications_kind_check;
+  EXECUTE format('ALTER TABLE public.kiru_notifications ADD CONSTRAINT kiru_notifications_kind_check CHECK (kind = ANY (%L::text[]))', v_kinds);
+END
+$kinds$;
 
 -- Modo y fecha de inicio del sistema (una sola fila).
 CREATE OR REPLACE FUNCTION kiru_private.perf_mode()
