@@ -10,6 +10,10 @@
  * coordinadores, administración o familias y manda un correo por aviso. El
  * campus marca cada aviso como enviado al entregarlo: un correo nunca se repite.
  *
+ * Resumen diario (20/11/2026): a mentores y coordinadores, lo que no es urgente les
+ * llega una vez al día (a partir de las 19:00) en un solo correo con la lista. El
+ * campus lo manda con a.kind = 'resumen' y la lista en a.items.
+ *
  * Para ponerlo en marcha: ejecuta una vez «kiruInstalarAvisosClases».
  */
 
@@ -33,6 +37,7 @@ function kiruEnviarAvisosClases() {
 }
 
 function kiruEnviarCorreoAvisoClase(a) {
+  if (a.kind === 'resumen' && a.items && a.items.length) return kiruEnviarResumenAvisos(a);
   var pila = String(a.name || '').trim().split(/\s+/)[0] || '';
   var asunto = 'Método Kiru | ' + a.title;
   var boton = a.role === 'padre' ? 'Ver en el campus' : 'Abrir mi panel';
@@ -45,6 +50,28 @@ function kiruEnviarCorreoAvisoClase(a) {
     '<p style="font-size:12px;color:#64748B">Entra con tu usuario y PIN. Este aviso también aparece en la campanita del campus (arriba a la derecha).</p>' +
     '<p>Un saludo,<br>Equipo Método Kiru</p>';
   var texto = 'Hola' + (pila ? ' ' + pila : '') + ':\n\n' + a.title + '\n' + a.body + '\n\nEntra en ' + a.url + ' con tu usuario y PIN.\n\nEquipo Método Kiru';
+  GmailApp.sendEmail(a.email, asunto, texto, { htmlBody: html, name: KIRU_REMITENTE });
+}
+
+function kiruEnviarResumenAvisos(a) {
+  var pila = String(a.name || '').trim().split(/\s+/)[0] || '';
+  var n = a.items.length;
+  var asunto = 'Método Kiru | Tu resumen de hoy (' + n + (n === 1 ? ' aviso)' : ' avisos)');
+  var filas = a.items.map(function (i) {
+    return '<div style="margin:0 0 12px;padding:14px 16px;border-radius:12px;background:#F3EFE6">' +
+      '<p style="margin:0 0 6px"><strong>' + kiruEscapar(i.title) + '</strong></p>' +
+      (i.body ? '<p style="margin:0 0 8px">' + kiruEscapar(i.body) + '</p>' : '') +
+      '<p style="margin:0"><a href="' + kiruEscapar(i.url) + '" style="color:#242321;font-weight:bold">Ver en el campus</a></p></div>';
+  }).join('');
+  var html = '<p>Hola' + (pila ? ' ' + kiruEscapar(pila) : '') + ':</p>' +
+    '<p>' + (n === 1 ? 'Esto es lo que tienes pendiente hoy en el campus:' : 'Estas son las ' + n + ' cosas que tienes pendientes hoy en el campus:') + '</p>' +
+    filas +
+    '<p style="margin:20px 0"><a href="' + kiruEscapar(a.url) + '" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#242321;color:#FFFFFF;text-decoration:none;font-weight:bold">Abrir mi panel</a></p>' +
+    '<p style="font-size:12px;color:#64748B">Te juntamos los avisos que no son urgentes en un solo correo al día. Lo urgente (cambios de clase, recuperaciones confirmadas) te sigue llegando al momento. Todo aparece también en la campanita del campus.</p>' +
+    '<p>Un saludo,<br>Equipo Método Kiru</p>';
+  var texto = 'Hola' + (pila ? ' ' + pila : '') + ':\n\n' + a.items.map(function (i) {
+    return '- ' + i.title + (i.body ? '\n  ' + i.body : '') + '\n  ' + i.url;
+  }).join('\n\n') + '\n\nEquipo Método Kiru';
   GmailApp.sendEmail(a.email, asunto, texto, { htmlBody: html, name: KIRU_REMITENTE });
 }
 

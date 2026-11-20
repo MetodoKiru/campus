@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/server/classes";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
+import { loadDigestSettings, withoutDigestNotices } from "@/lib/server/avisos-resumen";
 import { callWhen } from "@/lib/llamadas";
 import { firstName, formLink, loadCallSettings, planTimes, planWhatsapp, runCallsTask, teamFormUrl, whatsappLink, zoomOf } from "@/lib/server/llamadas";
 
@@ -26,12 +27,14 @@ export async function POST(request: Request) {
 
   const task = await runCallsTask(admin).catch(() => null);
   const since = new Date(Date.now() - PENDING_DAYS * 86_400_000).toISOString();
-  const { data: pending, error } = await admin.from("kiru_notifications")
+  const { data: found, error } = await admin.from("kiru_notifications")
     .select("id,recipient_id,student_id,title,body,event_key")
     .eq("email_status", "pendiente").eq("kind", "llamada_familia").gt("created_at", since)
-    .order("created_at").limit(MAX_PER_CALL);
+    .order("created_at").limit(MAX_PER_CALL * 4);
   if (error) return NextResponse.json({ error: "No se pudieron leer los avisos." }, { status: 500 });
-  if (!pending?.length) return NextResponse.json({ ok: true, task, avisos: [] });
+  // Mentores y coordinadores: van en el resumen diario de /api/avisos/clases.
+  const pending = (await withoutDigestNotices(admin, await loadDigestSettings(admin), found ?? [], "llamada_familia")).slice(0, MAX_PER_CALL);
+  if (!pending.length) return NextResponse.json({ ok: true, task, avisos: [] });
 
   const { data: claimed, error: claimError } = await admin.from("kiru_notifications")
     .update({ email_status: "enviado", email_sent_at: new Date().toISOString() })

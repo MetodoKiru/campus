@@ -191,9 +191,11 @@ reset role;
 select pg_temp.expect('se pide al mentor (una vez aunque la hoja pregunte dos)', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar' and recipient_id = pg_temp.i('M')), 1);
 select kiru_private.availability_checks_daily('2026-12-02');
 select kiru_private.availability_checks_daily('2026-12-03');
-select pg_temp.expect('recordatorio a 11 días (no a 10)', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 2);
+select pg_temp.expect('sin recordatorio a 11 ni a 10 días', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 1);
 select kiru_private.availability_checks_daily('2026-12-04');
-select pg_temp.expect('recordatorio a 9 días', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 3);
+select pg_temp.expect('un único recordatorio, a 9 días', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 2);
+select kiru_private.availability_checks_daily('2026-12-05');
+select pg_temp.expect('nada más a 8 días', (select count(*) from kiru_notifications where kind = 'disponibilidad_confirmar'), 2);
 select kiru_private.availability_checks_daily('2026-12-06');
 select pg_temp.expect('el día del correo sin confirmar: falta', (select count(*) from kiru_availability_checks where missed_at is not null), 1);
 select pg_temp.expect('administración recibe el aviso de la falta', (select count(*) from kiru_notifications where kind = 'disponibilidad_falta' and recipient_id = pg_temp.i('A')), 1);
@@ -204,7 +206,7 @@ select pg_temp.expect_text('el correo a la familia se aplaza',
 reset role;
 select kiru_private.availability_checks_daily('2026-12-07');
 select kiru_private.availability_checks_daily('2026-12-07');
-select pg_temp.expect('urgente cada día (uno por día)', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 2);
+select pg_temp.expect('un solo urgente por renovación', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 1);
 select pg_temp.expect('la falta se avisa una sola vez', (select count(*) from kiru_notifications where kind = 'disponibilidad_falta'), 1);
 set local role service_role;
 select pg_temp.expect_text('4 días antes sale igualmente, sin subir',
@@ -215,7 +217,8 @@ select kiru_renewal_publish('{"email":"p@t","alumno":"Alondra","fin":"2026-12-13
 reset role;
 select pg_temp.expect('la renovación no ofrece subir', (select count(*) from kiru_renewals where period_end = '2026-12-13' and up_label is null), 1);
 select kiru_private.availability_checks_daily('2026-12-10');
-select pg_temp.expect('ya no hay más urgentes', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 2);
+select pg_temp.expect('ya no hay más urgentes', (select count(*) from kiru_notifications where kind = 'disponibilidad_urgente'), 1);
+select pg_temp.expect('como mucho 3 correos al mentor por esta renovación', (select count(*) from kiru_notifications where kind in ('disponibilidad_confirmar','disponibilidad_urgente') and recipient_id = pg_temp.i('M') and event_key like 'dispcheck:%'), 3);
 
 -- 10. El mentor confirma a tiempo: la familia recibe el correo con «subir».
 set local role service_role;
