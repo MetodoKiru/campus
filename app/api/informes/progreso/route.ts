@@ -177,6 +177,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, reportId: report.id });
   }
 
+  if (action === "solicitar") {
+    // El coordinador pide a administración que reabra un informe fuera del plazo de 10 días.
+    if (typeof body.studentId !== "string" || !UUID_RE.test(body.studentId)
+      || typeof body.periodStart !== "string" || !DATE_RE.test(body.periodStart)
+      || typeof body.periodEnd !== "string" || !DATE_RE.test(body.periodEnd)) {
+      return NextResponse.json({ error: "Solicitud no válida." }, { status: 400 });
+    }
+    if (!(await studentScope(auth, body.studentId))) return NextResponse.json({ error: "No tienes acceso a este alumno." }, { status: 403 });
+    const [{ data: student }, { data: me }, { data: admins }] = await Promise.all([
+      auth.admin.from("profiles").select("full_name").eq("id", body.studentId).maybeSingle(),
+      auth.admin.from("profiles").select("full_name").eq("id", auth.user.id).maybeSingle(),
+      auth.admin.from("profiles").select("id").eq("role", "admin").eq("is_active", true),
+    ]);
+    const fmtDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+    const title = `Reapertura de informe: ${student?.full_name ?? "alumno"}`;
+    const detail = `${me?.full_name ?? "Un coordinador"} pide reabrir el informe del ${fmtDay(body.periodStart)} al ${fmtDay(body.periodEnd)}, fuera del plazo de ${GRACE_DAYS} días. Puedes prepararlo o editarlo tú desde Informes de progreso.`;
+    const eventKey = `informe_reapertura:${body.studentId}:${body.periodStart}:${body.periodEnd}`;
+    const rows = (admins ?? []).map((a) => ({
+      recipient_id: a.id, student_id: body.studentId as string, session_id: null, request_id: null,
+      kind: "informe_progreso" as const, title: title.slice(0, 200), body: detail.slice(0, 1000),
+      event_key: eventKey, email_status: "pendiente" as const,
+    }));
+    if (rows.length) await auth.admin.from("kiru_notifications").upsert(rows, { onConflict: "recipient_id,event_key", ignoreDuplicates: true });
+    return NextResponse.json({ ok: true, notified: rows.length });
+  }
+
   if (action !== "guardar" || typeof body.studentId !== "string" || !UUID_RE.test(body.studentId)
     || typeof body.periodStart !== "string" || !DATE_RE.test(body.periodStart)
     || typeof body.periodEnd !== "string" || !DATE_RE.test(body.periodEnd)) {
