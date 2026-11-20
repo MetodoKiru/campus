@@ -235,8 +235,8 @@ select pg_temp.expect_text('B4 no aplica sin recuperaciones', (select x #>> '{B4
 
 -- 9. El ensayo junta todo y sigue siendo solo de Administración ------------------------------------
 select pg_temp.as_user('A');
-select pg_temp.expect('el ensayo junta los 10 indicadores con datos (B4 completo sustituye al de la fase 1)',
-  (select count(*) from jsonb_object_keys((kiru_perf_preview(current_date - 120, current_date + 1) -> 'mentors' -> 0 -> 'values'))), 10);
+select pg_temp.expect('el ensayo junta los 12 indicadores con datos (B4 completo sustituye al de la fase 1)',
+  (select count(*) from jsonb_object_keys((kiru_perf_preview(current_date - 120, current_date + 1) -> 'mentors' -> 0 -> 'values'))), 12);
 select pg_temp.as_user('C');
 select pg_temp.expect_denied('el coordinador sigue sin ver puntuaciones', $$select kiru_perf_preview(current_date - 30, current_date)$$);
 reset role;

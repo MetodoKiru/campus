@@ -40,6 +40,8 @@ function PeriodCard({ view, student, notify, reload }: {
   const [saving, setSaving] = useState(false);
   const open = phase === "abierto" || phase === "excepciones" || phase === "planificacion";
   const kept = Object.values(wants).filter(Boolean).length;
+  const cannot = student.classes.filter((c) => c.mentorCannot);
+  const mentorName = cannot[0]?.mentorFirstName || "Vuestro mentor";
 
   const save = async () => {
     setSaving(true);
@@ -96,6 +98,14 @@ function PeriodCard({ view, student, notify, reload }: {
         <p className={`${subtle} text-xs`}>Hemos recibido vuestra respuesta el {new Date(student.answer.answeredAt).toLocaleDateString("es-ES")}. Os avisaremos cuando el plan esté revisado.</p>
       ) : null}
 
+      {!student.plan && cannot.length > 0 && (
+        <div className="rounded-xl border border-[#E4C9A8] bg-[#FBF3E8] p-3 text-xs text-[#45433F] space-y-1">
+          <p><strong>{mentorName} no podrá dar {cannot.length === 1 ? "esta clase" : `estas ${cannot.length} clases`}</strong>:{" "}
+            {cannot.map((c) => `${dateLabel(c.date)} a las ${c.start}`).join(", ")}.</p>
+          <p>Si queréis mantenerlas, os ofrecemos un mentor sustituto de Método Kiru: dejad marcado «Sí» y la casilla de sustituto. Si preferís no hacerlas, marcad «No» y la mensualidad se ajusta de forma proporcional. Os confirmaremos el plan antes de cobrar nada.</p>
+        </div>
+      )}
+
       {open && (
         <div className="space-y-3">
           {student.classes.length ? (
@@ -106,7 +116,9 @@ function PeriodCard({ view, student, notify, reload }: {
                   const k = classKey(c.date, c.start);
                   return (
                     <li key={k} className={`${subtle} flex items-center justify-between gap-2 text-xs`}>
-                      <span><span className="capitalize">{dateLabel(c.date)}</span> · {c.start}–{c.end}</span>
+                      <span><span className="capitalize">{dateLabel(c.date)}</span> · {c.start}–{c.end}
+                        {c.mentorCannot && <span className="block text-[11px] text-[#9A5B1E]">{mentorName} no puede · {wants[k] ? (acceptsSubstitute ? "con sustituto" : "marcad la casilla de sustituto") : "no se hará"}</span>}
+                      </span>
                       <span className="flex gap-1">
                         <button type="button" onClick={() => setWants({ ...wants, [k]: true })} className={`rounded-lg px-2 py-1 ${wants[k] ? "bg-[#242321] text-white" : "border border-[#E7E3DC]"}`}>Sí</button>
                         <button type="button" onClick={() => setWants({ ...wants, [k]: false })} className={`rounded-lg px-2 py-1 ${!wants[k] ? "bg-[#242321] text-white" : "border border-[#E7E3DC]"}`}>No</button>

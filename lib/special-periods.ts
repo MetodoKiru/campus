@@ -197,7 +197,8 @@ export type FamilyPeriodView = {
   students: {
     id: string;
     name: string;
-    classes: ClassDate[];
+    /** mentorCannot: el mentor habitual ha dicho en su formulario que no puede dar esa clase. */
+    classes: (ClassDate & { mentorCannot?: boolean; mentorFirstName?: string })[];
     answer: { choices: FamilyChoice[]; acceptsSubstitute: boolean; extraSessions: number; comments: string; late: boolean; answeredAt: string } | null;
     /** Solo cuando administración lo ha aprobado. */
     plan: {

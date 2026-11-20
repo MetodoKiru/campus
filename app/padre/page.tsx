@@ -17,6 +17,7 @@ import FamilyRewards from "@/components/skillcoins/FamilyRewards";
 import FamilyClasses from "@/components/classes/FamilyClasses";
 import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
 import FamilyEvaluations from "@/components/evaluations/FamilyEvaluations";
+import FamilyCalls from "@/components/llamadas/FamilyCalls";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -25,6 +26,8 @@ import RenewalCard, { fetchOpenRenewals, needsAnswer } from "@/components/renova
 import PublishedProgressReports from "@/components/reports/PublishedProgressReports";
 import FamilySessionCalendar from "@/components/family/FamilySessionCalendar";
 import FamilyScheduleChange from "@/components/horarios/FamilyScheduleChange";
+import FamilyOnboarding from "@/components/family/FamilyOnboarding";
+import FamilyGuide, { type FamilyTab } from "@/components/family/FamilyGuide";
 
 interface Child {
   id: string;
@@ -370,6 +373,9 @@ export default function PadrePage() {
             </p>
           </div>
 
+          <FamilyOnboarding kids={childrenList.map((c) => ({ id: c.id, name: c.name }))} notify={(text, type) => setClassMsg({ text, type })} />
+          {classMsg && <Toast text={classMsg.text} type={classMsg.type} onClose={() => setClassMsg(null)} />}
+
           <div className="space-y-3 pt-2">
             {childrenList.length === 0 ? (
               <div className="rounded-2xl border border-[#E7E3DC] bg-white p-6 text-center space-y-2">
@@ -403,6 +409,10 @@ export default function PadrePage() {
               </div>
             ))}
           </div>
+
+          {childrenList.length > 0 && (
+            <FamilyGuide onGo={childrenList.length === 1 ? (tab: FamilyTab) => { setSelectedChild(childrenList[0]); setActiveTab(tab); } : undefined} />
+          )}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-4 space-y-5">
@@ -510,7 +520,9 @@ export default function PadrePage() {
 
           {activeTab === "inicio" && (
             <div className="space-y-4">
+              <FamilyOnboarding kids={[{ id: selectedChild.id, name: selectedChild.name }]} notify={(text, type) => setClassMsg({ text, type })} />
               <FamilyEvaluations studentId={selectedChild.id} onOpenReports={() => setActiveTab("informes")} />
+              <FamilyCalls studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <FamilySpecialPeriod studentId={selectedChild.id} notify={(text, type) => setClassMsg({ text, type })} />
               <RenewalCard studentId={selectedChild.id} studentName={selectedChild.name} onChanged={() => { void reloadRenewals(); setScheduleRefresh((n) => n + 1); }} />
               <FamilyScheduleChange studentId={selectedChild.id} studentName={selectedChild.name} refreshKey={scheduleRefresh} />

@@ -34,6 +34,7 @@ import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { MENTOR_SECTIONS, type MentorSection, type StepId } from "@/lib/mentor-steps";
 import MentorSpecialPeriod from "@/components/special-periods/MentorSpecialPeriod";
 import MentorEvaluations from "@/components/evaluations/MentorEvaluations";
+import MentorCalls from "@/components/llamadas/MentorCalls";
 import MentorAvailability from "@/components/horarios/MentorAvailability";
 import MentorScheduleChanges from "@/components/horarios/MentorScheduleChanges";
 
@@ -287,6 +288,7 @@ export default function MentorPage() {
         )}
         <MentorScheduleChanges notify={setSavedMsg} onOpenAvailability={() => setMenuStep("disponibilidad")} />
         <MentorEvaluations notify={setSavedMsg} />
+        <MentorCalls />
         <MentorSpecialPeriod notify={setSavedMsg} />
         <MentorClasses notify={setSavedMsg} />
         <MentorMissingSc rows={missingSc} />

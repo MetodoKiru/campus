@@ -28,6 +28,8 @@ export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
 const SCHEDULE_EMAIL_KINDS: ScheduleNotificationKind[] = [
   "horario_elegir", "horario_confirmar", "horario_confirmado", "horario_otro", "disponibilidad_actualizar",
   "disponibilidad_confirmar", "disponibilidad_urgente", "disponibilidad_falta",
+  // Un mentor ha enviado su disponibilidad: resumen a su coordinador.
+  "disponibilidad_enviada",
 ];
 
 // Si la revisión ya avanzó, el correo sobra.
@@ -108,7 +110,8 @@ function panelUrl(role: string, n: { kind: string; review_id: string | null; war
   const url = new URL(supervision && role === "admin" ? "/coordinador" : PANEL[role], base);
   if (n.kind === "periodo_especial") url.searchParams.set(role === "mentor" ? "seccion" : "tab", "vacaciones");
   if (n.kind.startsWith("disponibilidad_") && role === "mentor") url.searchParams.set("seccion", "disponibilidad");
-  if (n.kind === "disponibilidad_falta" && role === "admin") url.searchParams.set("seccion", "horarios");
+  if ((n.kind === "disponibilidad_falta" || n.kind === "disponibilidad_enviada") && role === "admin") url.searchParams.set("seccion", "horarios");
+  if (n.kind === "disponibilidad_enviada" && role === "coordinador") url.searchParams.set("tab", "disponibilidad");
   const evidence = n.kind.startsWith("evidencia_");
   if (supervision && evidence) {
     url.searchParams.set(role === "mentor" ? "seccion" : "tab", role === "mentor" ? "evidencias" : "seguimiento");

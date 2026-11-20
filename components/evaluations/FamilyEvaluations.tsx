@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Star } from "lucide-react";
 import { card, subtle } from "@/components/classes/shared";
 import { shortEvalDate, type FamilyEvaluationView } from "@/lib/evaluations";
 import { useEvaluations } from "./api";
@@ -8,15 +8,32 @@ import { useEvaluations } from "./api";
 /**
  * Tarjeta del panel de padres cuando toca la evaluación (inicial o trimestral) de
  * un hijo/a: explica qué es, para qué sirve y lleva al formulario. Desaparece sola
- * cuando llega la respuesta.
+ * cuando llega la respuesta. En las trimestrales, si falta valorar al mentor, se
+ * queda hasta 30 días como «Valorar a …».
  */
+const joinNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}` : names[0] ?? "su mentor/a");
+
 export default function FamilyEvaluations({ studentId, onOpenReports }: { studentId: string; onOpenReports?: () => void }) {
   const { data } = useEvaluations<{ evaluations: FamilyEvaluationView[] }>();
-  const items = (data?.evaluations ?? []).filter((e) => e.studentId === studentId);
+  // La evaluación inicial sin hacer la pide el paso 2 de «Vuestros primeros pasos» (FamilyOnboarding).
+  const items = (data?.evaluations ?? []).filter((e) => e.studentId === studentId && !(e.cycle === 0 && e.status !== "completada"));
   if (!items.length) return null;
   return (
     <div className="space-y-4">
-      {items.map((e) => (
+      {items.map((e) => e.status === "completada" ? (
+        <section key={e.id} className={`${card} space-y-3 border-2 border-[#E4D8C5]`} aria-label="Valoración pendiente">
+          <h3 className="flex items-center gap-2 font-serif text-lg font-bold text-[#292825]">
+            <Star className="h-5 w-5" /> ¿Qué tal con {joinNames(e.rateMentors)}?
+          </h3>
+          <p className="text-xs leading-relaxed text-[#45433F]">
+            Gracias por la evaluación de {e.studentName}. Os falta solo valorar a su mentor/a: puntualidad, comunicación, efectividad, trato y profesionalidad. Es 1 minuto y es confidencial.
+          </p>
+          <a href={e.link} target="_blank" rel="noopener noreferrer"
+            className="inline-block rounded-xl bg-[#242321] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3A3835]">
+            Valorar a {joinNames(e.rateMentors)}
+          </a>
+        </section>
+      ) : (
         <section key={e.id} className={`${card} space-y-3 border-2 border-[#E4D8C5]`} aria-label="Evaluación pendiente">
           <h3 className="flex items-center gap-2 font-serif text-lg font-bold text-[#292825]">
             <ClipboardList className="h-5 w-5" /> {e.cycle === 0 ? "Evaluación inicial" : "Evaluación trimestral"} de {e.studentName}
@@ -31,6 +48,11 @@ export default function FamilyEvaluations({ studentId, onOpenReports }: { studen
             <p><strong>¿Para qué sirve?</strong> Vuestra mirada se suma a lo que ve su mentor/a en las sesiones y a la evaluación en papel que hace {e.studentName}. Con las tres preparamos su informe y los objetivos de los próximos 3 meses.</p>
             <p>No es un examen: no hay respuestas buenas ni malas.</p>
           </div>
+          {e.rateMentors.length > 0 && (
+            <p className={`${subtle} text-xs text-[#45433F]`}>
+              <strong>Antes de empezar</strong> os pediremos que valoréis a {joinNames(e.rateMentors)} (1 minuto, confidencial): puntualidad, comunicación, efectividad, trato y profesionalidad.
+            </p>
+          )}
           {e.holiday && (
             <p className={`${subtle} text-xs text-[#45433F]`}>
               Esta evaluación coincide con <strong>{e.holiday}</strong>. Si ya sabéis vuestros planes, contestad también el formulario de {e.holiday} (en esta misma página) para que podamos organizarnos.

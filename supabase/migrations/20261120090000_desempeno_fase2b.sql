@@ -32,6 +32,9 @@ ALTER TABLE public.kiru_notifications ADD CONSTRAINT kiru_notifications_kind_che
   'horario_elegir', 'horario_confirmar', 'horario_confirmado', 'horario_otro', 'disponibilidad_actualizar',
   'disponibilidad_confirmar', 'disponibilidad_urgente', 'disponibilidad_falta',
   'registro_error', 'registro_error_respuesta',
+  'disponibilidad_enviada',
+  'llamada_familia',
+  'informacion_familia',
   'evidencia_entregada', 'evidencia_aclaracion', 'evidencia_validada', 'evidencia_recordatorio', 'evidencia_revision',
   'exencion_propuesta', 'exencion_resuelta'
 ));
@@ -956,8 +959,9 @@ BEGIN
   FOR m IN SELECT p.id, p.full_name FROM public.profiles p WHERE p.role = 'mentor' ORDER BY p.full_name LOOP
     v_values := kiru_private.perf_indicator_values(m.id, p_from, p_to, p_rules)
              || kiru_private.perf_indicator_values_2a(m.id, p_from, p_to, p_rules)
+             || kiru_private.perf_indicator_values_d2(m.id, p_from, p_to, p_rules)
+             || kiru_private.perf_indicator_values_d1(m.id, p_from, p_to, p_rules)
              || kiru_private.perf_indicator_values_2b(m.id, p_from, p_to, p_rules);
-    -- Las incidencias llegan en la fase 5: de momento ninguna.
     v_out := v_out || jsonb_build_array(jsonb_build_object(
       'mentor_id', m.id, 'mentor_name', m.full_name, 'values', v_values,
       'score', kiru_private.perf_assemble(v_values, p_rules, '{"leve":0,"grave":0,"muy_grave":0}'::jsonb,

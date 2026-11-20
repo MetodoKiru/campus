@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { errorText } from "@/lib/skillcoins";
-import type { AvailabilityCheckRow, ScheduleChangeRow, WeeklySlot } from "@/lib/database.types";
+import type { AvailabilityCheckRow, ScheduleChangeRow } from "@/lib/database.types";
 import { btnDark, btnLight, card, subtle } from "@/components/classes/shared";
-import { CHANGE_STATUS_LABEL, dayName, longDate, slotsText } from "@/lib/horarios";
-import MentorAvailability from "./MentorAvailability";
+import { CHANGE_STATUS_LABEL, longDate, slotsText } from "@/lib/horarios";
+import AvailabilityOverview from "./AvailabilityOverview";
 
-type Mentor = { id: string; name: string; slots: WeeklySlot[]; updatedAt: string | null; stale: boolean };
+type Mentor = { id: string; name: string };
 
 /**
  * Administración: cambios de intensidad en curso (quién tiene que hacer qué),
@@ -20,29 +20,22 @@ export default function AdminScheduleChanges({ notify }: { notify: (text: string
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [checks, setChecks] = useState<AvailabilityCheckRow[]>([]);
-  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [{ data: rows }, { data: people }, { data: avail }, { data: chk }] = await Promise.all([
+    const [{ data: rows }, { data: people }, { data: chk }] = await Promise.all([
       supabase.from("kiru_schedule_changes").select("*").or(`status.in.(elegir_familia,confirmar_mentor,confirmado),updated_at.gte.${since}`)
         .order("created_at", { ascending: false }).limit(100),
       supabase.from("profiles").select("id,full_name,role,is_active").in("role", ["mentor", "alumno"]),
-      supabase.from("kiru_mentor_class_availability").select("mentor_id,slots,updated_at"),
       supabase.from("kiru_availability_checks").select("*").gte("created_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
         .order("period_end", { ascending: false }).limit(100),
     ]);
     setChecks((chk ?? []) as AvailabilityCheckRow[]);
     setChanges((rows ?? []) as ScheduleChangeRow[]);
     setNames(new Map((people ?? []).map((p) => [p.id, p.full_name || "—"])));
-    const byMentor = new Map((avail ?? []).map((a) => [a.mentor_id, a]));
-    setMentors((people ?? []).filter((p) => p.role === "mentor" && p.is_active).map((p) => {
-      const a = byMentor.get(p.id);
-      const slots = (a?.slots ?? []) as WeeklySlot[];
-      const stale = !a || !slots.length || Date.now() - new Date(a.updated_at).getTime() > 30 * 86_400_000;
-      return { id: p.id, name: p.full_name || "—", slots, updatedAt: a?.updated_at ?? null, stale };
-    }).sort((a, b) => a.name.localeCompare(b.name)));
+    setMentors((people ?? []).filter((p) => p.role === "mentor" && p.is_active)
+      .map((p) => ({ id: p.id, name: p.full_name || "—" })).sort((a, b) => a.name.localeCompare(b.name, "es")));
   }, []);
 
   useEffect(() => {
@@ -128,32 +121,7 @@ export default function AdminScheduleChanges({ notify }: { notify: (text: string
         )}
       </section>
 
-      <section className={`${card} space-y-3`}>
-        <h2 className="font-serif text-lg font-bold text-[#292825]">Disponibilidad de los mentores</h2>
-        <p className="text-xs text-[#6D6962]">La marca cada mentor en su panel («Mi disponibilidad para clases»), en franjas de 30 minutos, sin viernes y hasta las 20:30. El día 1 de cada mes se avisa a quien no la haya revisado en 30 días.</p>
-        <ul className="space-y-2">
-          {mentors.map((m) => {
-            const stale = m.stale;
-            return (
-              <li key={m.id} className={`${subtle} space-y-1 text-xs text-[#45433F]`}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="text-sm text-[#292825]">{m.name}</strong>
-                  <span className={stale ? "text-amber-700" : "text-emerald-700"}>
-                    {m.slots.length && m.updatedAt ? `Actualizada el ${new Date(m.updatedAt).toLocaleDateString("es-ES")}` : "Sin marcar"}
-                  </span>
-                </div>
-                {m.slots.length > 0 && <p>{m.slots.map((s) => `${dayName(s.weekday).slice(0, 3).toLowerCase()} ${s.start}–${s.end}`).join(" · ")}</p>}
-                <button type="button" className={btnLight} onClick={() => setEditing(editing === m.id ? null : m.id)}>
-                  {editing === m.id ? "Cerrar" : "Ver o editar"}
-                </button>
-                {editing === m.id && (
-                  <MentorAvailability mentorId={m.id} notify={(t) => { notify(t, /^No /.test(t) ? "error" : "success"); void load(); }} />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      <AvailabilityOverview admin mentors={mentors} notify={notify} />
     </div>
   );
 }
