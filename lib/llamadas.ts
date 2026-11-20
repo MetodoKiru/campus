@@ -4,6 +4,8 @@
 // teléfono; mejor con los dos padres; misma hora cada semana. Ciclo de 4 semanas desde la
 // semana de la primera clase: semanas 1 y 4 con mentor, 2 y 3 solo familia + coordinador.
 
+import { normalizeSpanishPhone } from "@/lib/phone";
+
 export const CALL_MINUTES = 20;
 /** Las horas posibles van de media en media hora (así queda margen entre llamadas). */
 export const STEP_MINUTES = 30;
@@ -180,7 +182,7 @@ export function parseAvailability(pretty: string, raw: Record<string, unknown>, 
     slots,
     bothParentsDays,
     medium: /tel[eé]fono/i.test(p.medio ?? asText(rawValue(raw, /^q\d+_comoPreferis/i))) ? "telefono" : "zoom",
-    phone: phoneText.replace(/[^\d+ ]/g, "").trim().slice(0, 40),
+    phone: normalizeSpanishPhone(phoneText),
     commitments: (p.compromisos ?? "").trim().replace(/^ninguno\.?$/i, "").slice(0, 1500),
     code,
   };
@@ -343,13 +345,31 @@ export type CallView = {
   needsRating: boolean; ended: boolean; zoomUrl: string; phone: string;
 };
 
+/** Lo que respondió una persona (familia, mentor o coordinador) en su formulario de disponibilidad. */
+export type PersonAvailability = {
+  name: string; answeredAt: string | null; days: { d: number; ranges: string[] }[];
+  bothParentsDays?: number[]; medium?: CallMedium; phone?: string; note?: string;
+};
+export type PlanResponses = { family: PersonAvailability | null; coordinator: PersonAvailability | null; mentor: PersonAvailability | null };
+
 export type PlanView = {
   studentId: string; studentName: string; mentorId: string | null; mentorName: string; coordinatorId: string | null; coordinatorName: string;
   status: PlanStatus; weekday: number | null; start: string | null; mentorWeekday: number | null; mentorStart: string | null;
   medium: CallMedium; bothParents: boolean; missing: string[]; options: MatchOption[]; anchorMonday: string | null; startOverride: string | null;
   confirmedVia: "auto" | "manual" | null; familyFormUrl: string; familyAnswered: string | null; commitments: string; phone: string;
-  whatsappText: string; inScope: boolean;
+  whatsappText: string; inScope: boolean; responses: PlanResponses;
 };
+
+/** Agrupa las franjas por día, ya ordenadas, para enseñar lo que respondió cada persona. */
+export function availabilityDays(slots: Slot[]): { d: number; ranges: string[] }[] {
+  const byDay = new Map<number, string[]>();
+  for (const s of [...slots].sort((a, b) => a.d - b.d || a.from - b.from)) {
+    const list = byDay.get(s.d) ?? [];
+    list.push(`${fromMinutes(s.from)}–${fromMinutes(s.to)}`);
+    byDay.set(s.d, list);
+  }
+  return [...byDay.entries()].sort(([a], [b]) => a - b).map(([d, ranges]) => ({ d, ranges }));
+}
 
 export type StaffCallsPayload = {
   role: "admin" | "coordinador";

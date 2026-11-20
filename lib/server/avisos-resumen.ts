@@ -19,6 +19,8 @@ export const SUPERVISION_EMAIL_KINDS: SupervisionNotificationKind[] = [
   "registro_error", "registro_error_respuesta",
   // Evidencias bimestrales (desempeño, fase 2b). La entrega, la validación y las exenciones van solo a la campanita.
   "evidencia_aclaracion", "evidencia_recordatorio", "evidencia_revision",
+  // Recordatorios a Coordinación: fichas de Cálculalo y evidencias sin revisar.
+  "coordinacion_pendiente",
 ];
 
 // Cambio de intensidad: elegir nuevo horario, confirmarlo y disponibilidad del mentor.
@@ -213,7 +215,7 @@ export function panelUrl(role: string, n: { kind: string; review_id: string | nu
   if (n.kind === "disponibilidad_enviada" && role === "coordinador") url.searchParams.set("tab", "disponibilidad");
   if (n.kind === "evaluacion_trimestral" && role === "coordinador") url.searchParams.set("tab", "evaluaciones");
   if (n.kind === "llamada_familia" && role === "coordinador") url.searchParams.set("tab", "llamadas");
-  const evidence = n.kind.startsWith("evidencia_");
+  const evidence = n.kind.startsWith("evidencia_") || n.kind === "coordinacion_pendiente";
   if (supervision && evidence) {
     url.searchParams.set(role === "mentor" ? "seccion" : "tab", role === "mentor" ? "evidencias" : "seguimiento");
   } else if (supervision) {

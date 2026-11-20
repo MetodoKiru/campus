@@ -145,15 +145,15 @@ export default function FormadorPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F6F3] text-[#343330] pb-16 font-sans">
-      <header className="bg-white border-b border-[#E7E3DC] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="bg-[#1F1C18] border-b border-[#332E28] px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
-          <GraduationCap className="w-6 h-6 text-emerald-800" />
+          <GraduationCap className="w-6 h-6 text-[#C9A26A]" />
           <div>
-            <h1 className="font-serif text-xl sm:text-2xl text-[#292825] font-bold">Panel del Formador</h1>
-            <p className="text-[11px] sm:text-xs text-slate-500">Hola, {name}. Incorporación de mentores nuevos</p>
+            <h1 className="font-serif text-xl sm:text-2xl text-[#F4F1EC] font-bold">Panel del Formador</h1>
+            <p className="text-[11px] sm:text-xs text-[#B9B2A6]">Hola, {name}. Incorporación de mentores nuevos</p>
           </div>
         </div>
-        <button onClick={logout} title="Cerrar sesión" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+        <button onClick={logout} title="Cerrar sesión" className="inline-flex items-center gap-2 rounded-xl border border-[#4A443C] px-3 py-2 text-xs font-semibold text-[#E5DFD5] hover:bg-[#2B2722]">
           <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar sesión</span>
         </button>
       </header>

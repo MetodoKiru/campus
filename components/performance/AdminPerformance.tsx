@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminExemptions from "@/components/performance/AdminExemptions";
+import AdminCoordinatorCommitments from "@/components/performance/AdminCoordinatorCommitments";
 import {
   CATEGORY_LABEL, DETAIL_LABEL, DIMENSION_LABEL, KIND_LABEL, MODE_LABEL,
   errorText, fmtDate, fmtNumber, isoDay, statusText,
@@ -130,6 +131,7 @@ export default function AdminPerformance({ notify }: { notify?: (msg: string) =>
           </section>
 
           <AdminExemptions notify={notify} />
+          <AdminCoordinatorCommitments />
 
           {rules && <RulesCard version={rules.version} note={rules.note} rules={rules.rules} indicators={indicators} />}
 

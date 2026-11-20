@@ -332,7 +332,7 @@ export type SupervisionNotificationKind =
   | "justificacion_recordatorio" | "justificacion_por_valorar" | "aviso_metodologico" | "aviso_seguimiento"
   | "registro_error" | "registro_error_respuesta"
   | "evidencia_entregada" | "evidencia_aclaracion" | "evidencia_validada" | "evidencia_recordatorio" | "evidencia_revision"
-  | "exencion_propuesta" | "exencion_resuelta";
+  | "exencion_propuesta" | "exencion_resuelta" | "coordinacion_pendiente";
 
 // Supervisión metodológica (migración 20261109110000): solicitudes de justificación
 // de una nota de SkillCoins, sus mensajes y evidencias, y avisos metodológicos.
@@ -474,6 +474,9 @@ export type LogErrorMarkRow = {
 // Desempeño de mentores, fase 2b (migración 20261117090000).
 export type MaterialEvidenceKind = "descubrirme" | "mision";
 export type MaterialEvidenceStatus = "pendiente" | "entregada" | "validada" | "aclaracion" | "exenta";
+/** Compromiso aceptado por el equipo (guía del coordinador). */
+export type RoleCommitmentRow = { user_id: string; document: "guia_coordinador"; version: number; accepted_at: string };
+
 export type MaterialEvidenceRow = {
   id: string;
   mentor_id: string;
@@ -1060,6 +1063,7 @@ export type Database = {
       kiru_calculalo_checks: ReadOnlyTable<CalculaloCheckRow>;
       kiru_log_error_marks: ReadOnlyTable<LogErrorMarkRow>;
       kiru_material_evidence: ReadOnlyTable<MaterialEvidenceRow>;
+      kiru_role_commitments: ReadOnlyTable<RoleCommitmentRow>;
       kiru_material_evidence_messages: ReadOnlyTable<MaterialEvidenceMessageRow>;
       kiru_material_evidence_files: ReadOnlyTable<MaterialEvidenceFileRow>;
       kiru_evidence_exemptions: ReadOnlyTable<EvidenceExemptionRow>;
@@ -1220,6 +1224,7 @@ type PerformanceFunctions = {
   kiru_evidence_exemption_propose: { Args: { p_evidence: string; p_cause: EvidenceExemptionCause; p_note: string }; Returns: string };
   kiru_evidence_exemption_decide: { Args: { p_ids: string[]; p_approve: boolean; p_note?: string }; Returns: number };
   kiru_evidencias_tarea_diaria: { Args: Record<string, never>; Returns: Json };
+  kiru_commitment_accept: { Args: { p_document: string; p_version: number }; Returns: string };
 };
 
 /** Asignaturas, recursos, preguntas y tareas con entrega (18/11/2026). */
