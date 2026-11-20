@@ -112,19 +112,31 @@ export async function GET(request: Request) {
   if (profiles.error || renewals.error || reports.error) return NextResponse.json({ error: "No se pudo cargar la información de informes." }, { status: 500 });
   const nameById = new Map((profiles.data ?? []).map((row) => [row.id, row.full_name]));
   const reportRows = reports.data ?? [];
-  const seen = new Set<string>();
   const renewalRows = renewals.data ?? [];
-  const students = renewalRows.filter((renewal) => renewal.closed_at === null).flatMap((renewal) => {
-    if (seen.has(renewal.student_id) || !nameById.has(renewal.student_id)) return [];
-    seen.add(renewal.student_id);
+  const today = new Date().toISOString().slice(0, 10);
+  // Hasta 45 días después de que acabe un ciclo se puede preparar su evaluación.
+  const recentCutoff = dateAddDays(today, -45);
+  // Periodos a evaluar: las renovaciones abiertas (el ciclo en curso) y también las recién
+  // cerradas (el ciclo que acaba de terminar), para poder ver o crear la evaluación de la
+  // mensualidad recién acabada aunque la familia ya haya renovado para el mes siguiente.
+  const relevantRenewals = renewalRows.filter((renewal) =>
+    nameById.has(renewal.student_id) && (renewal.closed_at === null || renewal.period_end >= recentCutoff));
+  const seen = new Set<string>();
+  const students = relevantRenewals.flatMap((renewal) => {
     const end = renewal.period_end;
-    return ([{ cadence: "mensual" as const, months: 1 }, { cadence: "trimestral" as const, months: 3 }]).map(({ cadence, months }) => {
+    return ([{ cadence: "mensual" as const, months: 1 }, { cadence: "trimestral" as const, months: 3 }]).flatMap(({ cadence, months }) => {
       const start = dateAddMonths(end, months);
+      const key = `${renewal.student_id}|${start}|${end}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
       const report = reportRows.find((row) => row.student_id === renewal.student_id && row.period_start === start && row.period_end === end) ?? null;
-      return { studentId: renewal.student_id, studentName: nameById.get(renewal.student_id), email: renewal.guardian_email,
-        cadence, periodStart: start, periodEnd: end, dueDate: dateAddDays(end, -4), report };
+      return [{ studentId: renewal.student_id, studentName: nameById.get(renewal.student_id), email: renewal.guardian_email,
+        cadence, periodStart: start, periodEnd: end, dueDate: dateAddDays(end, -4), report }];
     });
   });
+  // El ciclo cuyo fin está más cerca de hoy (el que toca evaluar) aparece primero.
+  const distance = (day: string) => Math.abs(Date.parse(`${day}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`));
+  students.sort((a, b) => distance(a.periodEnd) - distance(b.periodEnd) || (a.studentName ?? "").localeCompare(b.studentName ?? "", "es") || b.periodStart.localeCompare(a.periodStart));
   return NextResponse.json({ students });
 }
 

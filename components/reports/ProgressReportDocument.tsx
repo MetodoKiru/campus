@@ -10,34 +10,69 @@ const text = (value: unknown) => typeof value === "string" || typeof value === "
 const dateLabel = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
 const percent = (value: unknown) => `${Math.round(Number(value) * 100)} %`;
 
-function MiniBars({ rows, names }: { rows: AnyRecord[]; names: string[] }) {
+const shortWeek = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+
+/** Las cuatro áreas del seguimiento, cada una con su color para que se distingan de un vistazo. */
+const SKILL_AREAS = [
+  { key: "estudios", label: "Estudios", color: "#2F6F4F" },
+  { key: "compromiso", label: "Compromiso", color: "#C76E2A" },
+  { key: "organizacion", label: "Organización", color: "#3B6EA5" },
+  { key: "bienestar", label: "Bienestar", color: "#8A5BA6" },
+] as const;
+
+function MiniBars({ rows, color = "#2D5A43" }: { rows: AnyRecord[]; color?: string }) {
   if (!rows.length) return <p className="text-sm text-slate-500">Todavía no hay suficientes datos para mostrar una evolución semanal.</p>;
-  return <div className="space-y-3">
-    {rows.map((row) => <div key={text(row.week)} className="grid grid-cols-[74px_1fr_56px] items-center gap-3 text-xs">
-      <span className="text-slate-500">{dateLabel(text(row.week))}</span>
-      <div className="flex h-6 items-end gap-1 border-b border-slate-200">
-        {names.map((name) => {
-          const value = Number(row[name]) || 0;
-          return <div key={name} title={`${name}: ${Math.round(value * 10) / 10}`} className="min-w-2 flex-1 rounded-t bg-emerald-700" style={{ height: `${Math.max(value > 0 ? 8 : 0, Math.min(100, value * 10))}%` }} />;
+  return <div className="space-y-2">
+    <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+      <div className="flex items-end gap-2" style={{ height: 52 }}>
+        {rows.map((row) => {
+          const value = Number(row.accuracy) || 0;
+          return <div key={text(row.week)} title={`${shortWeek(text(row.week))}: ${percent(value)}`} className="flex flex-1 flex-col items-center justify-end">
+            <span className="mb-1 text-[10px] font-semibold text-slate-500">{percent(value)}</span>
+            <div className="w-full rounded-t" style={{ height: `${Math.max(value > 0 ? 10 : 2, Math.min(100, value * 100))}%`, backgroundColor: value > 0 ? color : "#E7E3DC", minHeight: 3 }} />
+          </div>;
         })}
       </div>
-      <span className="text-right font-semibold">{percent(row.accuracy)}</span>
-    </div>)}
+      <span className="pb-5 text-[10px] uppercase tracking-wide text-slate-400">aciertos</span>
+    </div>
+    <div className="grid grid-cols-[1fr_auto] gap-3">
+      <div className="flex gap-2">{rows.map((row) => <span key={text(row.week)} className="flex-1 text-center text-[10px] text-slate-400">{shortWeek(text(row.week))}</span>)}</div>
+      <span className="w-[52px]" />
+    </div>
     <p className="text-[11px] text-slate-500">Porcentaje de aciertos por semana. Las semanas sin ejercicios no se dibujan.</p>
   </div>;
 }
 
 function SkillcoinBars({ rows }: { rows: AnyRecord[] }) {
   if (!rows.length) return <p className="text-sm text-slate-500">No hay valoraciones SkillCoins registradas en este periodo.</p>;
-  const categories = ["estudios", "compromiso", "organizacion", "bienestar"];
-  const labels: Record<string, string> = { estudios: "Estudios", compromiso: "Compromiso", organizacion: "Organización", bienestar: "Bienestar" };
-  return <div className="space-y-3">
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">{categories.map((name) => <span key={name}>● {labels[name]}</span>)}</div>
-    {rows.map((row) => <div key={text(row.week)} className="grid grid-cols-[74px_1fr] items-center gap-3 text-xs">
-      <span className="text-slate-500">{dateLabel(text(row.week))}</span>
-      <div className="grid grid-cols-4 gap-2">{categories.map((name) => <div key={name} className="space-y-1"><div className="h-2.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-700" style={{ width: `${Math.max(0, Math.min(100, (Number(row[name]) || 0) * 10))}%` }} /></div><span className="text-[10px] text-slate-500">{Number(row[name]) || 0}/10</span></div>)}</div>
-    </div>)}
-    <p className="text-[11px] text-slate-500">Una valoración consolidada por semana. Las semanas sin valoración no se estiman.</p>
+  const weeks = rows.map((row) => text(row.week));
+  return <div className="space-y-5">
+    <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+      {SKILL_AREAS.map((area) => <span key={area.key} className="inline-flex items-center gap-1.5 font-medium text-slate-600">
+        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: area.color }} />{area.label}
+      </span>)}
+    </div>
+    <div className="space-y-4">
+      {SKILL_AREAS.map((area) => {
+        const last = Number(rows[rows.length - 1]?.[area.key]) || 0;
+        return <div key={area.key} className="grid grid-cols-[104px_1fr_52px] items-center gap-3 sm:gap-4">
+          <span className="text-sm font-semibold" style={{ color: area.color }}>{area.label}</span>
+          <div className="flex items-end gap-1.5" style={{ height: 40 }}>
+            {rows.map((row) => {
+              const value = Number(row[area.key]) || 0;
+              return <div key={text(row.week)} title={`${shortWeek(text(row.week))}: ${value}/10`} className="w-full rounded-t" style={{ height: `${Math.max(value > 0 ? 10 : 3, value * 10)}%`, backgroundColor: value > 0 ? area.color : "#E7E3DC", minHeight: 3 }} />;
+            })}
+          </div>
+          <span className="text-right text-base font-bold text-slate-800">{last}<span className="text-xs font-normal text-slate-400">/10</span></span>
+        </div>;
+      })}
+      <div className="grid grid-cols-[104px_1fr_52px] gap-3 sm:gap-4">
+        <span />
+        <div className="flex gap-1.5">{weeks.map((week) => <span key={week} className="flex-1 text-center text-[10px] text-slate-400">{shortWeek(week)}</span>)}</div>
+        <span />
+      </div>
+    </div>
+    <p className="text-[11px] text-slate-500">Cada barra es una semana (0–10); el número de la derecha es la última valoración. Las semanas sin valoración no se muestran.</p>
   </div>;
 }
 
@@ -72,8 +107,8 @@ export default function ProgressReportDocument({ content: rawContent, periodStar
 
     {(text(coordinator.advance) || advice.length > 0) && <section className="space-y-2"><h2 className="font-serif text-lg font-bold">Avances de este periodo</h2>{text(coordinator.advance) && <p className="text-sm leading-relaxed">{text(coordinator.advance)}</p>}{advice.map((item, index) => <p key={index} className="text-sm leading-relaxed">{item}</p>)}</section>}
 
-    {subjects.includes("ingles") && <Subject title="Inglés"><p className="mb-4 text-sm">Se completaron {text(english.completed || 0)} de {text(english.assigned || 0)} tareas asignadas durante el periodo.</p><MiniBars rows={asArray(english.weekly)} names={["accuracy"]} /></Subject>}
-    {subjects.includes("lengua") && <Subject title="Lengua"><p className="mb-4 text-sm">Se completaron {text(lengua.attempts || 0)} sesiones de práctica en el periodo.</p><MiniBars rows={asArray(lengua.weekly)} names={["accuracy"]} /></Subject>}
+    {subjects.includes("ingles") && <Subject title="Inglés"><p className="mb-4 text-sm">Se completaron {text(english.completed || 0)} de {text(english.assigned || 0)} tareas asignadas durante el periodo.</p><MiniBars rows={asArray(english.weekly)} color="#3B6EA5" /></Subject>}
+    {subjects.includes("lengua") && <Subject title="Lengua"><p className="mb-4 text-sm">Se completaron {text(lengua.attempts || 0)} sesiones de práctica en el periodo.</p><MiniBars rows={asArray(lengua.weekly)} color="#2F6F4F" /></Subject>}
     {subjects.includes("calculalo") && <Subject title="Matemáticas · Calculalo"><p className="text-sm">{text(asRecord(academics.calculalo).note) || "Se ha incorporado el informe de Calculalo."}</p></Subject>}
 
     <Subject title="Actitud, hábitos y SkillCoins"><p className="mb-4 text-sm">Las valoraciones de actitud corresponden a {text(attitude.count || 0)} sesiones registradas; SkillCoins se puntúa una vez por semana.</p><SkillcoinBars rows={skillcoins} /></Subject>
@@ -84,7 +119,7 @@ export default function ProgressReportDocument({ content: rawContent, periodStar
     {text(coordinator.recommendations) && <Subject title="Recomendaciones"><p className="text-sm leading-relaxed">{text(coordinator.recommendations)}</p></Subject>}
     {text(coordinator.nextSteps) && <Subject title="Próximos pasos"><p className="text-sm leading-relaxed">{text(coordinator.nextSteps)}</p><p className="mt-2 text-xs text-slate-500">Responsable: {text(coordinator.nextStepsOwner) || "familia"}</p></Subject>}
 
-    {!compact && <details className="rounded-2xl border border-slate-200 p-4 print:open"><summary className="cursor-pointer text-sm font-semibold">Detalle de las sesiones ({details.length})</summary><div className="mt-4 space-y-4">{details.map((session) => <div key={text(session.id)} className="border-t border-slate-100 pt-3"><h3 className="text-sm font-semibold">Sesión · {session.date ? dateLabel(text(session.date)) : "fecha no registrada"}</h3>{text(session.incident) && <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm"><strong>Incidencia registrada:</strong> {text(session.incident)}</p>}<dl className="mt-2 space-y-1">{asArray(session.answers).map((answer, index) => <div key={index} className="grid gap-1 text-xs sm:grid-cols-[minmax(180px,0.7fr)_1fr]"><dt className="font-semibold text-slate-600">{text(answer.question)}</dt><dd className="whitespace-pre-wrap text-slate-700">{text(answer.answer) || "—"}</dd></div>)}</dl></div>)}</div></details>}
+    {!compact && <details className="rounded-2xl border border-slate-200 p-4 print:open"><summary className="cursor-pointer text-sm font-semibold">Detalle de las sesiones ({details.length})</summary><div className="mt-4 space-y-5">{details.map((session) => <div key={text(session.id)} className="border-t border-slate-100 pt-4"><h3 className="text-sm font-bold">Sesión · {session.date ? dateLabel(text(session.date)) : "fecha no registrada"}</h3>{text(session.incident) && <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm leading-relaxed"><strong>Incidencia registrada:</strong> {text(session.incident)}</p>}<dl className="mt-3 divide-y divide-slate-100">{asArray(session.answers).map((answer, index) => <div key={index} className="grid gap-x-4 gap-y-0.5 py-2 text-xs sm:grid-cols-[minmax(190px,0.8fr)_1fr]"><dt className="font-semibold text-slate-500">{text(answer.question)}</dt><dd className="whitespace-pre-wrap leading-relaxed text-slate-800">{text(answer.answer) || "—"}</dd></div>)}</dl></div>)}</div></details>}
   </article>;
 }
 

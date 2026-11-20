@@ -5,7 +5,8 @@ import { CalendarDays, CheckCircle2, Copy, ExternalLink, MessageCircle, Phone, R
 import { supabase } from "@/lib/supabase";
 import {
   callWhen, CALL_STATUS_LABEL, DAY_NAMES, DAY_SHORT, fromMinutes, MENTOR_CALL_CRITERIA, MODE_LABEL, PLAN_STATUS_LABEL, PRESENCE_LABEL,
-  whatsappLink, type CallMode, type CallView, type MentorCallKey, type MentorPresence, type PlanStatus, type PlanView, type StaffCallsPayload,
+  whatsappLink, type CallMode, type CallView, type MentorCallKey, type MentorPresence, type PersonAvailability, type PlanResponses,
+  type PlanStatus, type PlanView, type StaffCallsPayload,
 } from "@/lib/llamadas";
 
 type Notify = (text: string, type: "success" | "error") => void;
@@ -277,6 +278,48 @@ function UpcomingCall({ call, busy, run, highlight }: { call: CallView; busy: bo
   );
 }
 
+/** Lo que respondió una persona en su formulario: días, franjas y preferencias. */
+function PersonResponse({ title, a, emptyText }: { title: string; a: PersonAvailability | null; emptyText: string }) {
+  const first = a?.name ? a.name.split(" ")[0] : "";
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-[#FAF8F5] p-3">
+      <p className="text-xs font-bold text-slate-800">{title}{first && title !== "Familia" ? ` · ${first}` : ""}</p>
+      {!a ? <p className="mt-1 text-[11px] text-slate-400">{emptyText}</p> : (
+        <>
+          {a.days.length ? (
+            <ul className="mt-1.5 space-y-0.5 text-[11px]">
+              {a.days.map((day) => (
+                <li key={day.d} className="flex gap-2">
+                  <span className="w-9 shrink-0 font-semibold text-slate-700">{DAY_SHORT[day.d]}</span>
+                  <span className="text-slate-600">{day.ranges.join(" · ")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-1 text-[11px] text-slate-400">Sin franjas indicadas.</p>}
+          {a.medium && <p className="mt-1.5 text-[11px] text-slate-500">Prefiere: {a.medium === "telefono" ? `teléfono${a.phone ? ` (${a.phone})` : ""}` : "Zoom"}</p>}
+          {a.bothParentsDays && a.bothParentsDays.length > 0 && <p className="text-[11px] text-slate-500">Los dos padres: {a.bothParentsDays.map((d) => DAY_SHORT[d]).join(", ")}</p>}
+          {a.note && <p className="mt-1 text-[11px] text-amber-800">Compromisos: {a.note}</p>}
+          {a.answeredAt && <p className="mt-1 text-[10px] text-slate-400">Respondió el {new Date(a.answeredAt).toLocaleDateString("es-ES")}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ResponsesView({ r, hasMentor }: { r: PlanResponses; hasMentor: boolean }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-slate-700">Lo que ha respondido cada uno</p>
+      <div className="grid gap-2 md:grid-cols-3">
+        <PersonResponse title="Familia" a={r.family} emptyText="La familia aún no ha rellenado su formulario." />
+        <PersonResponse title="Coordinador" a={r.coordinator} emptyText="Falta tu disponibilidad (formulario del equipo)." />
+        <PersonResponse title="Mentor" a={r.mentor} emptyText={hasMentor ? "El mentor aún no ha rellenado su formulario." : "Sin mentor: todas las semanas con el coordinador."} />
+      </div>
+      <p className="text-[11px] text-slate-500">Las horas comunes se cruzan solas abajo; aquí ves lo que puso cada uno por si prefieres fijarla tú.</p>
+    </div>
+  );
+}
+
 function PlanCard({ plan, busy, run, notify, isAdmin }: { plan: PlanView; busy: boolean; run: Run; notify: Notify; isAdmin: boolean }) {
   const [open, setOpen] = useState(plan.status !== "confirmada");
   const [wd, setWd] = useState(String(plan.weekday ?? 1));
@@ -303,6 +346,7 @@ function PlanCard({ plan, busy, run, notify, isAdmin }: { plan: PlanView; busy: 
       {plan.missing.length > 0 && <ul className="list-disc pl-5 text-xs text-amber-800">{plan.missing.map((m) => <li key={m}>{m}</li>)}</ul>}
       {open && (
         <div className="space-y-4 border-t border-slate-100 pt-3">
+          <ResponsesView r={plan.responses} hasMentor={Boolean(plan.mentorId)} />
           {plan.whatsappText && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-700">Avisar en el grupo de WhatsApp de la familia</p>
