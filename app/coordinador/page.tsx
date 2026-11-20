@@ -309,7 +309,7 @@ export default function CoordinadorPage() {
             else if (n.kind === "llamada_familia") setTab("llamadas");
             else if (n.kind === "informacion_familia") setTab("info-familias");
             else if (n.kind === "disponibilidad_enviada") setTab("disponibilidad");
-            else if (n.kind.startsWith("registro_error")) setTab("seguimiento");
+            else if (n.kind.startsWith("registro_error") || n.kind.startsWith("evidencia_") || n.kind.startsWith("exencion_")) setTab("seguimiento");
           }} />
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
