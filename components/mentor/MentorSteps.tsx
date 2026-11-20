@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
+import { Camera, CalendarDays, ChevronLeft, ChevronRight, Clock, ClipboardList, ExternalLink, MessageSquareText, Sprout, Upload, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   OFFER_RESPONSE_LABEL,
@@ -77,6 +77,8 @@ const ACTIVITY: { id: MentorSection; title: string; hint: string; icon: typeof C
   { id: "pagos", title: "Mis pagos", hint: "Lo cobrado y lo pendiente de cobro", icon: Wallet },
   { id: "justificaciones", title: "Justificaciones de SkillCoins", hint: "Solicitudes de coordinación y avisos", icon: MessageSquareText },
   { id: "disponibilidad", title: "Mi disponibilidad para clases", hint: "Días y horas en los que puedes dar clase", icon: Clock },
+  // Solo cuando el desempeño sale del modo oculto (desde enero de 2027).
+  { id: "evidencias", title: "Mis evidencias", hint: "«Descubrirme» y misión de cada bimestre", icon: Camera },
 ];
 
 const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof CalendarDays }[] = [
@@ -89,9 +91,10 @@ const SECTIONS: { id: MentorSection; title: string; hint: string; icon: typeof C
  * ha completado la incorporación (o administración le ha autorizado
  * expresamente), «Reuniones con tu coordinador» y «Crece con Kiru».
  */
-export function MentorMenu({ data, active, onSelect, onClose, pendingJustifications = 0 }: {
+export function MentorMenu({ data, active, onSelect, onClose, pendingJustifications = 0, showEvidence = false }: {
   data: MentorPanelData | null;
   pendingJustifications?: number;
+  showEvidence?: boolean;
   active: StepId | MentorSection | null;
   onSelect: (step: StepId | MentorSection | null) => void;
   onClose: () => void;
@@ -160,7 +163,7 @@ export function MentorMenu({ data, active, onSelect, onClose, pendingJustificati
         <div className="mx-3 my-2 border-t border-[#E7E3DC]" />
         <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#77736B]">Mi actividad</p>
         <ul className="space-y-1">
-          {ACTIVITY.map((item) => {
+          {ACTIVITY.filter((item) => item.id !== "evidencias" || showEvidence).map((item) => {
             const Icon = item.icon;
             const alert = item.id === "justificaciones" && pendingJustifications > 0;
             return (
