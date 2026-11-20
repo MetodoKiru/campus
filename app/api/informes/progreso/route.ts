@@ -6,6 +6,8 @@ import { findAnswer, parseAnswers, type SessionAnswer } from "@/lib/session-logs
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Días tras el fin del periodo en los que el coordinador aún puede crear/enviar el informe. */
+const GRACE_DAYS = 10;
 const SUBJECTS = ["ingles", "lengua"] as const;
 type Subject = (typeof SUBJECTS)[number];
 type StaffAuth = Extract<Awaited<ReturnType<typeof requireStaff>>, { ok: true }>;
@@ -114,30 +116,41 @@ export async function GET(request: Request) {
   const reportRows = reports.data ?? [];
   const renewalRows = renewals.data ?? [];
   const today = new Date().toISOString().slice(0, 10);
-  // Hasta 45 días después de que acabe un ciclo se puede preparar su evaluación.
-  const recentCutoff = dateAddDays(today, -45);
-  // Periodos a evaluar: las renovaciones abiertas (el ciclo en curso) y también las recién
-  // cerradas (el ciclo que acaba de terminar), para poder ver o crear la evaluación de la
-  // mensualidad recién acabada aunque la familia ya haya renovado para el mes siguiente.
-  const relevantRenewals = renewalRows.filter((renewal) =>
-    nameById.has(renewal.student_id) && (renewal.closed_at === null || renewal.period_end >= recentCutoff));
+  const isAdmin = role === "admin";
+  // Se puede crear o enviar el informe de un periodo hasta GRACE_DAYS días después de que
+  // acabe. Pasado ese plazo queda bloqueado para el coordinador (lo reabre administración);
+  // administración no tiene plazo. Los informes ya guardados se ven siempre (historial).
+  const graceCutoff = dateAddDays(today, -GRACE_DAYS);
+  const historyCutoff = dateAddDays(today, -400);
+  const spanDays = (start: string, end: string) => Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86_400_000);
   const seen = new Set<string>();
-  const students = relevantRenewals.flatMap((renewal) => {
+  type Period = { studentId: string; studentName: string | undefined; email: string; cadence: "mensual" | "trimestral";
+    periodStart: string; periodEnd: string; dueDate: string; report: (typeof reportRows)[number] | null; locked: boolean };
+  const list: Period[] = [];
+  const add = (studentId: string, start: string, end: string, cadence: "mensual" | "trimestral", dueDate: string, email: string) => {
+    const key = `${studentId}|${start}|${end}`;
+    if (seen.has(key) || !nameById.has(studentId)) return;
+    seen.add(key);
+    const report = reportRows.find((row) => row.student_id === studentId && row.period_start === start && row.period_end === end) ?? null;
+    list.push({ studentId, studentName: nameById.get(studentId), email, cadence, periodStart: start, periodEnd: end, dueDate,
+      locked: !isAdmin && end < graceCutoff, report });
+  };
+  // 1) Periodos de renovaciones: las abiertas (ciclo en curso) y las terminadas hace poco,
+  //    para preparar la evaluación del ciclo que acaba de terminar aunque la familia ya haya renovado.
+  for (const renewal of renewalRows) {
+    if (renewal.closed_at !== null && renewal.period_end < historyCutoff) continue;
     const end = renewal.period_end;
-    return ([{ cadence: "mensual" as const, months: 1 }, { cadence: "trimestral" as const, months: 3 }]).flatMap(({ cadence, months }) => {
-      const start = dateAddMonths(end, months);
-      const key = `${renewal.student_id}|${start}|${end}`;
-      if (seen.has(key)) return [];
-      seen.add(key);
-      const report = reportRows.find((row) => row.student_id === renewal.student_id && row.period_start === start && row.period_end === end) ?? null;
-      return [{ studentId: renewal.student_id, studentName: nameById.get(renewal.student_id), email: renewal.guardian_email,
-        cadence, periodStart: start, periodEnd: end, dueDate: dateAddDays(end, -4), report }];
-    });
-  });
+    add(renewal.student_id, dateAddMonths(end, 1), end, "mensual", dateAddDays(end, -4), renewal.guardian_email ?? "");
+    add(renewal.student_id, dateAddMonths(end, 3), end, "trimestral", dateAddDays(end, -4), renewal.guardian_email ?? "");
+  }
+  // 2) Historial: cualquier informe ya guardado que no esté cubierto arriba, siempre visible.
+  for (const rep of reportRows) {
+    add(rep.student_id, rep.period_start, rep.period_end, spanDays(rep.period_start, rep.period_end) > 45 ? "trimestral" : "mensual", rep.due_date, "");
+  }
   // El ciclo cuyo fin está más cerca de hoy (el que toca evaluar) aparece primero.
   const distance = (day: string) => Math.abs(Date.parse(`${day}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`));
-  students.sort((a, b) => distance(a.periodEnd) - distance(b.periodEnd) || (a.studentName ?? "").localeCompare(b.studentName ?? "", "es") || b.periodStart.localeCompare(a.periodStart));
-  return NextResponse.json({ students });
+  list.sort((a, b) => distance(a.periodEnd) - distance(b.periodEnd) || (a.studentName ?? "").localeCompare(b.studentName ?? "", "es") || b.periodStart.localeCompare(a.periodStart));
+  return NextResponse.json({ students: list, graceDays: GRACE_DAYS });
 }
 
 export async function POST(request: Request) {
@@ -149,10 +162,13 @@ export async function POST(request: Request) {
 
   if (action === "publicar") {
     if (typeof body.reportId !== "string" || !UUID_RE.test(body.reportId)) return NextResponse.json({ error: "Informe no válido." }, { status: 400 });
-    const { data: report, error: reportError } = await auth.admin.from("kiru_family_progress_reports").select("id,student_id,status,content").eq("id", body.reportId).maybeSingle();
+    const { data: report, error: reportError } = await auth.admin.from("kiru_family_progress_reports").select("id,student_id,status,content,period_end").eq("id", body.reportId).maybeSingle();
     if (reportError || !report) return NextResponse.json({ error: "No se encontró el informe." }, { status: 404 });
     if (!(await studentScope(auth, report.student_id))) return NextResponse.json({ error: "No tienes acceso a este alumno." }, { status: 403 });
     if (report.status === "publicado") return NextResponse.json({ ok: true, reportId: report.id, alreadyPublished: true });
+    // Pasado el plazo de 10 días solo administración puede publicar (reabre el informe).
+    if (auth.role !== "admin" && report.period_end < dateAddDays(new Date().toISOString().slice(0, 10), -GRACE_DAYS))
+      return NextResponse.json({ error: `El plazo de ${GRACE_DAYS} días para enviar este informe ha terminado. Pídele a administración que lo reabra.` }, { status: 403 });
     const content = report.content as unknown as Record<string, unknown>;
     const fields = content.coordinator as Partial<Fields> | undefined;
     if (!fields?.nextSteps?.trim()) return NextResponse.json({ error: "Añade el próximo paso antes de publicar el informe." }, { status: 400 });
@@ -171,6 +187,10 @@ export async function POST(request: Request) {
   const periodStart = body.periodStart;
   const periodEnd = body.periodEnd;
   if (periodStart >= periodEnd) return NextResponse.json({ error: "El periodo no es válido." }, { status: 400 });
+  // Pasado el plazo de 10 días el coordinador ya no puede crear ni editar el informe;
+  // tiene que pedírselo a administración, que no tiene plazo.
+  if (auth.role !== "admin" && periodEnd < dateAddDays(new Date().toISOString().slice(0, 10), -GRACE_DAYS))
+    return NextResponse.json({ error: `El plazo de ${GRACE_DAYS} días para preparar este informe ha terminado. Pídele a administración que lo reabra.` }, { status: 403 });
   const dueDate = dateAddDays(periodEnd, -4);
 
   const [student, logsResult, tasksResult, progressResult, activityResult, skillcoinResult, previousReport] = await Promise.all([

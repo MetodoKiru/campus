@@ -4,6 +4,8 @@
 // teléfono; mejor con los dos padres; misma hora cada semana. Ciclo de 4 semanas desde la
 // semana de la primera clase: semanas 1 y 4 con mentor, 2 y 3 solo familia + coordinador.
 
+import { normalizeSpanishPhone } from "@/lib/phone";
+
 export const CALL_MINUTES = 20;
 /** Las horas posibles van de media en media hora (así queda margen entre llamadas). */
 export const STEP_MINUTES = 30;
@@ -180,7 +182,7 @@ export function parseAvailability(pretty: string, raw: Record<string, unknown>, 
     slots,
     bothParentsDays,
     medium: /tel[eé]fono/i.test(p.medio ?? asText(rawValue(raw, /^q\d+_comoPreferis/i))) ? "telefono" : "zoom",
-    phone: phoneText.replace(/[^\d+ ]/g, "").trim().slice(0, 40),
+    phone: normalizeSpanishPhone(phoneText),
     commitments: (p.compromisos ?? "").trim().replace(/^ninguno\.?$/i, "").slice(0, 1500),
     code,
   };
