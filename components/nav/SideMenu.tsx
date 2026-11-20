@@ -80,7 +80,7 @@ export default function SideMenu<T extends string>({
             type="button"
             title={compact ? item.label : undefined}
             onClick={() => { onSelect(item.id); setMobileOpen(false); }}
-            className={`${base} relative ${isActive ? "bg-[#3F3A33] text-white shadow-sm" : "text-slate-600 hover:bg-[#F3F0EA]"}`}
+            className={`${base} relative ${isActive ? "bg-[#23416B] text-white shadow-sm" : "text-slate-600 hover:bg-[#F3F0EA]"}`}
             aria-current={isActive ? "page" : undefined}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -162,7 +162,7 @@ export default function SideMenu<T extends string>({
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-white p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
-              <span className="flex items-center gap-2 font-serif text-base font-bold text-[#292825]"><TitleIcon className="h-5 w-5 text-emerald-800" /> {title}</span>
+              <span className="flex items-center gap-2 font-serif text-base font-bold text-[#292825]"><TitleIcon className="h-5 w-5 text-[#7A4E2E]" /> {title}</span>
               <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cerrar menú"><X className="h-4 w-4" /></button>
             </div>
             {renderNav(false)}
