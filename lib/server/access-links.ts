@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
 /** Días que vale un enlace «Crea tu PIN» desde que sale en el correo de bienvenida. */
@@ -33,7 +33,7 @@ export function pinProblem(pin: string): string | null {
  * «Carmen Blanco» → «carmen.blanco», «Miguel Ángel Arévalo Galán» → «miguel.arevalo».
  * Con 4 palabras o más se entiende que hay nombre compuesto y dos apellidos.
  */
-export function usernameBase(fullName: string): string {
+export function usernameBase(fullName: string, fallbackPrefix = "mentor"): string {
   const parts = fullName
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -45,7 +45,36 @@ export function usernameBase(fullName: string): string {
     .filter(Boolean);
   const surname = parts.length >= 4 ? parts[parts.length - 2] : parts[1];
   const base = [parts[0], surname].filter(Boolean).join(".").slice(0, 34).replace(/\.+$/, "");
-  return base.length >= 3 ? base : `mentor.${base}`.replace(/\.$/, "");
+  return base.length >= 3 ? base : `${fallbackPrefix}.${base}`.replace(/\.$/, "");
+}
+
+/** Cuenta de Auth con ese correo (en minúsculas), o null si no hay ninguna. */
+export async function findAuthUserByEmail(admin: SupabaseClient<Database>, email: string): Promise<User | null> {
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const found = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
+    if (found) return found;
+    if (data.users.length < 1000) return null;
+  }
+  return null;
+}
+
+/** Primer usuario libre: maria.lopez, maria.lopez2, maria.lopez3… */
+export async function freeUsername(
+  admin: SupabaseClient<Database>,
+  fullName: string,
+  fallbackPrefix = "mentor",
+): Promise<string | null> {
+  const base = usernameBase(fullName, fallbackPrefix);
+  const { data, error } = await admin.from("profiles").select("username").like("username", `${base}%`);
+  if (error) return null;
+  const taken = new Set((data ?? []).map((p) => p.username));
+  for (let n = 1; n < 100; n++) {
+    const candidate = n === 1 ? base : `${base}${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return null;
 }
 
 /**
