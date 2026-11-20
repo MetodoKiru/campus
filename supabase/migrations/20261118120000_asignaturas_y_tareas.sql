@@ -366,8 +366,15 @@ BEGIN
   SELECT pg_get_constraintdef(c.oid) INTO v_def
   FROM pg_constraint c
   WHERE c.conrelid = 'public.kiru_notifications'::regclass AND c.conname = 'kiru_notifications_kind_check';
-  SELECT coalesce(array_agg(DISTINCT m[1]), '{}') INTO v_kinds
-  FROM regexp_matches(coalesce(v_def, ''), '''([a-z0-9_]+)''', 'g') AS m;
+  -- La lista puede estar escrita como ARRAY['a'::text, …] o como '{a,b,…}'::text[]: se leen las dos.
+  SELECT coalesce(array_agg(DISTINCT k), '{}') INTO v_kinds
+  FROM (
+    SELECT m[1] AS k FROM regexp_matches(coalesce(v_def, ''), '''([a-z0-9_]+)''', 'g') AS m
+    UNION
+    SELECT trim(x) FROM regexp_matches(coalesce(v_def, ''), '''\{([a-z0-9_, ]*)\}''', 'g') AS b,
+                        unnest(string_to_array(b[1], ',')) AS x
+  ) found
+  WHERE k ~ '^[a-z0-9_]+$';
   IF cardinality(v_kinds) < 10 THEN
     RAISE EXCEPTION 'No se pudo leer la lista de avisos actual; no se cambia nada.';
   END IF;
