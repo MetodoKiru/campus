@@ -5,7 +5,7 @@ import { CoordinatorMissingSc, useMissingScWeeks } from "@/components/skillcoins
 import { CoordinatorSessionScheduleMismatches, useSessionScheduleMismatches } from "@/components/sessions/SessionScheduleMismatches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Compass, LogOut } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, CheckCircle2, ChevronDown, ChevronUp, Compass, LogOut, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PREVIEW_NAME, previewRole } from "@/lib/preview";
 import Toast from "@/components/Toast";
@@ -26,6 +26,7 @@ import CoordinatorFollowUp from "@/components/performance/CoordinatorFollowUp";
 import CoordinatorSidebar, { COORDINATOR_TABS, COORDINATOR_TAB_LABEL, type CoordinatorTab } from "@/components/coordination/CoordinatorSidebar";
 import CoordinatorHome from "@/components/coordination/CoordinatorHome";
 import LogErrorMark from "@/components/performance/LogErrorMark";
+import CoordinatorGuide, { COORDINATOR_GUIDE_DOC, COORDINATOR_GUIDE_VERSION } from "@/components/coordination/CoordinatorGuide";
 import { fetchTaskSummary, type SubjectTaskSummaryRow } from "@/lib/subjects";
 
 /** «4 de 5 (1 tarde)» o «—» si no tuvo tareas con plazo vencido. */
@@ -70,6 +71,10 @@ export default function CoordinadorPage() {
   const router = useRouter();
   const [authChecking, setAuthChecking] = useState(true);
   const [me, setMe] = useState<{ id: string; name: string; isAdmin: boolean } | null>(null);
+  // Compromiso con la guía: fecha en que la aceptó, null si aún no, undefined mientras se comprueba.
+  const [guideAcceptedAt, setGuideAcceptedAt] = useState<string | null | undefined>(undefined);
+  const [isPreview, setIsPreview] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [coordinatorOf, setCoordinatorOf] = useState<Record<string, string>>({});
   const [mentorOf, setMentorOf] = useState<Record<string, string>>({});
@@ -179,6 +184,8 @@ export default function CoordinadorPage() {
         if (previewRole() === "coordinador" && user.app_metadata?.kiru_role === "admin") {
           if (!alive) return;
           setMe({ id: user.id, name: PREVIEW_NAME.coordinador, isAdmin: false });
+          setIsPreview(true);
+          setGuideAcceptedAt(null);
           await load();
           return;
         }
@@ -188,6 +195,12 @@ export default function CoordinadorPage() {
         if (error || !profile?.is_active || !allowed || user.app_metadata?.kiru_role !== profile.role) { router.replace("/"); return; }
         if (!alive) return;
         setMe({ id: user.id, name: profile.full_name, isAdmin: profile.role === "admin" });
+        if (profile.role === "coordinador") {
+          const { data: commitment } = await supabase.from("kiru_role_commitments").select("accepted_at")
+            .eq("user_id", user.id).eq("document", COORDINATOR_GUIDE_DOC).eq("version", COORDINATOR_GUIDE_VERSION).maybeSingle();
+          if (!alive) return;
+          setGuideAcceptedAt((commitment as { accepted_at: string } | null)?.accepted_at ?? null);
+        } else setGuideAcceptedAt(null);
         await load();
       } catch (error) {
         if (alive) setMsg({ text: error instanceof Error ? error.message : "No se pudieron cargar los datos.", type: "error" });
@@ -285,6 +298,26 @@ export default function CoordinadorPage() {
   if (authChecking) return <main className="min-h-screen bg-[#F7F6F3] flex items-center justify-center text-sm text-slate-500">Comprobando permisos…</main>;
   if (!me) return msg ? <main className="min-h-screen bg-[#F7F6F3] p-6"><Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} /></main> : null;
 
+  const acceptGuide = async () => {
+    if (isPreview) { setGuideAcceptedAt(new Date().toISOString()); return; }
+    const { data, error } = await supabase.rpc("kiru_commitment_accept", { p_document: COORDINATOR_GUIDE_DOC, p_version: COORDINATOR_GUIDE_VERSION });
+    if (error) { setMsg({ text: error.message || "No se pudo guardar.", type: "error" }); return; }
+    setGuideAcceptedAt((data as string | null) ?? new Date().toISOString());
+  };
+
+  // Antes de empezar, el coordinador lee la guía y se compromete con su función.
+  if (!me.isAdmin && guideAcceptedAt === null) {
+    return (
+      <main className="min-h-screen bg-[#F7F6F3] px-4 py-8">
+        {msg && <Toast text={msg.text} type={msg.type} onClose={() => setMsg(null)} />}
+        <div className="mx-auto max-w-3xl rounded-2xl border border-[#E7E3DC] bg-white p-6 shadow-sm sm:p-8">
+          {isPreview && <p className="mb-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Vista previa: así lo verá un coordinador al entrar por primera vez. Aceptar aquí no guarda nada.</p>}
+          <CoordinatorGuide onAccept={acceptGuide} />
+        </div>
+      </main>
+    );
+  }
+
   const totals = {
     students: summaries.reduce((n, s) => n + s.students.length, 0),
     recent: summaries.reduce((n, s) => n + s.recentCount, 0),
@@ -311,6 +344,9 @@ export default function CoordinadorPage() {
             else if (n.kind === "disponibilidad_enviada") setTab("disponibilidad");
             else if (n.kind.startsWith("registro_error") || n.kind.startsWith("evidencia_") || n.kind.startsWith("exencion_") || n.kind === "coordinacion_pendiente") setTab("seguimiento");
           }} />
+          <button onClick={() => setShowGuide(true)} title="Guía del coordinador" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <BookOpenCheck className="h-4 w-4" /> <span className="hidden sm:inline">Guía</span>
+          </button>
           {me.isAdmin && (
             <Link href="/admin" className="inline-flex items-center gap-2 rounded-xl border border-[#4A443C] px-3 py-2 text-xs font-semibold text-[#E5DFD5] hover:bg-[#2B2722]">
               <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Administración</span>
@@ -321,6 +357,15 @@ export default function CoordinadorPage() {
           </button>
         </div>
       </header>
+
+      {showGuide && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8" onClick={() => setShowGuide(false)}>
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowGuide(false)} aria-label="Cerrar" className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-5 w-5" /></button>
+            <CoordinatorGuide acceptedAt={me.isAdmin ? null : guideAcceptedAt} />
+          </div>
+        </div>
+      )}
 
       <div className="flex">
       <CoordinatorSidebar active={tab} onSelect={setTab} isAdmin={me.isAdmin}
