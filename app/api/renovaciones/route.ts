@@ -5,7 +5,7 @@ import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
 export const runtime = "nodejs";
 
-const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados", "horarios", "horarios_ok", "preparar"] as const;
+const ACTIONS = ["publicar", "elegir", "sincronizar", "confirmar", "estados", "horarios", "horarios_ok", "preparar", "adultos"] as const;
 type Action = (typeof ACTIONS)[number];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -165,6 +165,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ...(result as Record<string, Json>) });
   }
 
+  // Correos de los demás adultos de la familia (no el de la hoja), para poner en copia el
+  // formulario de periodo especial (20/11/2026: los dos adultos reciben todo).
+  if (action === "adultos") {
+    if (!text(body.email) || !text(body.alumno)) return NextResponse.json({ error: "Petición no válida." }, { status: 400 });
+    const [found] = await studentStatuses(admin, [{ email: text(body.email, 254), alumno: text(body.alumno, 120) }]);
+    return NextResponse.json({ ok: true, otros: found?.otros ?? [] });
+  }
+
   if (action === "estados") {
     const families = (Array.isArray(body.familias) ? body.familias : []).slice(0, 500).flatMap((item) => {
       if (!item || typeof item !== "object") return [];
@@ -205,12 +213,14 @@ async function studentStatuses(
     admin.from("students").select("profile_id,service_status"),
   ]);
   const emailToIds = new Map<string, string[]>();
+  const idToEmail = new Map<string, string>();
   for (let page = 1; page <= 10; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) break;
     for (const u of data.users) {
       const e = (u.email ?? "").toLowerCase();
       if (e) emailToIds.set(e, [...(emailToIds.get(e) ?? []), u.id]);
+      if (e) idToEmail.set(u.id, e);
     }
     if (data.users.length < 1000) break;
   }
@@ -224,6 +234,10 @@ async function studentStatuses(
     const wanted = normName(alumno);
     const named = kids.filter((k) => normName(k.full_name) === wanted || normName(k.full_name).startsWith(`${wanted} `));
     const kid = named.length === 1 ? named[0] : named.length === 0 && kids.length === 1 ? kids[0] : null;
-    return { email, alumno, estado: kid ? status.get(kid.id) ?? "activo" : null };
+    const otros = kid ? [...new Set((links.data ?? []).filter((l) => l.student_id === kid.id).map((l) => l.guardian_id)
+      .filter((id) => people.get(id)?.role === "padre" && people.get(id)?.is_active)
+      .map((id) => idToEmail.get(id) ?? "")
+      .filter((e) => e && e !== email.toLowerCase() && !e.endsWith(".invalid")))] : [];
+    return { email, alumno, estado: kid ? status.get(kid.id) ?? "activo" : null, otros };
   });
 }

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
+import { loadFamilyCap, withinFamilyCap } from "@/lib/server/avisos-resumen";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
   const admin = createClient<Database>(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const since = new Date(Date.now() - PENDING_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { data: pending, error } = await admin
+  const { data: found, error } = await admin
     .from("kiru_notifications")
     .select("id,recipient_id,student_id,goal_id,kind,title,event_key")
     .eq("email_status", "pendiente")
@@ -35,9 +36,11 @@ export async function POST(request: Request) {
     .in("kind", ["objetivo_pendiente", "canje_solicitado", "informe_progreso"])
     .gt("created_at", since)
     .order("created_at")
-    .limit(MAX_PER_CALL);
+    .limit(MAX_PER_CALL * 4);
   if (error) return NextResponse.json({ error: "No se pudieron leer los avisos." }, { status: 500 });
-  if (!pending?.length) return NextResponse.json({ ok: true, avisos: [] });
+  // Tope de correos por adulto (ajuste «avisos_tope_familias»): lo que no cabe espera.
+  const pending = (await withinFamilyCap(admin, await loadFamilyCap(admin), found ?? [])).slice(0, MAX_PER_CALL);
+  if (!pending.length) return NextResponse.json({ ok: true, avisos: [] });
 
   // Se marcan primero: aunque algo falle después, ningún correo se repite.
   const ids = pending.map((n) => n.id);

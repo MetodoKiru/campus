@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/server/classes";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
-import { loadDigestSettings, withoutDigestNotices } from "@/lib/server/avisos-resumen";
+import { loadDigestSettings, loadFamilyCap, withinFamilyCap, withoutDigestNotices } from "@/lib/server/avisos-resumen";
 import { callWhen } from "@/lib/llamadas";
 import { firstName, formLink, loadCallSettings, planTimes, planWhatsapp, runCallsTask, teamFormUrl, whatsappLink, zoomOf } from "@/lib/server/llamadas";
 
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
     .order("created_at").limit(MAX_PER_CALL * 4);
   if (error) return NextResponse.json({ error: "No se pudieron leer los avisos." }, { status: 500 });
   // Mentores y coordinadores: van en el resumen diario de /api/avisos/clases.
-  const pending = (await withoutDigestNotices(admin, await loadDigestSettings(admin), found ?? [], "llamada_familia")).slice(0, MAX_PER_CALL);
+  const staffOk = await withoutDigestNotices(admin, await loadDigestSettings(admin), found ?? [], "llamada_familia");
+  const pending = (await withinFamilyCap(admin, await loadFamilyCap(admin), staffOk, "llamada_familia")).slice(0, MAX_PER_CALL);
   if (!pending.length) return NextResponse.json({ ok: true, task, avisos: [] });
 
   const { data: claimed, error: claimError } = await admin.from("kiru_notifications")

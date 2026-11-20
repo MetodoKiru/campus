@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupervisionNotificationKind } from "@/lib/database.types";
-import { buildDigests, CLASS_ROUTE_KINDS, loadDigestSettings, PANEL, panelUrl, STILL_RELEVANT, withoutDigestNotices } from "@/lib/server/avisos-resumen";
+import { buildDigests, CLASS_ROUTE_KINDS, loadDigestSettings, loadFamilyCap, PANEL, panelUrl, STILL_RELEVANT, withinFamilyCap, withoutDigestNotices } from "@/lib/server/avisos-resumen";
 import { serviceClient } from "@/lib/server/classes";
 import { sharedSecretStatus } from "@/lib/server/shared-secret";
 
@@ -38,7 +38,9 @@ export async function POST(request: Request) {
     .limit(MAX_PER_CALL * 4);
   if (error) return NextResponse.json({ error: "No se pudieron leer los avisos." }, { status: 500 });
   // Los que esperan al resumen se quedan «pendiente» hasta su hora.
-  const pending = (await withoutDigestNotices(admin, digest, found ?? [])).slice(0, MAX_PER_CALL);
+  const waiting = await withoutDigestNotices(admin, digest, found ?? []);
+  // Familias: como mucho N correos al día y M a la semana por adulto (ajuste «avisos_tope_familias»).
+  const pending = (await withinFamilyCap(admin, await loadFamilyCap(admin), waiting)).slice(0, MAX_PER_CALL);
   const resumenes = await buildDigests(admin, digest, request.url).catch((e) => {
     console.error("Resumen diario de avisos", e);
     return [];
