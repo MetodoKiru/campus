@@ -26,9 +26,17 @@ DO $kinds$
 DECLARE
   v_kinds text[];
 BEGIN
-  SELECT coalesce(array_agg(DISTINCT m[1]), '{}') INTO v_kinds
-    FROM pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_0-9]+)''', 'g') AS m
-   WHERE c.conname = 'kiru_notifications_kind_check' AND c.conrelid = 'public.kiru_notifications'::regclass;
+  -- La lista puede estar escrita como 'a'::text, 'b'::text o como '{a,b}'::text[].
+  SELECT coalesce(array_agg(DISTINCT k), '{}') INTO v_kinds FROM (
+    SELECT m[1] AS k
+      FROM pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_0-9]+)''', 'g') AS m
+     WHERE c.conname = 'kiru_notifications_kind_check' AND c.conrelid = 'public.kiru_notifications'::regclass
+    UNION
+    SELECT trim(x)
+      FROM pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''\{([a-z_0-9, ]*)\}''', 'g') AS b,
+           unnest(string_to_array(b[1], ',')) AS x
+     WHERE c.conname = 'kiru_notifications_kind_check' AND c.conrelid = 'public.kiru_notifications'::regclass
+  ) AS t WHERE k <> '';
   v_kinds := ARRAY(SELECT DISTINCT k FROM unnest(v_kinds || ARRAY[
     'evidencia_entregada', 'evidencia_aclaracion', 'evidencia_validada', 'evidencia_recordatorio', 'evidencia_revision',
     'exencion_propuesta', 'exencion_resuelta']) AS k ORDER BY 1);

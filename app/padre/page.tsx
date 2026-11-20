@@ -18,6 +18,7 @@ import FamilyClasses from "@/components/classes/FamilyClasses";
 import FamilySpecialPeriod from "@/components/special-periods/FamilySpecialPeriod";
 import FamilyEvaluations from "@/components/evaluations/FamilyEvaluations";
 import FamilyCalls from "@/components/llamadas/FamilyCalls";
+import FamilyTasks from "@/components/asignaturas/FamilyTasks";
 import Toast from "@/components/Toast";
 import NotificationBell from "@/components/skillcoins/NotificationBell";
 import { useStudentSkillcoins } from "@/components/skillcoins/useStudentSkillcoins";
@@ -661,6 +662,7 @@ export default function PadrePage() {
             </section>
           )}
 
+          {activeTab === "progreso" && <FamilyTasks studentId={selectedChild.id} studentName={selectedChild.name} />}
           {activeTab === "progreso" && (
             <div className="bg-white rounded-3xl p-6 border border-[#E7E3DC] shadow-xs space-y-5">
               <div className="flex justify-between items-center">
